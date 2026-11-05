@@ -7,7 +7,9 @@ async function createRoom(page: Page, title: string) {
   const opened = page.waitForEvent("popup");
   await page.getByRole("button", { name: "Googleでログインして部屋を作る" }).click();
   const popup = await opened;
+  await popup.waitForLoadState("load");
   await popup.getByText("Add new account", { exact: true }).click();
+  await expect(popup.getByLabel("Email", { exact: true })).toBeVisible();
   await popup.getByLabel("Email", { exact: true }).fill(`infra-${randomUUID()}@example.com`);
   await popup.getByRole("button", { name: "Sign in with Google.com", exact: true }).click();
   await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
