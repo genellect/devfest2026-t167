@@ -1,12 +1,12 @@
 # 開発への参加
 
-開発環境の起動から PR のマージまでの進め方。人も AI エージェントも同じルールに従い、エージェント向けの手順は [AGENTS.md](AGENTS.md) にある。GCP の構築手順はチームドキュメントの「インフラ構築手順書」にある。
+開発環境の起動から本番反映までの進め方。PR の確認と本番反映の依頼の手順は、[PR の確認から本番反映までの手順](docs/contributor-preview-guide.md) にある。人も AI エージェントも同じルールに従い、エージェント向けの手順は [AGENTS.md](AGENTS.md) にある。GCP の構築手順はチームドキュメントの「インフラ構築手順書」にある。
 
 ## 役割
 
 | 役割 | 担当 | 責任 |
 |---|---|---|
-| メンバー | チームの3人 | 実装、PR の作成、CI が通った PR のマージ（だれでもよい） |
+| メンバー | チームの3人 | 実装、PR の作成、プレビューの確認。本番反映は Yuto Matsui の事前承諾を受けた担当者が行う |
 | AI エージェント | Claude Code、Codex など | 依頼者の指示による実装と検査。成果物の責任は依頼者が持つ |
 
 ## 起動する
@@ -29,14 +29,15 @@ http://localhost:3000 を開き、参加コード `DEMO01` で参加する。Aut
 
 1. **ブランチを作る。** `git fetch origin main` のあと、最新の `origin/main` から作る。
 2. **変更する。** 1つの PR では1つの目的だけを扱い、関係するテストと文書を同じ PR で更新する。
-3. **PR を出す。** コミットしたら `bash scripts/dev.sh pr` を実行する。手元の検査（`check --quick`）、push、PR の作成、auto-merge の設定までを1回で行う。PR の本文にはコミットの件名が入るので、[PR テンプレート](.github/pull_request_template.md)の残りの項目を書き足す。途中で見せたいだけのときは `--no-merge` を付ける。
-4. **待つ。** CI が通ると自動で squash merge され、本番に反映される。文書だけの PR では重い検査を省く。CI が落ちたら直して push すれば、同じ PR で検査がやり直される。
-5. **レビューが要る PR。** Rules（`firebase/firestore.rules`）・`firebase.json`・`web/apphosting*.yaml`・ワークフロー（`.github/`）・構築スクリプト（`infra/`）を変える PR には、`pr` が auto-merge を付けない。もう1人に見てもらい、承認されたら `gh pr merge --auto --squash --delete-branch` を実行する。それ以外の PR はレビューを必須にしない。
+3. **PR を出す。** コミットしたら `bash scripts/dev.sh pr --no-merge` を実行する。手元の検査（`check --quick`）、push、PR の作成を1回で行い、auto-merge は付けない。PR の本文にはコミットの件名が入るので、[PR テンプレート](.github/pull_request_template.md)の残りの項目（背景・目的、検査とプレビューの結果、未確認のこと、スクリーンショット）を書き足す。
+4. **本番反映の承諾をもらう。** `main` へのマージから自動デプロイまでを「本番反映」と呼ぶ。始める前に、必ず Yuto Matsui（GitHub：`genellect`）の承諾を得る。承諾はその PR の本番反映への1回で、マージとデプロイで2回に分けない。CI・レビュー・プレビューの成功は承諾の代わりにならない。承諾を待つ間はマージせず、auto-merge も付けない。依頼の書き方は [PR の確認から本番反映までの手順](docs/contributor-preview-guide.md) の手順4。
+5. **本番反映する。** 承諾のあと、Yuto Matsui または任された担当者が、CI の成功と必要なレビューを確かめてから `bash scripts/dev.sh pr --approved` で auto-merge を付ける。CI が通ると squash merge され、`deploy` が本番に反映する。CI が落ちたら直して push すれば、同じ PR で検査がやり直される。
+6. **レビューが要る PR。** Rules（`firebase/firestore.rules`）・`firebase.json`・`web/apphosting*.yaml`・ワークフロー（`.github/`）・構築スクリプト（`infra/`）を変える PR には、`--approved` でも `pr` が auto-merge を付けない。もう1人のレビューと本番反映の承諾の両方を得てから、`gh pr merge --auto --squash --delete-branch` を実行する。それ以外の PR はレビューを必須にしない。
 
 ```bash
 git switch -c feat/consensus-gap-view
 git commit -am "feat(web): ずれの一覧を表示する"
-bash scripts/dev.sh pr
+bash scripts/dev.sh pr --no-merge   # 検査・push・PR。Yuto Matsui の本番反映の承諾を待つ
 ```
 
 ## ブランチとコミット
@@ -97,7 +98,7 @@ Gemini の費用は、ほぼ「モデル」と「思考レベル」で決まる�
 
 - 依頼するときは、目的・変更してよい範囲・完了条件を書く。
 - 並行して動かすエージェントには、別々のブランチと `git worktree` を割り当て、同じファイルを編集させない。
-- エージェントの PR は、依頼者が中身を確かめてからマージする。マージや本番の操作は、依頼者がその PR について指示したときだけさせる。
+- エージェントも PR を `bash scripts/dev.sh pr --no-merge` で出す。本番反映（マージと auto-merge を含む）は、Yuto Matsui がその PR の本番反映を承諾したときだけさせる。本番の GCP の操作も、依頼者が指示したときだけさせる。
 - エージェントが付ける `Co-Authored-By` 行はコミットに残す。
 - 引き継ぎは PR の説明に書く。セッションごとの引き継ぎ文書は作らない。
 

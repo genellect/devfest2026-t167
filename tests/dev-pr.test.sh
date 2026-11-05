@@ -45,14 +45,21 @@ fresh
 if run; then
   grep -q "^pr create --base main --title feat(web): 一つ目" "$GH_LOG" && ok "PR のタイトルは最初のコミットの件名" || ng "PR のタイトル（$(cat "$GH_LOG")）"
   grep -q "^- feat(web): 一つ目$" "$GH_BODY" && grep -q "^- fix(web): 二つ目$" "$GH_BODY" && ok "本文の変更内容にコミットの件名が入る" || ng "本文の変更内容"
-  grep -q "^pr merge --auto --squash --delete-branch" "$GH_LOG" && ok "コードの変更には auto-merge を付ける" || ng "auto-merge"
+  ! grep -q "^pr merge" "$GH_LOG" && grep -q "承諾を依頼" "$T/out" && ok "既定では auto-merge を付けず、承諾の依頼を案内する" || ng "既定の auto-merge（$(cat "$GH_LOG")）"
   git -C "$T/origin.git" rev-parse -q --verify refs/heads/feat/a >/dev/null && ok "ブランチを push する" || ng "push"
 else ng "通常の PR（$(cat "$T/out")）"; fi
 
 fresh
+(cd "$T/w" && git switch -qc feat/c && echo x > c.txt && G add -A && G commit -qm "feat: c")
+if run --approved; then
+  grep -q "^pr merge --auto --squash --delete-branch" "$GH_LOG" && ok "--approved（本番反映の承諾後）で auto-merge を付ける" || ng "--approved（$(cat "$GH_LOG")）"
+else ng "--approved の PR（$(cat "$T/out")）"; fi
+run --merge-now && ng "知らない指定は止まる" || ok "知らない指定は止まる"
+
+fresh
 (cd "$T/w" && git switch -qc fix/rules && mkdir -p firebase && echo x > firebase/firestore.rules && G add -A && G commit -qm "fix(firebase): Rules")
-if run; then
-  ! grep -q "^pr merge" "$GH_LOG" && grep -q "auto-merge を付けません" "$T/out" && ok "Rules の変更には auto-merge を付けない" || ng "Rules の変更"
+if run --approved; then
+  ! grep -q "^pr merge" "$GH_LOG" && grep -q "auto-merge を付けません" "$T/out" && ok "Rules の変更には承諾後でも auto-merge を付けない（レビューが要る）" || ng "Rules の変更"
 else ng "Rules の PR（$(cat "$T/out")）"; fi
 
 fresh

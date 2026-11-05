@@ -19,7 +19,7 @@
 - クレジットコード、サービスアカウントの鍵（`GCP_SA_KEY`）、トークンを、コード・ログ・Issue・PR・スクリーンショットに書かない。このリポジトリも提出用リポジトリも公開されている。
 - 非公開の事前意見の本文を、本人以外（司会者、他の参加者、ログ）に出さない。Rules と API の両方で守る（`firebase/firestore.rules`、`api/src/app.ts`）。
 - 実行していない・失敗した検査を、通ったと報告しない。
-- `main` へのマージはそのまま本番への反映になる。依頼者がその PR のマージを指示した場合にだけマージする。実装・push・PR 作成の依頼に、マージの許可は含まれない。
+- `main` へのマージから自動デプロイまでを「本番反映」と呼ぶ。本番反映は、Yuto Matsui（GitHub：`genellect`）がその PR の本番反映を事前に承諾したときだけ行う。承諾は本番反映への1回で、マージとデプロイで分けない。実装・push・PR 作成の依頼や、CI・レビュー・プレビューの成功は、承諾の代わりにならない。
 - 提出用リポジトリ（Devfest-Hackathon-2026/df-2026-t167）への commit と push は人が行う。エージェントは `scripts/submit.sh` の実行までにとどめる。
 
 ## 手順書を毎回読む
@@ -44,7 +44,7 @@
    - Gemini のモデル・思考レベル → [CONTRIBUTING](CONTRIBUTING.md#gemini-のモデルと費用) の手順で今の設定と比べた結果を PR に貼る。モデルの変更は依頼者の承認を得てから
 5. `bash scripts/dev.sh check` を通す。CI とまったく同じ検査で、通らなければ PR を出さない。PR は `bash scripts/dev.sh pr --no-merge` で出す（手元の検査、push、PR の作成まで行う）。
 6. PR は[テンプレート](.github/pull_request_template.md)のすべての項目を書く。実行したコマンドと結果を書き、未実施・失敗・残る制約を分けて書く。画面を変えたらスマホ幅のスクリーンショットを貼る。
-7. PR を出す前に、手順書の「開発のルール」と「実装担当の開発 UX（到達条件）」を読み直す。依頼者がマージを指示した場合だけ、`--no-merge` を付けずに `bash scripts/dev.sh pr` を実行する（PR がすでにあれば auto-merge だけを付ける）。auto-merge は CI が通った head だけをマージし、後から push すると CI をやり直すので、確かめていないコミットはマージされない。Rules・ワークフロー・構築スクリプトを変えた PR には auto-merge が付かないので、レビューを待つよう依頼者に伝える。
+7. PR を出す前に、手順書の「開発のルール」と「実装担当の開発 UX（到達条件）」を読み直す。PR を出したら、[PR の確認から本番反映までの手順](docs/contributor-preview-guide.md)に従い、プレビューの結果と本番反映の承諾の依頼を PR に書く。Yuto Matsui がその PR の本番反映を承諾した場合だけ、`bash scripts/dev.sh pr --approved` で auto-merge を付ける（PR がすでにあれば auto-merge だけを付ける）。auto-merge は CI が通った head だけをマージし、後から push すると CI をやり直すので、確かめていないコミットはマージされない。Rules・ワークフロー・構築スクリプトを変えた PR には `--approved` でも auto-merge が付かないので、レビューを待つよう依頼者に伝える。
 8. 引き継ぎは PR の説明に書く。セッションごとの引き継ぎ文書は作らない。
 
 ## 報告
