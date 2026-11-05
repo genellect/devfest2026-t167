@@ -24,7 +24,7 @@ export default defineConfig({
     { name: "mobile", use: { ...devices["Pixel 7"] } },
   ],
   webServer: [
-    { command: "npm --prefix ../api run start", url: "http://127.0.0.1:8081/healthz", env: emulatorEnv, reuseExistingServer: !process.env.CI },
+    { command: "npm --prefix ../api run start", url: "http://127.0.0.1:8081/health", env: emulatorEnv, reuseExistingServer: !process.env.CI },
     { command: "npm run start -- -H 127.0.0.1 -p 3000", url: "http://127.0.0.1:3000", reuseExistingServer: !process.env.CI },
   ],
 });

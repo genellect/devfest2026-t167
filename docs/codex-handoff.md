@@ -92,7 +92,7 @@ Codex と Claude は同格のメインエンジニアとして、目的に向け
 | 8 | **目標3を確かめる。** `bash scripts/dev.sh pr` でコードの PR を出す | Codex | CI が通った PR が、人の操作なしに squash merge される。Rules を変える PR には auto-merge が付かない |
 | 9 | CI を GitHub で確かめる。文書だけの PR とコードの PR を1つずつ出す | Codex | 文書だけの PR で test が省かれ、コードの PR で test が通る。所要時間を README に書く |
 | 10 | 初回のデプロイ。オーナーの指示で main にマージする | Codex と人 | deploy が成功し、サマリーにコミットと API のリビジョンがある |
-| 11 | 本番の確認 | Codex と人 | 本番の URL が開き、`/api/healthz` が `{"ok":true,"gemini":"gemini"}` を返す。司会者が Google ログインで部屋を作り、参加者が参加コードで匿名で参加できる |
+| 11 | 本番の確認 | Codex と人 | 本番の URL が開き、`/api/health` が `{"ok":true,"gemini":"gemini"}` を返す（Cloud Run は `/healthz` を予約していてコンテナに届かない）。司会者が Google ログインで部屋を作り、参加者が参加コードで匿名で参加できる |
 | 12 | ロールバックの確認。Run workflow で直前の成功したコミットを指定する | Codex（オーナーの指示を受けて） | 成功し、成功していないコミットの指定は止まる |
 | 13 | **目標4を確かめる。** 編集者の権限で ADC を作り、`GEMINI_MOCK=0 bash scripts/dev.sh serve` で分析を実行する | Codex | 手元のエミュレータで、本物の Gemini の提案が司会者の画面に出る |
 | 13a | `.devcontainer` を Codespaces（VS Code から）で開き、`serve` と `check` を実行する | Codex か人 | 画面から参加コード DEMO01 で参加でき、check が通る |
