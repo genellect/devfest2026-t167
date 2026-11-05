@@ -162,6 +162,17 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
     res.json({ jobId, suggested: points.filter((x) => !x.discussed).length, total: points.length });
   })));
 
+  // 提出状況（司会者）。非公開の事前意見と合意の一文は、本文を返さず件数だけを返す
+  app.post('/rooms/:roomId/progress', ...chain(authenticate, member, moderator, wrap(async (req, res) => {
+    const roomId = req.params.roomId;
+    const [participants, opinions, statements] = await Promise.all([
+      db.collection(`rooms/${roomId}/members`).where('role', '==', 'participant').count().get(),
+      db.collection(`rooms/${roomId}/privateOpinions`).count().get(),
+      db.collection(`rooms/${roomId}/consensusStatements`).count().get(),
+    ]);
+    res.json({ participants: participants.data().count, opinions: opinions.data().count, statements: statements.data().count });
+  })));
+
   // 提案の承認（司会者）
   app.post('/rooms/:roomId/insights/:insightId/approve', ...chain(authenticate, member, moderator, wrap(async (req, res) => {
     const ref = db.doc(`rooms/${req.params.roomId}/insights/${req.params.insightId}`);

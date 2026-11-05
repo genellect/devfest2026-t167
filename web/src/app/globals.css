@@ -1,0 +1,169 @@
+/*
+ * デザイントークン（Figma「DevFest」v0.5 から）。
+ * 先生は PC（1440px）、生徒はタブレット横向き（1180×820）を基準にする。スマホ対応は後から足す。
+ */
+:root {
+  --c-ink: #000;
+  --c-paper: #fff;
+  --c-bg: #eef0ff;
+  --c-tint: #dde0ff;
+  --c-blue: #3944f1;
+  --c-yellow: #ffe14d;
+  --c-pink: #ff8fa3;
+  --c-mint: #7df0c8;
+
+  --line: 3px solid var(--c-ink);
+  --shadow-lg: 8px 8px 0 var(--c-ink);
+  --shadow-md: 6px 6px 0 var(--c-ink);
+  --shadow-sm: 5px 5px 0 var(--c-ink);
+  --shadow-btn: 4px 4px 0 var(--c-ink);
+
+  --font: "Zen Kaku Gothic New", "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--c-bg);
+  color: var(--c-ink);
+  font-family: var(--font);
+  font-weight: 700;
+  line-height: 1.5;
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, p { margin: 0; }
+button, input, textarea, select { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--c-blue); outline-offset: 3px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- 画面の骨組み ---------- */
+.screen { min-height: 100dvh; display: flex; flex-direction: column; }
+.header {
+  background: var(--c-paper);
+  border-bottom: var(--line);
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 32px;
+}
+.header__title { flex: 1; min-width: 0; }
+.header__eyebrow { font-size: 14px; }
+.header__name { font-size: 22px; font-weight: 900; }
+.header__actions { display: flex; align-items: center; gap: 14px; }
+.body { flex: 1; padding: 32px; display: flex; flex-direction: column; gap: 24px; }
+.body--center { align-items: center; justify-content: center; }
+.body--tablet { padding: 20px 24px; gap: 18px; }
+
+/* ---------- 箱 ---------- */
+.box { background: var(--c-paper); border: var(--line); }
+.box--lg { box-shadow: var(--shadow-lg); }
+.box--md { box-shadow: var(--shadow-md); }
+.box--sm { box-shadow: var(--shadow-sm); }
+.box--blue { background: var(--c-blue); color: var(--c-paper); }
+.box--yellow { background: var(--c-yellow); }
+.box--pink { background: var(--c-pink); }
+.box--tint { background: var(--c-tint); }
+.box--bg { background: var(--c-bg); }
+
+.card { padding: 28px; display: flex; flex-direction: column; gap: 14px; width: min(760px, 100%); }
+.card--narrow { width: min(560px, 100%); }
+.card__title { font-size: 30px; font-weight: 900; }
+
+/* ---------- タグとボタン ---------- */
+.tag {
+  display: inline-block; border: var(--line); background: var(--c-paper);
+  padding: 3px 10px; font-size: 14px; white-space: nowrap;
+}
+.tag--yellow { background: var(--c-yellow); }
+.tag--tint { background: var(--c-tint); }
+.tag--blue { background: var(--c-blue); color: var(--c-paper); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: var(--line); box-shadow: var(--shadow-btn);
+  background: var(--c-paper); color: var(--c-ink); padding: 12px 22px;
+  font-size: 17px; font-weight: 900; cursor: pointer; text-decoration: none; white-space: nowrap;
+  transition: transform 80ms ease, box-shadow 80ms ease;
+}
+.btn:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--c-ink); }
+.btn:active:not(:disabled) { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--c-ink); }
+.btn:disabled { cursor: not-allowed; opacity: .55; box-shadow: none; }
+.btn--blue { background: var(--c-blue); color: var(--c-paper); }
+.btn--yellow { background: var(--c-yellow); }
+.btn--ink { background: var(--c-ink); color: var(--c-paper); }
+.btn--block { width: 100%; }
+.btn--small { padding: 6px 14px; font-size: 15px; }
+
+/* ---------- 入力 ---------- */
+.field { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.field__label { font-size: 17px; }
+.field__hint { font-size: 15px; font-weight: 500; }
+.input {
+  width: 100%; border: var(--line); background: var(--c-paper);
+  padding: 12px 14px; font-size: 18px; font-weight: 700; border-radius: 0;
+}
+.input::placeholder { color: #6b6f8f; font-weight: 500; }
+textarea.input { resize: vertical; min-height: 96px; }
+.input--code { font-size: 32px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+
+/* 選択ボタンの並び（目標の達成度など） */
+.choices { display: flex; flex-wrap: wrap; gap: 10px; }
+.choice {
+  flex: 1 1 0; min-width: 112px; border: var(--line); background: var(--c-paper);
+  padding: 10px 12px; font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.choice[aria-pressed="true"] { background: var(--c-ink); color: var(--c-paper); }
+
+/* ---------- 文字 ---------- */
+.t-hero { font-size: 46px; font-weight: 900; line-height: 1.2; }
+.t-xl { font-size: 40px; font-weight: 900; line-height: 1.2; }
+.t-lg { font-size: 30px; font-weight: 900; }
+.t-md { font-size: 24px; font-weight: 900; }
+.t-sm { font-size: 19px; font-weight: 900; }
+.t-label { font-size: 17px; }
+.t-note { font-size: 15px; font-weight: 500; }
+.t-small { font-size: 14px; font-weight: 500; }
+
+/* ---------- レイアウト ---------- */
+.row { display: flex; gap: 18px; align-items: stretch; }
+.row > * { flex: 1 1 0; min-width: 0; }
+.stack { display: flex; flex-direction: column; gap: 14px; }
+.stack--tight { gap: 6px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 28px; flex: 1; }
+.heading-row { display: flex; align-items: center; gap: 8px; }
+.heading-row > :first-child { flex: 1; min-width: 0; }
+.pad { padding: 22px; }
+.pad-lg { padding: 36px; }
+
+/* ---------- 状態表示 ---------- */
+.notice { border: var(--line); padding: 10px 14px; background: var(--c-paper); }
+.notice--warn { background: var(--c-yellow); }
+.notice--error { background: var(--c-pink); }
+.empty { color: #4a4e6a; font-weight: 500; }
+
+/* フェーズの段階表示 */
+.steps { display: flex; gap: 0; list-style: none; margin: 0; padding: 0; }
+.steps li {
+  border: var(--line); margin-left: -3px; padding: 4px 12px; font-size: 14px;
+  background: var(--c-paper); white-space: nowrap;
+}
+.steps li:first-child { margin-left: 0; }
+.steps li[aria-current="step"] { background: var(--c-ink); color: var(--c-paper); }
+.steps li[data-done="true"] { background: var(--c-tint); }
+
+/* 発言の一覧 */
+.feed { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.bubble { border: var(--line); background: var(--c-paper); padding: 10px 14px; font-size: 17px; max-width: 80%; }
+.bubble--mine { align-self: flex-end; background: var(--c-tint); }
+.bubble__who { font-size: 13px; font-weight: 500; }
+
+/* 割合のバー */
+.meter { height: 18px; border: var(--line); background: var(--c-paper); }
+.meter > span { display: block; height: 100%; background: var(--c-blue); }
+
+/* 読み込み中 */
+.loading { display: grid; place-items: center; min-height: 100dvh; font-size: 22px; font-weight: 900; }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn { transition: none; }
+}

@@ -26,6 +26,7 @@ test("参加コードで参加し、非公開の意見を提出できる", async
   const { joinCode } = await created.json();
 
   await page.goto("/");
+  await page.getByRole("link", { name: "参加コードを入力" }).click();
   await page.getByLabel("参加コード").fill(joinCode);
   await page.getByRole("button", { name: "参加する" }).click();
 
@@ -36,6 +37,11 @@ test("参加コードで参加し、非公開の意見を提出できる", async
   await expect(page.getByRole("status")).toHaveText("提出しました");
 });
 
+test("QR コードの URL では参加コードが入力済みになる", async ({ page }) => {
+  await page.goto("/join?code=demo01");
+  await expect(page.getByLabel("参加コード")).toHaveValue("DEMO01");
+});
+
 test("誤った参加コードではエラーが出る", async ({ page }) => {
   // 匿名のエミュレータ認証は、外部の Google スクリプトなしで完了する。
   let externalAuthRequests = 0;
@@ -43,7 +49,7 @@ test("誤った参加コードではエラーが出る", async ({ page }) => {
     externalAuthRequests++;
     return route.abort();
   });
-  await page.goto("/");
+  await page.goto("/join");
   await page.getByLabel("参加コード").fill("ZZZZZZ");
   await page.getByRole("button", { name: "参加する" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "参加コード" })).toContainText("参加コードが見つかりません");

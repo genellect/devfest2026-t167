@@ -1,35 +1,56 @@
 "use client";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { callApi } from "@/lib/api";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { Header } from "@/components/ui";
+import { getHistory, getNextGoal, getReflection, shortDate, type HistoryItem } from "@/lib/local";
 
-export default function Home() {
-  const router = useRouter();
-  const [code, setCode] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function join(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true); setError("");
-    try {
-      const { roomId } = await callApi<{ roomId: string }>("/rooms/join", { code });
-      router.push(`/rooms/${roomId}`);
-    } catch (err) {
-      setError((err as Error).message);
-      setBusy(false);
-    }
-  }
+/** H2 生徒のホーム：前回決めた目標、今日の議論への入口、これまでの議論 */
+export default function StudentHome() {
+  const [goal, setGoal] = useState<{ text: string; at: number } | null>(null);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  useEffect(() => { setGoal(getNextGoal()); setHistory(getHistory("participant")); }, []);
 
   return (
-    <main style={{ maxWidth: 480, margin: "48px auto", padding: 16, fontFamily: "sans-serif" }}>
-      <h1>みんなの考えが活きる議論へ</h1>
-      <form onSubmit={join}>
-        <label htmlFor="code">参加コード</label>
-        <input id="code" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={6} autoComplete="off" style={{ display: "block", fontSize: 24, width: "100%", margin: "8px 0" }} />
-        <button type="submit" disabled={busy || code.length !== 6}>参加する</button>
-      </form>
-      {error && <p role="alert">{error}</p>}
+    <main className="screen">
+      <Header title="あなたのホーム">
+        <Link className="btn btn--small" href="/host">先生の方はこちら</Link>
+      </Header>
+      <div className="body body--tablet">
+        <div className="row" style={{ flex: "0 0 auto" }}>
+          <section className="box box--md box--yellow pad stack" style={{ flex: 2 }}>
+            <p className="t-label">前回決めた、次に挑戦したいこと</p>
+            {goal ? (
+              <>
+                <p className="t-lg">{goal.text}</p>
+                <p className="t-small">{shortDate(goal.at)}の振り返りより</p>
+              </>
+            ) : (
+              <p className="t-md">議論のあとに、次に挑戦したいことをここに残せます。</p>
+            )}
+          </section>
+          <section className="box box--md box--blue pad stack" style={{ justifyContent: "center" }}>
+            <h2 className="t-md">今日の議論に参加する</h2>
+            <Link className="btn btn--yellow btn--block" href="/join">参加コードを入力</Link>
+          </section>
+        </div>
+        <section className="box box--md pad stack" style={{ flex: 1 }}>
+          <h2 className="t-sm">これまでの議論</h2>
+          {history.length === 0 && <p className="empty">参加した議論が、この端末にここに並びます。</p>}
+          {history.map((h) => {
+            const r = getReflection(h.roomId);
+            return (
+              <div key={h.roomId} className="box box--bg pad" style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <span className="t-label">{shortDate(h.at)}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p className="t-sm">{h.title}</p>
+                  {r.goal && <p className="t-small">目標：{r.goal}{r.achieved ? `　${r.achieved}` : ""}</p>}
+                </div>
+                <Link className="btn btn--small" href={`/rooms/${h.roomId}`}>振り返りを見る</Link>
+              </div>
+            );
+          })}
+        </section>
+      </div>
     </main>
   );
 }

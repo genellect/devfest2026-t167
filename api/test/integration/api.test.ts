@@ -136,6 +136,17 @@ describe('未検討論点の分析', () => {
   });
 });
 
+describe('提出状況', () => {
+  it('司会者は件数だけを受け取り、本文は返らない。参加者は 403', async () => {
+    const { roomId, mod, p1 } = await setupRoom();
+    await db.doc(`rooms/${roomId}/privateOpinions/${uidOf(p1)}`).set({ text: '非公開の本文', updatedAt: FieldValue.serverTimestamp() });
+    const r = await api(mod).post(`/rooms/${roomId}/progress`).expect(200);
+    expect(r.body).toEqual({ participants: 2, opinions: 1, statements: 0 });
+    expect(JSON.stringify(r.body)).not.toContain('非公開の本文');
+    await api(p1).post(`/rooms/${roomId}/progress`).expect(403);
+  });
+});
+
 describe('承認と合意の検証', () => {
   it('参加者は承認できず、司会者は承認でき、2回目は 409', async () => {
     const { roomId, mod, p1 } = await setupRoom();

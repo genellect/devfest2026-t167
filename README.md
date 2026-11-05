@@ -71,6 +71,7 @@
 | `POST /rooms/join` | 必要（匿名で可） | —（参加コードで部屋を特定） | — | `closed` 以外 |
 | `POST /rooms/{部屋}/phase` | 必要 | 必要 | 必要 | 1つずつ順に進める |
 | `POST /rooms/{部屋}/analyze` | 必要 | 必要 | 必要 | `discussing` |
+| `POST /rooms/{部屋}/progress` | 必要 | 必要 | 必要 | — |
 | `POST /rooms/{部屋}/insights/{提案}/approve` | 必要 | 必要 | 必要 | — |
 | `POST /rooms/{部屋}/consensus/analyze` | 必要 | 必要 | 必要 | `consensus` |
 
