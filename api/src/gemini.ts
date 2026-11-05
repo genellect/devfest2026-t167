@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 import { z } from 'zod';
 
 export interface Point { summary: string; discussed: boolean }
@@ -20,6 +20,17 @@ function withTimeout<T>(p: Promise<T>): Promise<T> {
   return Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error('gemini_timeout')), TIMEOUT_MS))]);
 }
 
+/**
+ * 生成の設定。思考レベルは LOW にする。論点の判定と一文のまとめに深い推論は要らず、
+ * 思考に使ったトークンも出力として課金されるため（既定の MEDIUM より費用が約半分）。
+ * モデルや思考レベルを変えるときは CONTRIBUTING の「Gemini のモデルと費用」の手順で比べてから決める。
+ */
+export const GENERATION_CONFIG = {
+  responseMimeType: 'application/json',
+  temperature: 0,
+  thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+} as const;
+
 /** Vertex AI 経由の Gemini。API キーは使わず、Cloud Run のサービスアカウントで認証する */
 export function vertexGemini(project: string, location: string, model: string): Gemini {
   const ai = new GoogleGenAI({ vertexai: true, project, location });
@@ -27,7 +38,7 @@ export function vertexGemini(project: string, location: string, model: string): 
     const res = await withTimeout(ai.models.generateContent({
       model,
       contents: prompt,
-      config: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0 },
+      config: { ...GENERATION_CONFIG, responseSchema: schema },
     }));
     return parse.parse(JSON.parse(res.text ?? '{}'));
   }

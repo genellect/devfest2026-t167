@@ -41,6 +41,7 @@
    - `firebase/firestore.rules` → `firebase/test/rules.test.mjs`
    - 指標の計算（`api/src/metrics.ts`）→ 単体テストと README の指標の表
    - 起動・検査の手順 → `scripts/dev.sh`、README、CONTRIBUTING
+   - Gemini のモデル・思考レベル → [CONTRIBUTING](CONTRIBUTING.md#gemini-のモデルと費用) の手順で今の設定と比べた結果を PR に貼る。モデルの変更は依頼者の承認を得てから
 5. `bash scripts/dev.sh check` を通す。CI とまったく同じ検査で、通らなければ PR を出さない。PR は `bash scripts/dev.sh pr --no-merge` で出す（手元の検査、push、PR の作成まで行う）。
 6. PR は[テンプレート](.github/pull_request_template.md)のすべての項目を書く。実行したコマンドと結果を書き、未実施・失敗・残る制約を分けて書く。画面を変えたらスマホ幅のスクリーンショットを貼る。
 7. PR を出す前に、手順書の「開発のルール」と「実装担当の開発 UX（到達条件）」を読み直す。依頼者がマージを指示した場合だけ、`--no-merge` を付けずに `bash scripts/dev.sh pr` を実行する（PR がすでにあれば auto-merge だけを付ける）。auto-merge は CI が通った head だけをマージし、後から push すると CI をやり直すので、確かめていないコミットはマージされない。Rules・ワークフロー・構築スクリプトを変えた PR には auto-merge が付かないので、レビューを待つよう依頼者に伝える。

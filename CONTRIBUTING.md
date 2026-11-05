@@ -57,6 +57,42 @@ bash scripts/dev.sh pr
 
 PR の CI は、同じブランチの新しい実行が古い実行を取り消す。`main` の実行は取り消さない。
 
+## Gemini のモデルと費用
+
+Gemini の費用は、ほぼ「モデル」と「思考レベル」で決まる（接続方式を Gemini API に替えても、1トークンあたりの料金はほぼ同じ）。思考に使ったトークンも出力として課金される。
+
+| 項目 | 今の設定 | 置き場所 |
+|---|---|---|
+| モデル | `gemini-3.5-flash`（2027-05-19 以降まで提供） | `infra/env.sh` と GitHub の Variables の `GEMINI_MODEL` |
+| 接続先 | `global`（東京では通常の従量課金がない） | `infra/env.sh` と Variables の `VERTEX_LOCATION` |
+| 思考レベル | `LOW`（既定の `MEDIUM` より費用が約半分） | `api/src/gemini.ts` の `GENERATION_CONFIG` |
+| temperature | 0 | 同上 |
+
+### 次に検討すること：Flash-Lite への切り替え（未決定）
+
+`gemini-3.5-flash-lite` は、思考 LOW どうしで今の約4分の1、思考 MEDIUM だった頃の約8分の1の費用になる見込み（第三者の料金表から計算）。ただし精度は低めとされるので、**本物のデータで比べてから**決める。モデルの変更は依頼者が承認した方針の変更なので、比べた結果を PR に貼り、依頼者の承認を得てから切り替える。
+
+1. 比べる議論を1つ決める。手元のエミュレータで部屋を作り、事前意見4件・発言20件・合意の一文3件を、2回とも同じ文で入れる（本番の部屋の本文は使わない）。
+2. 今のモデルで、未検討論点の分析と合意の分析を実行し、提案された論点（`insights`）と合意のまとまり（`results/summary`）を記録する。
+   ```bash
+   GEMINI_MOCK=0 bash scripts/dev.sh serve
+   ```
+3. Flash-Lite で同じ操作をして記録する。起動時の表示に `gemini-3.5-flash-lite` と出ることを確かめる。
+   ```bash
+   GEMINI_MODEL_OVERRIDE=gemini-3.5-flash-lite GEMINI_MOCK=0 bash scripts/dev.sh serve
+   ```
+4. 次の観点で表にする。
+
+   | 観点 | 確かめ方 |
+   |---|---|
+   | 未検討論点の取りこぼし・誤り | 人が入れた「まだ話していない論点」が出るか。話した論点を未検討と言わないか |
+   | 論点の要約 | 司会者がそのまま全員に見せられる文か。個人が特定できる表現がないか |
+   | 合意のまとまり | 意味が同じ一文が同じまとまりに入るか（認識一致度が人の判断と合うか） |
+   | 失敗の回数 | JSON の形が崩れて `503` になった回数 |
+   | 応答時間 | 分析ボタンを押してから結果が出るまで |
+5. 差が小さければ、切り替えの PR を出す。`infra/env.sh` の `GEMINI_MODEL` を変え（`tests/config.test.sh` が値を確かめる）、マージの前に GitHub の Variables の `GEMINI_MODEL` を同じ値にする。
+6. Flash-Lite が思考レベル `LOW` に対応せず `400` になるときは、対応している思考レベルを公式のモデル情報で確かめ、`GENERATION_CONFIG` と一緒に比べ直す。
+
 ## AI エージェントの使い方
 
 - 依頼するときは、目的・変更してよい範囲・完了条件を書く。

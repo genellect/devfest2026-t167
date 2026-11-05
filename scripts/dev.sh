@@ -47,6 +47,8 @@ serve() {
   if [ "$mock" = 0 ]; then
     # 本物の Gemini：Firestore と Auth はエミュレータのまま、Vertex AI だけ本番のプロジェクトを使う
     source infra/env.sh
+    # モデルの比較だけに使う（CONTRIBUTING の「Gemini のモデルと費用」）。本番のモデルは infra/env.sh と GitHub の Variables
+    [ -n "${GEMINI_MODEL_OVERRIDE:-}" ] && GEMINI_MODEL="$GEMINI_MODEL_OVERRIDE"
     local v
     for v in PROJECT_ID VERTEX_LOCATION GEMINI_MODEL; do
       case "${!v:-}" in ""|*ここに*) echo "NG: infra/env.sh の $v を決めてください" >&2; exit 1 ;; esac
