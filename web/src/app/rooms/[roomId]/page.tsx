@@ -26,5 +26,5 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   if (!room.data || !role) return <Loading />;
   return role === "moderator"
     ? <HostRoom roomId={roomId} room={room.data} />
-    : <ParticipantRoom roomId={roomId} room={room.data} uid={uid!} group={member.data?.group ?? 1} />;
+    : <ParticipantRoom roomId={roomId} room={room.data} uid={uid!} group={member.data?.group ?? ((room.data.groups ?? 1) <= 1 ? 1 : undefined)} />;
 }

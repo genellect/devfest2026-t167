@@ -1,41 +1,91 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { FlowTimeline, GoodReview, useFlow } from "@/components/flow";
-import { Header, PhaseSteps, SourceTag, Tag, useGeminiSource } from "@/components/ui";
+import { Header, PhaseSteps, SourceTag, Tag, useGeminiSource, type Phase } from "@/components/ui";
 import { callApi } from "@/lib/api";
-import { firebase } from "@/lib/firebase";
 import { formatMetric } from "@/lib/format";
 import { getNextGoal, getReflection, saveReflection } from "@/lib/local";
 import { mmss, useRecorder } from "@/lib/recorder";
-import { useDoc, useInsights, type GroupResult, type Room } from "@/lib/room";
+import { groupStatus, useDoc, useInsights, useMembers, type GroupResult, type GroupStatus, type Room } from "@/lib/room";
 
-interface Props { roomId: string; room: Room; uid: string; group: number }
+interface Props { roomId: string; room: Room; uid: string; group?: number }
 
-/** 生徒（タブレット横向き）の画面。部屋のフェーズで切り替える */
+const STEP_OF: Record<GroupStatus, Phase> = { opinions: "collecting", discussing: "discussing", consensus: "consensus", done: "closed" };
+
+/**
+ * 生徒（タブレット横向き）の画面。グループはそれぞれのペースで進む：
+ * グループを選ぶ → 事前の意見（全員そろうまで待つ）→ 議論 → 結論の一文（全員そろうまで待つ）→ 結果と振り返り
+ */
 export function ParticipantRoom({ roomId, room, uid, group }: Props) {
   const source = useGeminiSource();
-  const gs = room.groupState?.[String(group)];
+  const [choosing, setChoosing] = useState(false);
+  const status = group ? groupStatus(room, group) : "opinions";
+  const gs = group ? room.groupState?.[String(group)] : undefined;
   // グループの結果。全員の一文がそろうと API が書く
-  const result = useDoc<GroupResult>(room.phase !== "collecting" ? `rooms/${roomId}/results/group-${group}` : undefined).data;
-  const writing = !result && room.phase !== "closed" && (room.phase === "consensus" || gs?.status === "consensus" || gs?.status === "done");
+  const result = useDoc<GroupResult>(group ? `rooms/${roomId}/results/group-${group}` : undefined).data;
+  const closed = room.phase === "closed";
+  const showResult = !!result || closed;
+  const writing = !showResult && (status === "consensus" || status === "done" || room.phase === "consensus");
   return (
     <main className="screen">
-      <Header eyebrow={(room.groups ?? 1) > 1 ? `あなたはグループ${group}` : undefined} title={room.title} demo={source === "mock"}>
-        <PhaseSteps phase={room.phase} />
+      <Header eyebrow={group && (room.groups ?? 1) > 1 ? `あなたはグループ${group}` : undefined} title={room.title} demo={source === "mock"}>
+        <PhaseSteps phase={closed ? "closed" : STEP_OF[showResult ? "done" : writing ? "consensus" : status]} />
         <Link className="btn btn--small" href="/student">ホーム</Link>
       </Header>
-      {room.phase === "collecting" && <OpinionStep roomId={roomId} uid={uid} />}
-      {room.phase === "discussing" && !gs?.status && !result && <VoiceStep roomId={roomId} />}
-      {writing && <ConsensusStep roomId={roomId} uid={uid} title={room.title} submitted={gs?.submitted} total={gs?.total} />}
-      {(result || room.phase === "closed") && <ResultStep roomId={roomId} uid={uid} group={group} source={source} title={room.title} result={result ?? null} />}
+      {!showResult && (!group || choosing) && <GroupSelect roomId={roomId} room={room} current={group} onDone={() => setChoosing(false)} />}
+      {!showResult && group && !choosing && status === "opinions" && room.phase !== "consensus" && (
+        <OpinionStep roomId={roomId} uid={uid} total={gs?.total} opinions={gs?.opinions} canChange={(room.groups ?? 1) > 1} onChangeGroup={() => setChoosing(true)} />
+      )}
+      {!showResult && group && status === "discussing" && room.phase !== "consensus" && <VoiceStep roomId={roomId} />}
+      {writing && group && <ConsensusStep roomId={roomId} uid={uid} title={room.title} submitted={gs?.submitted} total={gs?.total} />}
+      {showResult && <ResultStep roomId={roomId} uid={uid} group={group ?? 1} source={source} title={room.title} result={result ?? null} />}
     </main>
   );
 }
 
-/** P2 目標と意見の入力。意見は本人だけが読める（司会者も読めない）。目標はこの端末にだけ残す */
-function OpinionStep({ roomId, uid }: { roomId: string; uid: string }) {
+/** 参加のあとにグループを選ぶ。議論を始めたグループには入れない */
+function GroupSelect({ roomId, room, current, onDone }: { roomId: string; room: Room; current?: number; onDone: () => void }) {
+  const members = useMembers(roomId, true).filter((m) => m.role === "participant");
+  const [busy, setBusy] = useState<number>();
+  const [error, setError] = useState("");
+  async function choose(g: number) {
+    setBusy(g); setError("");
+    try { await callApi(`/rooms/${roomId}/groups/choose`, { group: g }); onDone(); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(undefined); }
+  }
+  return (
+    <div className="body body--tablet">
+      <div className="stack stack--tight">
+        <h2 className="t-lg">あなたのグループを選んでください</h2>
+        <p className="t-label">先生に言われたグループを選びます。議論が始まる前なら、あとから変えられます。</p>
+      </div>
+      {error && <p className="notice notice--error" role="alert">{error}</p>}
+      <div className="grid-auto">
+        {Array.from({ length: room.groups ?? 1 }, (_, i) => i + 1).map((g) => {
+          const started = groupStatus(room, g) !== "opinions";
+          const n = members.filter((m) => m.group === g).length;
+          return (
+            <button key={g} className={`box box--md group-card${current === g ? " box--yellow" : ""}`} style={{ textAlign: "left", cursor: started ? "not-allowed" : "pointer" }}
+              disabled={started || busy !== undefined} onClick={() => choose(g)} aria-pressed={current === g}>
+              <span className="t-lg">グループ{g}</span>
+              <span className="t-small">{started ? "議論が始まっています" : `${n}人が参加中`}{current === g ? "・あなたのグループ" : ""}</span>
+              {busy === g && <span className="t-small">選んでいます…</span>}
+            </button>
+          );
+        })}
+      </div>
+      {current && <button className="btn" style={{ alignSelf: "flex-start" }} onClick={onDone}>グループ{current}のまま戻る</button>}
+    </div>
+  );
+}
+
+/** P2 目標と意見の入力。意見は本人だけが読める（司会者も読めない）。目標はこの端末にだけ残す。
+ * 出したあとは、グループ全員がそろうまで待つ（そろうと自動で議論の画面に変わる） */
+function OpinionStep({ roomId, uid, total, opinions, canChange, onChangeGroup }: {
+  roomId: string; uid: string; total?: number; opinions?: number; canChange: boolean; onChangeGroup: () => void;
+}) {
   const mine = useDoc<{ text: string }>(`rooms/${roomId}/privateOpinions/${uid}`).data;
   const [goal, setGoal] = useState("");
   const [opinion, setOpinion] = useState("");
@@ -54,7 +104,8 @@ function OpinionStep({ roomId, uid }: { roomId: string; uid: string }) {
     setError("");
     try {
       saveReflection(roomId, { goal: goal.trim() || undefined });
-      await setDoc(doc(firebase().db, `rooms/${roomId}/privateOpinions/${uid}`), { text: opinion.trim(), updatedAt: serverTimestamp() });
+      // API 経由で出す。グループ全員がそろうと、API がそのグループの議論を始める
+      await callApi(`/rooms/${roomId}/opinion`, { text: opinion.trim() });
       setSent(true);
     } catch (err) { setError(`提出できませんでした：${(err as Error).message}`); }
   }
@@ -62,7 +113,10 @@ function OpinionStep({ roomId, uid }: { roomId: string; uid: string }) {
   return (
     <div className="body body--center">
       <form className="box box--lg card" onSubmit={submit}>
-        <h2 className="card__title">議論の前に書く</h2>
+        <div className="heading-row">
+          <h2 className="card__title">議論の前に書く</h2>
+          {canChange && !mine && <button type="button" className="btn btn--small" onClick={onChangeGroup}>グループを選び直す</button>}
+        </div>
         {prev && (
           <div className="box box--yellow" style={{ padding: "10px 14px" }}>
             <p className="t-small" style={{ fontWeight: 700 }}>前回決めたこと</p>
@@ -82,6 +136,12 @@ function OpinionStep({ roomId, uid }: { roomId: string; uid: string }) {
         {error && <p className="notice notice--error" role="alert">{error}</p>}
         <button className="btn btn--blue btn--block" type="submit" disabled={!opinion.trim()}>{mine ? "書き直して提出する" : "提出する"}</button>
         {sent && <p className="notice" role="status">提出しました</p>}
+        {mine && (
+          <div className="notice notice--warn stack stack--tight">
+            <p className="t-label">グループのみんなの意見を待っています{total ? `（${opinions ?? 0}/${total}人）` : ""}</p>
+            <p className="t-note">全員がそろうと、自動で議論の画面に変わります。それまでは書き直せます。</p>
+          </div>
+        )}
       </form>
     </div>
   );

@@ -1,104 +1,75 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { FlowTimeline, GoodReview, useFlow } from "@/components/flow";
-import { Header, PhaseSteps, SourceTag, Tag, useGeminiSource } from "@/components/ui";
+import { Header, SourceTag, Tag, useGeminiSource } from "@/components/ui";
 import { ApiError, callApi } from "@/lib/api";
 import { formatMetric } from "@/lib/format";
 import Link from "next/link";
 import { getDuration, getRoomLabel } from "@/lib/local";
 import {
-  millis, useCountdown, useDoc, useGroupResults, useInsights, useMembers,
-  type Coverage, type GroupResult, type Insight, type Progress, type Room, type Summary,
+  groupStatus, millis, useDoc, useGroupResults, useInsights, useMembers,
+  type Coverage, type GroupResult, type Insight, type Room, type Summary,
 } from "@/lib/room";
 
 interface Props { roomId: string; room: Room }
 
-/** 先生（PC）の画面。事前意見 → 議論のダッシュボード（グループの進み具合と結果）→ クラス全体の結果 */
+/**
+ * 先生（PC）の画面。グループはそれぞれのペースで進むので、先生は一斉に開かない。
+ * 参加コードの表示 ⇄ ダッシュボード（グループの進み具合と結果）→ 授業を終える → クラス全体の結果
+ */
 export function HostRoom({ roomId, room }: Props) {
   const source = useGeminiSource();
   const summary = useDoc<Summary>(room.phase === "consensus" || room.phase === "closed" ? `rooms/${roomId}/results/summary` : undefined).data;
-  const results = useGroupResults(roomId, room.phase !== "collecting");
+  const results = useGroupResults(roomId, true);
+  const members = useMembers(roomId, true).filter((m) => m.role === "participant");
   const [phaseError, setPhaseError] = useState("");
   const [moving, setMoving] = useState(false);
-  const [view, setView] = useState<"dashboard" | "class" | number>("dashboard");
+  const [view, setView] = useState<"code" | "dashboard" | "class" | number>(members.length ? "dashboard" : "code");
 
-  async function advance(...to: Room["phase"][]) {
+  /** 授業を終える。部屋のフェーズを closed まで1つずつ進める */
+  async function finish() {
     setMoving(true); setPhaseError("");
-    try { for (const p of to) await callApi(`/rooms/${roomId}/phase`, { to: p }); }
-    catch (e) { setPhaseError((e as Error).message); }
+    try {
+      const order: Room["phase"][] = ["collecting", "discussing", "consensus", "closed"];
+      for (const p of order.slice(order.indexOf(room.phase) + 1)) await callApi(`/rooms/${roomId}/phase`, { to: p });
+      setView("class");
+    } catch (e) { setPhaseError((e as Error).message); }
     finally { setMoving(false); }
   }
 
   const [label, setLabel] = useState("");
   useEffect(() => { setLabel(getRoomLabel(roomId)); }, [roomId]);
   const closed = room.phase === "closed";
-  const current = closed && view === "dashboard" ? "class" : view;
+  const current = closed && (view === "dashboard" || view === "code") ? "class" : view;
   const eyebrow = typeof current === "number"
     ? `クラス全体 ＞ グループ${current}`
     : `${label ? `${label}　` : ""}${current === "class" ? "クラス全体の結果" : `参加コード ${room.joinCode ?? ""}`}`;
+  const back = typeof current === "number" ? (closed ? "class" : "dashboard") : current === "class" && !closed ? "dashboard" : current === "code" ? "dashboard" : undefined;
   return (
     <main className="screen">
       <Header eyebrow={eyebrow} title={typeof current === "number" ? `グループ${current}の話し合い` : room.title} demo={source === "mock"}>
-        <PhaseSteps phase={room.phase} />
-        {current !== "dashboard" && !(closed && current === "class") && (
-          <button className="btn btn--small" onClick={() => setView(typeof current === "number" && closed ? "class" : "dashboard")}>
-            {typeof current === "number" && closed ? "クラス全体に戻る" : "ダッシュボードに戻る"}
-          </button>
-        )}
-        {current === "dashboard" && room.phase !== "collecting" && results.length > 0 && (
-          <button className="btn btn--small" onClick={() => setView("class")}>クラス全体の結果</button>
-        )}
+        {back && <button className="btn btn--small" onClick={() => setView(back)}>{back === "class" ? "クラス全体に戻る" : "ダッシュボード"}</button>}
+        {current === "dashboard" && <button className="btn btn--small" onClick={() => setView("code")}>参加コードを表示</button>}
+        {current === "dashboard" && results.length > 0 && <button className="btn btn--small" onClick={() => setView("class")}>クラス全体の結果</button>}
         <Link className="btn btn--small" href="/host">ホーム</Link>
       </Header>
       {phaseError && <p className="notice notice--error" role="alert" style={{ margin: "16px 32px 0" }}>{phaseError}</p>}
-      {room.phase === "collecting" && <Lobby roomId={roomId} room={room} onStart={() => advance("discussing")} moving={moving} />}
-      {(room.phase === "discussing" || room.phase === "consensus") && current === "dashboard" && (
-        <Dashboard roomId={roomId} room={room} results={results} onOpen={setView} moving={moving}
-          onClose={() => advance(...(room.phase === "discussing" ? ["consensus", "closed"] as const : ["closed"] as const))} />
+      {!closed && current === "code" && <Lobby room={room} joined={members.length} onNext={() => setView("dashboard")} />}
+      {!closed && current === "dashboard" && (
+        <Dashboard roomId={roomId} room={room} results={results} members={members} onOpen={setView} onFinish={finish} moving={moving} />
       )}
-      {room.phase !== "collecting" && current === "class" && <ClassResult roomId={roomId} room={room} results={results} summary={summary ?? null} onOpen={setView} />}
-      {room.phase !== "collecting" && typeof current === "number" && (
+      {current === "class" && <ClassResult roomId={roomId} room={room} results={results} summary={summary ?? null} onOpen={setView} />}
+      {typeof current === "number" && (
         <GroupResultView result={results.find((r) => r.group === current) ?? null} group={current} roomId={roomId} source={source} />
       )}
     </main>
   );
 }
 
-/** 提出状況を数秒ごとに取り直す。本文は API から返らない（件数だけ） */
-function useProgress(roomId: string) {
-  const [p, setP] = useState<Progress>();
-  const load = useCallback(() => callApi<Progress>(`/rooms/${roomId}/progress`).then(setP).catch(() => {}), [roomId]);
-  useEffect(() => { load(); const t = setInterval(load, 4000); return () => clearInterval(t); }, [load]);
-  return p;
-}
-
-/** グループごとのカードの並び。status は各グループの状態を1行で返す */
-function GroupGrid({ p, render }: { p?: Progress; render: (g: NonNullable<Progress["byGroup"]>[number]) => { big: string; note: string; done?: boolean } }) {
-  if (!p?.byGroup) return <p className="empty">グループの状況を確認しています…</p>;
-  return (
-    <div className="grid-auto">
-      {p.byGroup.map((g) => {
-        const r = render(g);
-        return (
-          <section key={g.group} className={`box box--md group-card${r.done ? " box--tint" : ""}`}>
-            <p className="t-label">グループ{g.group}</p>
-            <p className="t-lg">{r.big}</p>
-            <p className="t-small">{r.note}</p>
-          </section>
-        );
-      })}
-    </div>
-  );
-}
-
-/** S3 参加コード・QR の表示 → S4 事前意見の提出状況 */
-function Lobby({ roomId, room, onStart, moving }: { roomId: string; room: Room; onStart: () => void; moving: boolean }) {
-  const p = useProgress(roomId);
-  // 参加者の数は Firestore の購読で数える（提出数だけ API の progress を使う）
-  const joined = useMembers(roomId, true).filter((m) => m.role === "participant").length;
+/** S3 参加コード・QR の表示。生徒は参加したあと、自分でグループを選ぶ */
+function Lobby({ room, joined, onNext }: { room: Room; joined: number; onNext: () => void }) {
   const [qr, setQr] = useState<string>();
-  const [view, setView] = useState<"code" | "status">("code");
   const code = room.joinCode ?? "";
   useEffect(() => {
     if (!code) return;
@@ -106,21 +77,6 @@ function Lobby({ roomId, room, onStart, moving }: { roomId: string; room: Room; 
       .then(setQr).catch(() => setQr(undefined));
   }, [code]);
 
-  if (view === "status") {
-    return (
-      <div className="body">
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 16 }}>
-          <div style={{ flex: 1 }}>
-            <h2 className="t-lg">{p ? `${p.opinions}/${p.participants}人が提出しました` : `${joined}人が参加しています`}</h2>
-            <p className="t-label">先生には提出した人数だけを表示します。本文は見えません。</p>
-          </div>
-          <button className="btn" onClick={() => setView("code")}>参加コードを表示</button>
-          <button className="btn btn--yellow" onClick={onStart} disabled={moving}>議論を始める</button>
-        </div>
-        <GroupGrid p={p} render={(g) => ({ big: `${g.opinions}/${g.participants}人`, note: "提出済み", done: g.participants > 0 && g.opinions === g.participants })} />
-      </div>
-    );
-  }
   return (
     <div className="body">
       <div className="split">
@@ -128,7 +84,7 @@ function Lobby({ roomId, room, onStart, moving }: { roomId: string; room: Room; 
           <p className="t-md" style={{ fontWeight: 700 }}>参加コード</p>
           <p data-testid="join-code" style={{ fontSize: 112, fontWeight: 900, lineHeight: 1.3, letterSpacing: ".04em" }}>{code}</p>
           <p style={{ fontSize: 20 }}>コードを入力するか、QRコードを読み取ってください。</p>
-          {(room.groups ?? 1) > 1 && <p className="t-label">参加した順に、{room.groups}つのグループに分かれます。</p>}
+          {(room.groups ?? 1) > 1 && <p className="t-label">参加したら、自分のグループ（1〜{room.groups}）を選びます。</p>}
         </section>
         <div className="stack" style={{ gap: 20 }}>
           <div className="box box--md" style={{ flex: 1, display: "grid", placeItems: "center", padding: 24, minHeight: 260 }}>
@@ -140,51 +96,54 @@ function Lobby({ roomId, room, onStart, moving }: { roomId: string; room: Room; 
             <p className="t-label">参加した人</p>
             <p className="t-xl">{joined}人</p>
           </div>
-          <button className="btn btn--yellow btn--block" onClick={() => setView("status")}>事前の記入状況を見る</button>
+          <button className="btn btn--yellow btn--block" onClick={onNext}>ダッシュボードを見る</button>
         </div>
       </div>
     </div>
   );
 }
 
-/** S5 議論のダッシュボード。残り時間、グループの進み具合（議論中・記入中・結果あり）、AI の提案 */
-function Dashboard({ roomId, room, results, onOpen, onClose, moving }: {
-  roomId: string; room: Room; results: GroupResult[]; onOpen: (g: number) => void; onClose: () => void; moving: boolean;
+const STATUS_LABEL = { opinions: "事前の意見", discussing: "話し合い中", consensus: "結論を記入中", done: "結果あり" } as const;
+
+/** S5 ダッシュボード。グループごとの進み具合（事前意見 → 話し合い → 結論の記入 → 結果）と AI の提案 */
+function Dashboard({ roomId, room, results, members, onOpen, onFinish, moving }: {
+  roomId: string; room: Room; results: GroupResult[]; members: { id: string; group?: number }[];
+  onOpen: (g: number) => void; onFinish: () => void; moving: boolean;
 }) {
-  const minutes = getDuration(roomId);
-  const timer = useCountdown(millis(room.phaseChangedAt?.discussing), minutes);
   const insights = useInsights(roomId, true, false);
   const coverage = useDoc<Coverage>(`rooms/${roomId}/results/coverage`).data;
-  const members = useMembers(roomId, true).filter((m) => m.role === "participant");
   const [confirm, setConfirm] = useState(false);
   const [busyGroup, setBusyGroup] = useState<number>();
   const [error, setError] = useState("");
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 15000); return () => clearInterval(t); }, []);
   const groupCount = room.groups ?? 1;
-  const done = results.length;
+  const minutes = getDuration(roomId);
+  const unassigned = members.filter((m) => !m.group && groupCount > 1).length;
 
-  async function analyzeNow(g: number) {
+  async function force(path: "start" | "analyze", g: number) {
     setBusyGroup(g); setError("");
-    try { await callApi(`/rooms/${roomId}/groups/analyze`, { group: g }); }
+    try { await callApi(`/rooms/${roomId}/groups/${path}`, { group: g }); }
     catch (e) { setError((e as Error).message); }
     finally { setBusyGroup(undefined); }
   }
 
   return (
     <div className="body" style={{ gap: 24 }}>
-      <section className="box box--lg box--blue" style={{ display: "flex", alignItems: "center", gap: 24, padding: "24px 32px" }}>
-        <div style={{ flex: 1 }}>
-          <p className="t-label">議論の残り時間</p>
-          <p style={{ fontSize: 56, fontWeight: 900, lineHeight: 1.2 }} aria-live="off">{timer.over ? "時間です" : timer.text}</p>
+      <section className="box box--lg box--blue" style={{ display: "flex", alignItems: "center", gap: 28, padding: "22px 32px" }}>
+        <div style={{ flex: 1 }} className="stack stack--tight">
+          <p className="t-label">授業の進み具合</p>
+          <p style={{ fontSize: 40, fontWeight: 900, lineHeight: 1.2 }}>結果が出たグループ {results.length}/{groupCount}</p>
         </div>
         <div className="stack stack--tight" style={{ textAlign: "right" }}>
-          <p className="t-label">結果が出たグループ {done}/{groupCount}</p>
+          <p className="t-label">参加 {members.length}人{unassigned ? `・グループ未選択 ${unassigned}人` : ""}</p>
           {coverage && <p className="t-label">事前意見の論点の反映率 {formatMetric(coverage.reflectionRate, coverage.source === "mock" ? "mock" : "gemini")}</p>}
         </div>
         {!confirm
           ? <button className="btn btn--yellow" onClick={() => setConfirm(true)} disabled={moving}>授業を終える</button>
           : (
             <div className="stack stack--tight">
-              <button className="btn btn--yellow" onClick={onClose} disabled={moving}>終えて結果を見る</button>
+              <button className="btn btn--yellow" onClick={onFinish} disabled={moving}>{moving ? "終えています…" : "終えて結果を見る"}</button>
               <button className="btn btn--small" onClick={() => setConfirm(false)} disabled={moving}>まだ続ける</button>
             </div>
           )}
@@ -195,19 +154,26 @@ function Dashboard({ roomId, room, results, onOpen, onClose, moving }: {
           {Array.from({ length: groupCount }, (_, i) => i + 1).map((g) => {
             const st = room.groupState?.[String(g)];
             const result = results.find((r) => r.group === g);
-            const n = members.filter((m) => (m.group ?? 1) === g).length;
-            const writing = !result && (st?.status === "consensus" || room.phase === "consensus");
+            const status = result ? "done" : groupStatus(room, g);
+            const n = st?.total ?? members.filter((m) => (m.group ?? (groupCount <= 1 ? 1 : 0)) === g).length;
+            const started = millis(st?.startedAt);
+            const detail = status === "opinions" ? (n ? `提出 ${st?.opinions ?? 0}/${n}人` : "まだだれもいません")
+              : status === "discussing" ? `${n}人${started ? `・${Math.max(0, Math.floor((now - started) / 60000))}/${minutes}分` : ""}`
+              : status === "consensus" ? `提出 ${st?.submitted ?? 0}/${n}人`
+              : `${result?.respondents ?? n}人${result && result.clusters.length > 1 ? `・理解が${result.clusters.length}通り` : ""}`;
             return (
-              <section key={g} className={`box box--md group-card${result ? " box--tint" : writing ? " box--yellow" : ""}`}>
+              <section key={g} className={`box box--md group-card${status === "done" ? " box--tint" : status === "consensus" || status === "opinions" && n ? " box--yellow" : ""}`}>
                 <p className="t-label">グループ{g}</p>
-                <p className="t-lg">{result ? "結果あり" : writing ? "結論を記入中" : "話し合い中"}</p>
-                <p className="t-small">
-                  {writing ? `提出 ${st?.submitted ?? 0}/${st?.total ?? n}人` : `${n}人`}
-                  {result && result.clusters.length > 1 ? `・理解が${result.clusters.length}通り` : ""}
-                </p>
-                {result && <button className="btn btn--small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => onOpen(g)}>詳しく見る</button>}
-                {writing && (st?.submitted ?? 0) > 0 && (
-                  <button className="btn btn--small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => analyzeNow(g)} disabled={busyGroup === g}>
+                <p className="t-lg">{status === "opinions" && !n ? "メンバー募集中" : STATUS_LABEL[status]}</p>
+                <p className="t-small">{detail}</p>
+                {status === "done" && <button className="btn btn--small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => onOpen(g)}>詳しく見る</button>}
+                {status === "opinions" && n > 0 && (st?.opinions ?? 0) > 0 && (
+                  <button className="btn btn--small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => force("start", g)} disabled={busyGroup === g}>
+                    {busyGroup === g ? "始めています…" : "今いるメンバーで始める"}
+                  </button>
+                )}
+                {status === "consensus" && (st?.submitted ?? 0) > 0 && (
+                  <button className="btn btn--small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => force("analyze", g)} disabled={busyGroup === g}>
                     {busyGroup === g ? "分析中…" : "今の回答で結果を出す"}
                   </button>
                 )}
@@ -215,9 +181,7 @@ function Dashboard({ roomId, room, results, onOpen, onClose, moving }: {
             );
           })}
         </div>
-        {room.phase === "discussing" ? <AiPanel roomId={roomId} room={room} insights={insights} /> : (
-          <section className="box box--md pad stack"><p className="t-label">全員が結論を書いています。</p><p className="t-note">グループごとに、全員がそろうと結果が出ます。</p></section>
-        )}
+        <AiPanel roomId={roomId} room={room} insights={insights} />
       </div>
     </div>
   );

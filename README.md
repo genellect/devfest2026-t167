@@ -70,15 +70,18 @@
 | `POST /rooms` | 必要（匿名は不可） | —（作成者が司会者になる） | — | — |
 | `POST /rooms/join` | 必要（匿名で可） | —（参加コードで部屋を特定） | — | `closed` 以外 |
 | `POST /rooms/{部屋}/phase` | 必要 | 必要 | 必要 | 1つずつ順に進める |
-| `POST /rooms/{部屋}/analyze` | 必要 | 必要 | 必要 | `discussing` |
+| `POST /rooms/{部屋}/analyze` | 必要 | 必要 | 必要 | `collecting`・`discussing`（授業中） |
 | `POST /rooms/{部屋}/progress` | 必要 | 必要 | 必要 | — |
-| `POST /rooms/{部屋}/groups/end` | 必要 | 必要 | 生徒のみ | `discussing` |
+| `POST /rooms/{部屋}/groups/choose` | 必要 | 必要 | 生徒のみ | 選ぶグループと今のグループが議論を始める前 |
+| `POST /rooms/{部屋}/opinion` | 必要 | 必要 | 生徒のみ | 自分のグループが議論を始める前 |
+| `POST /rooms/{部屋}/groups/start` | 必要 | 必要 | 必要 | — |
+| `POST /rooms/{部屋}/groups/end` | 必要 | 必要 | 生徒のみ | 自分のグループが議論中 |
 | `POST /rooms/{部屋}/statement` | 必要 | 必要 | 生徒のみ | 自分のグループが議論を終えたあと、または `consensus` |
 | `POST /rooms/{部屋}/groups/analyze` | 必要 | 必要 | 生徒は自分のグループ（全員そろったときだけ）、司会者は任意のグループ | — |
 | `POST /rooms/{部屋}/insights/{提案}/approve` | 必要 | 必要 | 必要 | — |
 | `POST /rooms/{部屋}/consensus/analyze` | 必要 | 必要 | 必要 | `consensus` |
 
-部屋の作成では `groups`（1〜12、既定は 1）でクラス内のグループの数を決め、生徒は参加した順にグループへ割り当てる。`progress` と合意の分析は、グループごとの件数と理解の分かれ方（`byGroup`）も返す。`progress` は件数だけを返し、本文は返さない。生徒は自分のグループの議論を終えられ（`groups/end`）、結論の一文を API 経由で出す（`statement`）。グループ全員の一文がそろうと、そのグループの理解の分かれ方を分析して `results/group-{番号}` に保存する。グループの状態と提出人数は部屋ドキュメントの `groupState` に入り、本文は含めない。
+部屋の作成では `groups`（1〜12、既定は 1）でクラス内のグループの数を決める。グループが1つなら参加と同時にグループ1に入り、複数なら参加のあとに生徒が自分で選ぶ（`groups/choose`）。グループは先生が一斉に開くのではなく、それぞれのペースで進む：グループ全員の事前意見（`opinion`）がそろうと議論が始まり、生徒のだれかが議論を終える（`groups/end`）と結論の一文（`statement`）に進み、全員の一文がそろうとそのグループだけを分析して `results/group-{番号}` に保存する。休みの人がいるときは、先生が今いるメンバーで始める（`groups/start`）か、今ある回答で結果を出せる（`groups/analyze`）。グループの状態と人数は部屋ドキュメントの `groupState` に入り、本文は含めない。`progress` は件数だけを返し、本文は返さない。
 
 エラーは `401`（未ログイン）・`403`（所属・役割が違う）・`404`（参加コードや部屋がない）・`409`（フェーズ違い・分析中・処理済み）・`429`（30秒以内の再分析）・`503`（Gemini の失敗）で返し、本文は `{ "error": { "code", "message" } }` の形にそろえる。
 

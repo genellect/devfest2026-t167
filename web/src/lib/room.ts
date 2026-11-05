@@ -10,7 +10,7 @@ import type { Phase } from "@/components/ui";
 export interface Room {
   title: string; phase: Phase; joinCode?: string; createdBy: string; groups?: number;
   /** グループごとの進行（キーはグループ番号）。生徒が議論を終えると consensus、全員の一文がそろって結果が出ると done */
-  groupState?: Record<string, { status?: "consensus" | "done"; total?: number; submitted?: number }>;
+  groupState?: Record<string, { status?: GroupStatus; total?: number; opinions?: number; submitted?: number; startedAt?: Timestamp }>;
   phaseChangedAt?: Partial<Record<Phase, Timestamp>>;
   analysis?: { status: "idle" | "running" | "done" | "failed"; startedAt?: Timestamp; error?: string };
 }
@@ -26,6 +26,10 @@ export interface Summary {
   byGroup?: { group: number; respondents: number; alignmentRate: number | null; clusters: { label: string; count: number }[] }[];
   source?: string;
 }
+/** グループの段階。opinions（メンバー集め・事前意見）→ discussing → consensus（結論の一文）→ done（結果） */
+export type GroupStatus = "opinions" | "discussing" | "consensus" | "done";
+export const groupStatus = (room: Room, g: number): GroupStatus => room.groupState?.[String(g)]?.status ?? "opinions";
+
 /** グループの結果（rooms/{部屋}/results/group-{番号}） */
 export interface GroupResult { group: number; respondents: number; clusters: { label: string; count: number }[]; alignmentRate: number | null; source?: string }
 /** 部屋のすべてのグループの結果を購読する */

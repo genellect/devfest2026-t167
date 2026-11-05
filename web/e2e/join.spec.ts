@@ -17,7 +17,7 @@ test("/api は Cloud Run 役の API に転送される", async ({ request }) => 
   }
 });
 
-test("参加コードで参加し、非公開の意見を提出できる", async ({ page, request }) => {
+test("参加コードで参加し、非公開の意見を出すと、グループがそろって議論が始まる", async ({ page, request }) => {
   const created = await request.post("/api/rooms", {
     headers: { authorization: `Bearer ${await moderatorToken()}` },
     data: { title: "大学における生成AI利用の是非" },
@@ -34,7 +34,8 @@ test("参加コードで参加し、非公開の意見を提出できる", async
   await expect(page.getByTestId("phase")).toHaveText("事前意見の受付中");
   await page.getByLabel("あなたの意見").fill("AI を使ったことを申告するルールが必要");
   await page.getByRole("button", { name: "提出する" }).click();
-  await expect(page.getByRole("status")).toHaveText("提出しました");
+  // グループ（この部屋は1グループ・1人）の全員の意見がそろったので、議論の画面に自動で変わる
+  await expect(page.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
 });
 
 test("QR コードの URL では参加コードが入力済みになる", async ({ page }) => {

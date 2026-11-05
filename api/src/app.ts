@@ -15,6 +15,12 @@ type Role = 'moderator' | 'participant';
 interface Ctx { uid: string; provider: string; role?: Role }
 type Req = Request & { ctx: Ctx };
 
+/** メンバーのグループ番号。グループが1つの部屋（と、グループ導入前の部屋）は 1。複数で未選択なら undefined */
+function groupNumber(m: { get(field: string): unknown }, groups: number | undefined): number | undefined {
+  const g = m.get('group') as number | undefined;
+  return g ?? ((groups ?? 1) <= 1 ? 1 : undefined);
+}
+
 class HttpError extends Error {
   constructor(readonly status: number, readonly code: string, message: string, readonly extra: object = {}) { super(message); }
 }
@@ -82,7 +88,7 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
         const codeRef = db.doc(`joinCodes/${joinCode}`);
         if ((await tx.get(codeRef)).exists) return false;
         tx.set(codeRef, { roomId });
-        tx.set(roomRef(roomId), { title, groups, joinedCount: 0, phase: 'collecting', joinCode, createdBy: req.ctx.uid, createdAt: FieldValue.serverTimestamp(), analysis: { status: 'idle' } });
+        tx.set(roomRef(roomId), { title, groups, phase: 'collecting', joinCode, createdBy: req.ctx.uid, createdAt: FieldValue.serverTimestamp(), analysis: { status: 'idle' } });
         tx.set(db.doc(`rooms/${roomId}/members/${req.ctx.uid}`), { role: 'moderator', joinedAt: FieldValue.serverTimestamp() });
         return true;
       });
@@ -102,11 +108,8 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
       if (!room.exists || room.get('phase') === 'closed') throw new HttpError(409, 'room_closed', 'この部屋は終了しています');
       const mRef = db.doc(`rooms/${roomId}/members/${req.ctx.uid}`);
       if (!(await tx.get(mRef)).exists) {
-        // 参加した順にグループへ割り当てる（1, 2, …, groups, 1, 2, …）
-        const joined = room.get('joinedCount') ?? 0;
-        const group = (joined % (room.get('groups') ?? 1)) + 1;
-        tx.set(mRef, { role: 'participant', group, joinedAt: FieldValue.serverTimestamp() });
-        tx.update(roomRef(roomId), { joinedCount: joined + 1 });
+        // グループが1つなら自動でグループ1。複数なら、参加のあとに生徒が自分で選ぶ（groups/choose）
+        tx.set(mRef, { role: 'participant', ...((room.get('groups') ?? 1) <= 1 ? { group: 1 } : {}), joinedAt: FieldValue.serverTimestamp() });
       }
     });
     res.json({ roomId });
@@ -127,7 +130,10 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
   // 未検討論点の分析（司会者）。複数インスタンスでも重複しないよう、部屋ドキュメントのトランザクションで排他する
   app.post('/rooms/:roomId/analyze', ...chain(authenticate, member, moderator, wrap(async (req, res) => {
     const roomId = req.params.roomId;
-    await requirePhase(roomId, 'discussing');
+    // グループごとに進むので、授業中（collecting・discussing）ならいつでも分析できる
+    const roomSnap = await roomRef(roomId).get();
+    if (!roomSnap.exists) throw new HttpError(404, 'room_not_found', '部屋がありません');
+    if (!['collecting', 'discussing'].includes(roomSnap.get('phase'))) throw new HttpError(409, 'wrong_phase', '授業中ではありません');
     const jobId = randomUUID();
     await db.runTransaction(async (tx) => {
       const a = (await tx.get(roomRef(roomId))).get('analysis') ?? {};
@@ -178,9 +184,9 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
       db.collection(`rooms/${roomId}/privateOpinions`).select().get(),
       db.collection(`rooms/${roomId}/consensusStatements`).select().get(),
     ]);
-    const groupOf = new Map(members.docs.map((m) => [m.id, (m.get('group') as number | undefined) ?? 1]));
+    const groupOf = new Map(members.docs.map((m) => [m.id, groupNumber(m, room.get('groups'))]));
     const byGroup = Array.from({ length: room.get('groups') ?? 1 }, (_, i) => ({ group: i + 1, participants: 0, opinions: 0, statements: 0 }));
-    const at = (uid: string) => byGroup[(groupOf.get(uid) ?? 1) - 1];
+    const at = (uid: string) => { const g = groupOf.get(uid); return g ? byGroup[g - 1] : undefined; };
     for (const m of members.docs) { const g = at(m.id); if (g) g.participants++; }
     for (const d of opinions.docs) { const g = groupOf.has(d.id) ? at(d.id) : undefined; if (g) g.opinions++; }
     for (const d of statements.docs) { const g = groupOf.has(d.id) ? at(d.id) : undefined; if (g) g.statements++; }
@@ -200,19 +206,47 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
   })));
 
   // ---- グループごとの進行 ----
-  // 部屋ドキュメントの groupState.{グループ番号} = { status: 'consensus' | 'done', total, submitted }。
-  // 生徒と先生は部屋ドキュメントの購読で、グループの状態と提出人数をリアルタイムに見る（本文は含めない）
+  // グループはそれぞれのペースで進む。先生が一斉に開くことはしない。
+  //   opinions（メンバー集め・事前意見）→ 全員の事前意見がそろう → discussing（議論）
+  //   → 生徒のだれかが終える → consensus（結論の一文）→ 全員の一文がそろう → done（結果）
+  // 状態と人数は部屋ドキュメントの groupState.{番号} = { status, total, opinions, submitted } に入る（本文は含めない）
   const participantOnly = run(async (req) => {
     if (req.ctx.role !== 'participant') throw new HttpError(403, 'participant_only', '生徒だけが実行できます');
   });
   async function groupMembers(roomId: string, group: number) {
+    const groups = (await roomRef(roomId).get()).get('groups');
     const ms = await db.collection(`rooms/${roomId}/members`).where('role', '==', 'participant').get();
-    return ms.docs.filter((m) => ((m.get('group') as number | undefined) ?? 1) === group).map((m) => m.id);
+    return ms.docs.filter((m) => groupNumber(m, groups) === group).map((m) => m.id);
   }
   async function myGroup(roomId: string, uid: string) {
-    return ((await db.doc(`rooms/${roomId}/members/${uid}`).get()).get('group') as number | undefined) ?? 1;
+    const groups = (await roomRef(roomId).get()).get('groups');
+    const g = groupNumber(await db.doc(`rooms/${roomId}/members/${uid}`).get(), groups);
+    if (!g) throw new HttpError(409, 'no_group', '先にグループを選んでください');
+    return g;
   }
-  /** グループ全員の一文がそろったら（force なら今ある分で）、そのグループの理解の分かれ方を分析して results/group-{番号} に保存する */
+  const statusOf = (room: FirebaseFirestore.DocumentSnapshot, g: number) =>
+    ((room.get('groupState')?.[g]?.status as string | undefined) ?? 'opinions');
+
+  /** グループの人数と提出数を数え直し、そろっていれば次の段階へ進める */
+  async function refreshGroup(roomId: string, group: number, opts: { forceStart?: boolean } = {}) {
+    const uids = await groupMembers(roomId, group);
+    const [ops, stmts] = await Promise.all([
+      db.collection(`rooms/${roomId}/privateOpinions`).select().get(),
+      db.collection(`rooms/${roomId}/consensusStatements`).select().get(),
+    ]);
+    const opinions = ops.docs.filter((d) => uids.includes(d.id)).length;
+    const submitted = stmts.docs.filter((d) => uids.includes(d.id)).length;
+    const status = statusOf(await roomRef(roomId).get(), group);
+    const start = status === 'opinions' && uids.length > 0 && (opts.forceStart || opinions >= uids.length);
+    await roomRef(roomId).set({ groupState: { [group]: {
+      total: uids.length, opinions, submitted,
+      ...(start ? { status: 'discussing', startedAt: FieldValue.serverTimestamp() } : {}),
+    } } }, { merge: true });
+    if (status === 'consensus' && uids.length > 0 && submitted >= uids.length) return analyzeGroup(roomId, group);
+    return { total: uids.length, opinions, submitted, started: start };
+  }
+
+  /** そのグループの一文を分析して results/group-{番号} に保存する（force なら全員そろっていなくても） */
   async function analyzeGroup(roomId: string, group: number, force = false) {
     const uids = await groupMembers(roomId, group);
     const stmts = (await db.collection(`rooms/${roomId}/consensusStatements`).get()).docs.filter((d) => uids.includes(d.id));
@@ -234,19 +268,56 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
     return { ready, analyzed: true, submitted: stmts.length, total: uids.length };
   }
 
+  // グループを選ぶ（生徒）。議論を始めたグループには入れない。自分のグループが始まったあとは移れない
+  app.post('/rooms/:roomId/groups/choose', ...chain(authenticate, member, participantOnly, wrap(async (req, res) => {
+    const roomId = req.params.roomId;
+    const room = await roomRef(roomId).get();
+    if (room.get('phase') === 'closed') throw new HttpError(409, 'room_closed', 'この部屋は終了しています');
+    const { group } = parse(z.object({ group: z.number().int().min(1).max(room.get('groups') ?? 1) }), req.body);
+    const mRef = db.doc(`rooms/${roomId}/members/${req.ctx.uid}`);
+    const prev = groupNumber(await mRef.get(), room.get('groups'));
+    if (prev === group) { res.json({ group }); return; }
+    if (statusOf(room, group) !== 'opinions') throw new HttpError(409, 'group_started', 'このグループはもう議論を始めています');
+    if (prev && statusOf(room, prev) !== 'opinions') throw new HttpError(409, 'group_started', '自分のグループが議論を始めたので、移れません');
+    await mRef.update({ group });
+    if (prev) await refreshGroup(roomId, prev);
+    await refreshGroup(roomId, group);
+    res.json({ group });
+  })));
+
+  // 事前の意見を出す（生徒）。グループ全員がそろうと、そのグループの議論が始まる
+  app.post('/rooms/:roomId/opinion', ...chain(authenticate, member, participantOnly, wrap(async (req, res) => {
+    const roomId = req.params.roomId;
+    const { text } = parse(z.object({ text: z.string().trim().min(1).max(1000) }), req.body);
+    const group = await myGroup(roomId, req.ctx.uid);
+    const room = await roomRef(roomId).get();
+    if (room.get('phase') === 'closed' || statusOf(room, group) !== 'opinions')
+      throw new HttpError(409, 'wrong_phase', 'グループの議論が始まったので、事前の意見は変えられません');
+    await db.doc(`rooms/${roomId}/privateOpinions/${req.ctx.uid}`).set({ text, updatedAt: FieldValue.serverTimestamp() });
+    res.json({ group, ...(await refreshGroup(roomId, group)) });
+  })));
+
+  // 今いるメンバーでグループの議論を始める（司会者）。休みの人がいて止まったグループのため
+  app.post('/rooms/:roomId/groups/start', ...chain(authenticate, member, moderator, wrap(async (req, res) => {
+    const roomId = req.params.roomId;
+    const { group } = parse(z.object({ group: z.number().int().min(1).max(MAX_GROUPS) }), req.body);
+    const r = await refreshGroup(roomId, group, { forceStart: true });
+    res.json({ group, ...r });
+  })));
+
   // 自分のグループの議論を終える（生徒）。グループは結論の一文の記入に進む。2回目以降は何もしない
   app.post('/rooms/:roomId/groups/end', ...chain(authenticate, member, participantOnly, wrap(async (req, res) => {
     const roomId = req.params.roomId;
     const group = await myGroup(roomId, req.ctx.uid);
-    const total = (await groupMembers(roomId, group)).length;
     await db.runTransaction(async (tx) => {
       const room = await tx.get(roomRef(roomId));
       if (!room.exists) throw new HttpError(404, 'room_not_found', '部屋がありません');
-      if (room.get('phase') !== 'discussing') throw new HttpError(409, 'wrong_phase', '議論中ではありません');
-      if (room.get('groupState')?.[group]?.status) return;
-      tx.set(roomRef(roomId), { groupState: { [group]: { status: 'consensus', total, submitted: 0, endedAt: FieldValue.serverTimestamp() } } }, { merge: true });
+      const status = statusOf(room, group);
+      if (status === 'consensus' || status === 'done') return;
+      if (status !== 'discussing') throw new HttpError(409, 'wrong_phase', 'グループの議論がまだ始まっていません');
+      tx.set(roomRef(roomId), { groupState: { [group]: { status: 'consensus', endedAt: FieldValue.serverTimestamp() } } }, { merge: true });
     });
-    res.json({ group, status: 'consensus' });
+    res.json({ group, status: 'consensus', ...(await refreshGroup(roomId, group)) });
   })));
 
   // 結論の一文を出す（生徒）。グループが議論を終えたあと、または部屋が合意の確認に進んだあとに受け付ける。
@@ -260,7 +331,7 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
     }), req.body);
     const group = await myGroup(roomId, req.ctx.uid);
     const room = await roomRef(roomId).get();
-    const status = room.get('groupState')?.[group]?.status;
+    const status = statusOf(room, group);
     if (!(room.get('phase') === 'consensus' || status === 'consensus' || status === 'done'))
       throw new HttpError(409, 'wrong_phase', 'グループの議論が終わってから書いてください');
     await db.doc(`rooms/${roomId}/consensusStatements/${req.ctx.uid}`).set({
@@ -302,12 +373,13 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
     }
     const counts = members.docs.map((m) => msgs.docs.filter((d) => d.get('uid') === m.id).length);
     // クラス内のグループごとに、合意の一文がどのまとまりに入ったかを数える（Gemini の呼び出しは増やさない）
-    const groupOf = new Map(members.docs.map((m) => [m.id, (m.get('group') as number | undefined) ?? 1]));
+    const roomGroups = (await roomRef(roomId).get()).get('groups');
+    const groupOf = new Map(members.docs.map((m) => [m.id, groupNumber(m, roomGroups)]));
     const clusterOf = new Map<number, number>();
     cmp.groups.forEach((g, ci) => g.members.forEach((i) => clusterOf.set(i, ci)));
     const groupCount = (await roomRef(roomId).get()).get('groups') ?? 1;
     const byGroup = Array.from({ length: groupCount }, (_, gi) => {
-      const idx = stmts.docs.map((d, i) => [d.id, i] as const).filter(([uid]) => (groupOf.get(uid) ?? 1) === gi + 1).map(([, i]) => i);
+      const idx = stmts.docs.map((d, i) => [d.id, i] as const).filter(([uid]) => groupOf.get(uid) === gi + 1).map(([, i]) => i);
       const clusters = cmp.groups
         .map((c, ci) => ({ label: c.label, count: idx.filter((i) => clusterOf.get(i) === ci).length }))
         .filter((c) => c.count > 0);

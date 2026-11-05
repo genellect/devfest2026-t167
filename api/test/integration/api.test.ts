@@ -101,9 +101,10 @@ describe('未検討論点の分析', () => {
     const again = await api(mod).post(`/rooms/${roomId}/analyze`).expect(429);
     expect(again.body.error.retryAfterSec).toBe(20);
   });
-  it('参加者は分析を実行できない（403）、議論フェーズ以外は 409', async () => {
+  it('参加者は分析を実行できない（403）、授業が終わった部屋では 409', async () => {
     const { roomId, mod, p1 } = await setupRoom();
     await api(p1).post(`/rooms/${roomId}/analyze`).expect(403);
+    for (const to of ['discussing', 'consensus']) await api(mod).post(`/rooms/${roomId}/phase`, { to }).expect(200);
     await api(mod).post(`/rooms/${roomId}/analyze`).expect(409);
   });
   it('Gemini が失敗したら 503 で、分析状態は failed になる', async () => {
@@ -148,21 +149,59 @@ describe('提出状況', () => {
 });
 
 describe('クラス内のグループ', () => {
-  it('参加した順にグループへ割り当て、提出状況をグループごとに返す', async () => {
+  async function classRoom(groups: number, n: number) {
     const mod = await named();
-    const { roomId, joinCode } = (await api(mod).post('/rooms', { title: 'グループ', groups: 2 }).expect(201)).body;
-    const ps = [await anon(), await anon(), await anon()];
-    for (const p of ps) await api(p).post('/rooms/join', { code: joinCode }).expect(200);
-    await api(ps[0]).post('/rooms/join', { code: joinCode }).expect(200); // 2回目の参加でグループは変わらない
-    const groups = await Promise.all(ps.map(async (p) => (await db.doc(`rooms/${roomId}/members/${uidOf(p)}`).get()).get('group')));
-    expect(groups).toEqual([1, 2, 1]);
-    await db.doc(`rooms/${roomId}/privateOpinions/${uidOf(ps[1])}`).set({ text: 'x', updatedAt: FieldValue.serverTimestamp() });
-    const r = await api(mod).post(`/rooms/${roomId}/progress`).expect(200);
-    expect(r.body.byGroup).toEqual([
-      { group: 1, participants: 2, opinions: 0, statements: 0 },
-      { group: 2, participants: 1, opinions: 1, statements: 0 },
-    ]);
+    const { roomId, joinCode } = (await api(mod).post('/rooms', { title: 'グループ', groups }).expect(201)).body;
+    const ps: string[] = [];
+    for (let i = 0; i < n; i++) { const p = await anon(); await api(p).post('/rooms/join', { code: joinCode }).expect(200); ps.push(p); }
+    return { mod, roomId, ps };
+  }
+  const state = async (roomId: string, g: number) => (await db.doc(`rooms/${roomId}`).get()).get('groupState')?.[String(g)];
+
+  it('グループが複数なら参加後に生徒が選ぶ。1つなら自動でグループ1', async () => {
+    const one = await classRoom(1, 1);
+    expect((await db.doc(`rooms/${one.roomId}/members/${uidOf(one.ps[0])}`).get()).get('group')).toBe(1);
+    const { roomId, ps, mod } = await classRoom(2, 2);
+    expect((await db.doc(`rooms/${roomId}/members/${uidOf(ps[0])}`).get()).get('group')).toBeUndefined();
+    await api(ps[0]).post(`/rooms/${roomId}/opinion`, { text: 'x' }).expect(409); // グループを選ぶ前は書けない
+    await api(ps[0]).post(`/rooms/${roomId}/groups/choose`, { group: 3 }).expect(400);
+    await api(mod).post(`/rooms/${roomId}/groups/choose`, { group: 1 }).expect(403);
+    await api(ps[0]).post(`/rooms/${roomId}/groups/choose`, { group: 1 }).expect(200);
+    await api(ps[1]).post(`/rooms/${roomId}/groups/choose`, { group: 2 }).expect(200);
+    await api(ps[1]).post(`/rooms/${roomId}/groups/choose`, { group: 1 }).expect(200); // 始まる前なら移れる
+    expect(await state(roomId, 1)).toMatchObject({ total: 2, opinions: 0 });
+    expect(await state(roomId, 2)).toMatchObject({ total: 0 });
   });
+
+  it('グループ全員の事前意見がそろうと議論が始まり、始まったグループには入れない', async () => {
+    const { roomId, ps, mod } = await classRoom(2, 3);
+    for (const p of ps.slice(0, 2)) await api(p).post(`/rooms/${roomId}/groups/choose`, { group: 1 }).expect(200);
+    const r1 = await api(ps[0]).post(`/rooms/${roomId}/opinion`, { text: '費用が心配' }).expect(200);
+    expect(r1.body).toMatchObject({ total: 2, opinions: 1, started: false });
+    expect((await state(roomId, 1)).status).toBeUndefined();
+    await api(ps[1]).post(`/rooms/${roomId}/opinion`, { text: '透明性が大事' }).expect(200);
+    expect(await state(roomId, 1)).toMatchObject({ status: 'discussing', total: 2, opinions: 2 });
+    await api(ps[0]).post(`/rooms/${roomId}/opinion`, { text: '書き直し' }).expect(409); // 始まったら書き直せない
+    await api(ps[2]).post(`/rooms/${roomId}/groups/choose`, { group: 1 }).expect(409);
+    await api(ps[0]).post(`/rooms/${roomId}/groups/choose`, { group: 2 }).expect(409);
+    // 提出数は件数だけで、本文は返らない
+    const pr = await api(mod).post(`/rooms/${roomId}/progress`).expect(200);
+    expect(pr.body.byGroup).toEqual([
+      { group: 1, participants: 2, opinions: 2, statements: 0 },
+      { group: 2, participants: 0, opinions: 0, statements: 0 },
+    ]);
+    expect(JSON.stringify(pr.body)).not.toContain('費用');
+  });
+
+  it('先生は今いるメンバーで議論を始められる', async () => {
+    const { roomId, ps, mod } = await classRoom(2, 2);
+    for (const p of ps) await api(p).post(`/rooms/${roomId}/groups/choose`, { group: 2 }).expect(200);
+    await api(ps[0]).post(`/rooms/${roomId}/opinion`, { text: 'a' }).expect(200);
+    await api(ps[0]).post(`/rooms/${roomId}/groups/start`, { group: 2 }).expect(403);
+    await api(mod).post(`/rooms/${roomId}/groups/start`, { group: 2 }).expect(200);
+    expect((await state(roomId, 2)).status).toBe('discussing');
+  });
+
   it('グループの数は1〜12', async () => {
     const mod = await named();
     await api(mod).post('/rooms', { title: 'x', groups: 0 }).expect(400);
@@ -171,11 +210,17 @@ describe('クラス内のグループ', () => {
 });
 
 describe('グループごとの進行', () => {
+  async function discussing() {
+    const r = await setupRoom();
+    for (const p of [r.p1, r.p2]) await api(p).post(`/rooms/${r.roomId}/opinion`, { text: '意見' }).expect(200);
+    return r;
+  }
   it('生徒がグループの議論を終え、全員の一文がそろうとグループの結果が出る', async () => {
     const { roomId, mod, p1, p2 } = await setupRoom();
     const say = (t: string, text: string) => api(t).post(`/rooms/${roomId}/statement`, { text, agreement: 4 });
-    await api(p1).post(`/rooms/${roomId}/groups/end`).expect(409); // まだ議論中ではない
-    await api(mod).post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(200);
+    await api(p1).post(`/rooms/${roomId}/opinion`, { text: '意見' }).expect(200);
+    await api(p1).post(`/rooms/${roomId}/groups/end`).expect(409); // まだ議論が始まっていない
+    await api(p2).post(`/rooms/${roomId}/opinion`, { text: '意見' }).expect(200);
     await say(p1, '申告すれば利用可').expect(409); // 議論を終える前は書けない
     await api(mod).post(`/rooms/${roomId}/groups/end`).expect(403); // 先生は生徒の代わりに終えられない
     await api(p1).post(`/rooms/${roomId}/groups/end`).expect(200);
@@ -193,16 +238,14 @@ describe('グループごとの進行', () => {
     expect((await db.doc(`rooms/${roomId}`).get()).get('groupState')['1'].status).toBe('done');
   });
   it('先生はそろっていなくても、今ある回答でグループの結果を出せる。生徒はそろうまで出せない', async () => {
-    const { roomId, mod, p1 } = await setupRoom();
-    await api(mod).post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(200);
+    const { roomId, mod, p1 } = await discussing();
     await api(p1).post(`/rooms/${roomId}/groups/end`).expect(200);
     await api(p1).post(`/rooms/${roomId}/statement`, { text: '費用が心配', agreement: 3 }).expect(200);
     expect((await api(p1).post(`/rooms/${roomId}/groups/analyze`).expect(200)).body.analyzed).toBe(false);
     expect((await api(mod).post(`/rooms/${roomId}/groups/analyze`, { group: 1 }).expect(200)).body.analyzed).toBe(true);
   });
   it('Gemini が失敗しても一文は保存され、あとで出し直せる', async () => {
-    const { roomId, mod, p1, p2 } = await setupRoom();
-    await api(mod).post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(200);
+    const { roomId, p1, p2 } = await discussing();
     await api(p1).post(`/rooms/${roomId}/groups/end`).expect(200);
     await api(p1).post(`/rooms/${roomId}/statement`, { text: 'a', agreement: 3 }).expect(200);
     fail = true;
