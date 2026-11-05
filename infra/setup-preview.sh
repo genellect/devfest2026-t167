@@ -10,7 +10,10 @@ source infra/env.sh
 FB="${T167_FIREBASE:-firebase/node_modules/.bin/firebase}"   # 回帰テストでは偽物に差し替える
 P="$PROJECT_ID" B="$PREVIEW_BACKEND"
 
-if ! "$FB" apphosting:backends:get "$B" --project "$P" --non-interactive >/dev/null 2>&1; then
+# 一覧の JSON で確かめる（apphosting:backends:get は、見つからなくても終了コード 0 で警告を出すだけのため）
+EXISTS=$("$FB" apphosting:backends:list --project "$P" --non-interactive --json \
+  | python3 -c "import json,sys; r=json.load(sys.stdin).get('result') or []; print('yes' if any(b.get('name','').endswith('/backends/$B') for b in r) else '')")
+if [ -z "$EXISTS" ]; then
   # 本番のバックエンド web と同じ Web アプリに紐づける（--app を省くと、CLI が別の Web アプリを作るため）
   APP_ID=$("$FB" apps:list WEB --project "$P" --non-interactive --json \
     | python3 -c "import json,sys; print(next(a['appId'] for a in json.load(sys.stdin)['result'] if a.get('displayName')=='$WEB_APP_NAME'))")

@@ -2,14 +2,17 @@ name: preview
 # 画面（web/）を変えた PR を、プレビュー用の App Hosting バックエンドに出す。フロントエンドの変更を実機とスマホで確かめるため。
 #   - URL は1つ（infra/setup-preview.sh の表示）。最後に push された PR が表示される。PR の「View deployment」から開ける
 #   - API・Firestore・Authentication は本番と共有する（画面だけを差し替える）。試すときは試験用の部屋を作る
-#   - CI とは並行に動く。main と本番には影響しない。フォークからの PR には GCP の認証を渡さない
+#   - CI とは並行に動く。main と本番には影響しない
+# 安全のため、GCP の認証で動かすのは main にあるこのワークフローとスクリプトだけにする（pull_request_target）。
+# PR からは web/ のファイルだけを取り出し、ここでは実行しない（ビルドは App Hosting 側で行われる）。
+# このファイルや infra/ を PR で変えても、main にマージされるまでプレビューには効かない。フォークからの PR は対象外
 on:
-  pull_request:
-    paths: ["web/**", "firebase.json", ".github/workflows/preview.yml", "infra/setup-preview.sh"]
+  pull_request_target:
+    paths: ["web/**"]
   workflow_dispatch:
     inputs:
       ref:
-        description: "プレビューに出すブランチかコミット"
+        description: "プレビューに出すブランチかコミット（web/ だけを使う）"
         required: true
 concurrency:
   group: preview
@@ -29,6 +32,7 @@ jobs:
       PROJECT_ID: ${{ vars.PROJECT_ID }}
       WIF_PROVIDER: ${{ vars.WIF_PROVIDER }}
       DEPLOYER_SA: ${{ vars.DEPLOYER_SA }}
+      WEB_REF: ${{ github.event.pull_request.head.sha || inputs.ref }}
     steps:
       - name: Check repository Variables
         run: |
@@ -37,9 +41,17 @@ jobs:
             [ -n "$(printf '%s' "${!v}" | tr -d '[:space:]')" ] || missing="${missing} ${v}"
           done
           [ -z "$missing" ] || { echo "::error::GitHub の Variables が未登録です:${missing}"; exit 1; }
+      # スクリプト・設定・Firebase CLI は main のもの
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || github.event.pull_request.head.sha }}
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Use only web/ from the PR
+        run: |
+          git fetch --no-tags --depth=1 "https://github.com/${GITHUB_REPOSITORY}.git" "$WEB_REF"
+          SHA=$(git rev-parse FETCH_HEAD)
+          git rm -rq web && git checkout "$SHA" -- web
+          echo "WEB_SHA=$SHA" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -65,7 +77,7 @@ jobs:
             echo "| 項目 | 値 |"
             echo "|---|---|"
             echo "| URL | ${{ steps.setup.outputs.url }} |"
-            echo "| コミット | $(git rev-parse HEAD) |"
+            echo "| web/ のコミット | ${WEB_SHA} |"
             echo "| PR | ${{ github.event.pull_request.html_url || '手動実行' }} |"
             echo "| API・データ | 本番と共有 |"
           } >> "$GITHUB_STEP_SUMMARY"

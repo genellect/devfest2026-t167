@@ -41,6 +41,8 @@ DB=$(grep -oE 'apphosting:[a-z-]+' "$DEPLOY" | head -1 | cut -d: -f2)
 same "本番のデプロイ先は web（プレビューに出さない）" "web" "$DB"
 grep -q 'apphosting:${PREVIEW_BACKEND}' "$PREVIEW" && ok "プレビューは PREVIEW_BACKEND だけに出す" || ng "preview.yml のデプロイ先が PREVIEW_BACKEND でない"
 grep -q "head.repo.full_name == github.repository" "$PREVIEW" && ok "フォークからの PR には GCP の認証を渡さない" || ng "preview.yml にフォークの除外がない"
+grep -qE '^  pull_request_target:' "$PREVIEW" && ! grep -qE '^  pull_request:' "$PREVIEW" && ok "プレビューは main のワークフローで動く（PR が書き換えても効かない）" || ng "preview.yml が PR のワークフローで動く"
+grep -q 'git checkout "$SHA" -- web' "$PREVIEW" && ok "PR からは web/ だけを使い、スクリプトは main のものを使う" || ng "preview.yml が PR のスクリプトを使う"
 
 # infra/env.sh：Variables のうち手元で決める値が、空でも雛形のままでもない
 (
@@ -62,7 +64,8 @@ cat > "$T/pv/firebase" <<'EOF'
 #!/usr/bin/env bash
 echo "firebase $*" >> "$PV_LOG"
 case "$1" in
-  apphosting:backends:get) [ -f "$PV_HAS_BACKEND" ] ;;
+  apphosting:backends:get) exit 0 ;;   # 実物の CLI と同じく、見つからなくても 0 で終わる
+  apphosting:backends:list) if [ -f "$PV_HAS_BACKEND" ]; then echo '{"status":"success","result":[{"name":"projects/p/locations/asia-east1/backends/web"},{"name":"projects/p/locations/asia-east1/backends/web-preview"}]}'; else echo '{"status":"success","result":[{"name":"projects/p/locations/asia-east1/backends/web"}]}'; fi ;;
   apps:list) echo '{"result":[{"appId":"1:9:web:other","displayName":"web"},{"appId":"1:9:web:main","displayName":"t167-web"}]}' ;;
   apphosting:backends:create) touch "$PV_HAS_BACKEND" ;;
 esac
@@ -93,7 +96,7 @@ rm -f "$T/mb.log"
 PATH="$T/mb:$PATH" MB_LOG="$T/mb.log" bash "$ROOT/infra/setup-members.sh" member@example.com someone >/dev/null 2>&1
 grep -q "add-iam-policy-binding $(source "$ROOT/infra/env.sh" && echo "$PROJECT_ID") --member=user:member@example.com --role=roles/editor" "$T/mb.log" && ok "メールアドレスは GCP の編集者にする" || ng "編集者の付与（$(cat "$T/mb.log" 2>/dev/null)）"
 grep -q "gh api -X PUT repos/$(source "$ROOT/infra/env.sh" && echo "$DEV_REPO")/collaborators/someone -f permission=push" "$T/mb.log" && ok "GitHub のユーザー名は Collaborator（Write）に招待する" || ng "Collaborator の招待（$(cat "$T/mb.log" 2>/dev/null)）"
-grep -q "roles/resourcemanager.projectIamAdmin" "$ROOT/infra/setup-deployer.sh" && ok "デプロイ用アカウントに App Hosting のデプロイに要る権限を付ける" || ng "setup-deployer.sh にプロジェクト IAM 管理者がない"
+grep -q "^for ROLE in.*projectIamAdmin" "$ROOT/infra/setup-deployer.sh" && ng "デプロイ用アカウントにプロジェクト IAM 管理者を付けている" || ok "デプロイ用アカウントにプロジェクト IAM 管理者を付けない"
 
 # 手元の GEMINI_MOCK=0 で dev.sh が渡す値も同じ（GOOGLE_CLOUD_QUOTA_PROJECT は認証ライブラリが読む）
 for v in $(grep -E '^\s*extra=\(' "$ROOT/scripts/dev.sh" | grep -oE '[A-Z_]+=' | tr -d '='); do
