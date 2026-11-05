@@ -464,7 +464,7 @@ gcloud iam service-accounts keys list --iam-account="ai-dev@${PROJECT_ID}.iam.gs
 |---|---|---|---|
 | 1. 招待を受けて clone すれば、秘密情報なしに数コマンドで動く | bash scripts/dev.sh setup と serve（エミュレータとモック）。Windows は WSL、手元に入れたくない人は .devcontainer | Linux で起動と check を確認。.devcontainer は形式だけ確認 | Codespaces（VS Code から）で起動と check |
 | 2. PR を出せば自動で検査し、文書だけの PR は待たない | ci.yml の changes と test。test は bash scripts/dev.sh check を呼ぶだけ | check の全件、変更判定の回帰テスト9件 | 文書だけの PR で test が省かれ、コードの PR で通る |
-| 3. Yuto Matsui の本番反映の承諾後、CI の通過から本番反映まで自動で進む | bash scripts/dev.sh pr が検査・push・PR の作成・auto-merge を1回で行う。deploy.yml が Rules → API → 画面の順に反映する | dev.sh pr の回帰テスト9件（偽の gh と手元のリポジトリ） | Yuto Matsui が本番反映を承諾したコードの PR が、追加の操作なしにマージされ、deploy が成功する |
+| 3. Yuto Matsui の本番反映の承諾後、CI の通過から本番反映まで自動で進む | bash scripts/dev.sh pr --no-merge が検査・push・PR の作成を1回で行い、auto-merge は付けない。承諾後に担当者が bash scripts/dev.sh pr --approved で auto-merge を付ける。deploy.yml が Rules → API → 画面の順に反映する | dev.sh pr の回帰テスト11件（偽の gh と手元のリポジトリ。既定で auto-merge を付けないこと、--approved で付けることを含む） | Yuto Matsui が本番反映を承諾したコードの PR が、追加の操作なしにマージされ、deploy が成功する |
 | 4. マージの前に本物の Gemini で試せる | GEMINI_MOCK=0 bash scripts/dev.sh serve。API の VERTEX_PROJECT で、Firestore（エミュレータ）と Vertex AI のプロジェクトを分け、VERTEX_LOCATION=global で Gemini に接続する | モデルが未定のとき、ADC がないときに、理由を表示して止まる | 手元のエミュレータで、本物の Gemini の提案が司会者の画面に出る |
 | 5. 本番が壊れたら1回の操作で戻せる | deploy の手動実行。過去にデプロイが成功したコミットだけに戻せる | — | 直前のコミットに戻せ、成功していないコミットの指定は止まる |
 | 6. 鍵を誤って push しようとしても止まる | infra/setup-github.sh が secret scanning と push protection を有効にする。提出のときは submit.sh が検査する | submit.sh の回帰テスト16件 | push protection が有効になっている |
