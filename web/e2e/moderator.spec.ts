@@ -61,3 +61,27 @@ test("分析が503になっても議論画面に残り、失敗を表示して�
   await expect(page.getByTestId("phase")).toHaveText("議論中");
   await expect(page.getByRole("button", { name: "未検討の論点を分析する", exact: true })).toBeEnabled();
 });
+
+test("実行中のまま残った分析も60秒後に再読み込みなしで再試行できる", async ({ page, request }) => {
+  await createRoom(page, "架空の分析ロック確認");
+  await page.getByRole("button", { name: "議論を開始する", exact: true }).click();
+  await expect(page.getByTestId("phase")).toHaveText("議論中");
+  const roomId = new URL(page.url()).pathname.split("/").pop();
+  const url = `http://127.0.0.1:8080/v1/projects/demo-t167/databases/(default)/documents/rooms/${roomId}?updateMask.fieldPaths=analysis`;
+  async function runningSince(timestamp: number) {
+    const res = await request.patch(url, {
+      headers: { authorization: "Bearer owner" }, // submit-allow: Firestoreエミュレータ専用の管理者ダミー
+      data: { fields: { analysis: { mapValue: { fields: { status: { stringValue: "running" }, startedAt: { timestampValue: new Date(timestamp).toISOString() } } } } } },
+    });
+    expect(res.ok()).toBeTruthy();
+  }
+  await page.clock.install();
+  await runningSince(Date.now());
+  await expect(page.getByRole("button", { name: "分析中…", exact: true })).toBeDisabled();
+  await page.clock.fastForward(61_000);
+  await expect(page.getByRole("button", { name: "未検討の論点を分析する", exact: true })).toBeEnabled();
+  // API の時計も期限切れの状態に合わせ、再試行が実際に成功することを確かめる。
+  await runningSince(Date.now() - 61_000);
+  await page.getByRole("button", { name: "未検討の論点を分析する", exact: true }).click();
+  await expect(page.getByText("新しい提案はありません。", { exact: true })).toBeVisible();
+});

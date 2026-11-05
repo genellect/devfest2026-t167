@@ -1,10 +1,10 @@
 "use client";
 import { use, useEffect, useState } from "react";
-import { collection, doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { collection, doc, onSnapshot, serverTimestamp, setDoc, Timestamp } from "firebase/firestore";
 import { callApi } from "@/lib/api";
 import { ensureSignedIn, firebase } from "@/lib/firebase";
 
-type Room = { title: string; phase: "collecting" | "discussing" | "consensus" | "closed"; createdBy: string; joinCode?: string; analysis?: { status: string } };
+type Room = { title: string; phase: "collecting" | "discussing" | "consensus" | "closed"; createdBy: string; joinCode?: string; analysis?: { status: string; startedAt?: Timestamp } };
 type Insight = { id: string; summary: string; source: "gemini" | "mock"; status: string };
 const PHASE_LABEL: Record<Room["phase"], string> = { collecting: "事前意見の受付中", discussing: "議論中", consensus: "合意の確認中", closed: "終了" };
 
@@ -18,9 +18,22 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loadedInsights, setLoadedInsights] = useState<{ id: string; value: Insight[] } | null>(null);
+  const [expiredLockKey, setExpiredLockKey] = useState("");
   const room = loadedRoom?.id === roomId ? loadedRoom.value : null;
   const isModerator = !!room && room.createdBy === uid;
   const insights = loadedInsights?.id === roomId ? loadedInsights.value : [];
+  const startedAt = room?.analysis?.startedAt;
+  const startedAtMs = startedAt instanceof Timestamp ? startedAt.toMillis() : 0;
+  const lockKey = `${roomId}:${startedAtMs}`;
+  const analysisLocked = room?.analysis?.status === "running" && startedAtMs > 0 && expiredLockKey !== lockKey;
+
+  useEffect(() => {
+    if (!analysisLocked) return;
+    // API の RUNNING_TIMEOUT_MS と同じ60秒。停止した分析も、再読み込みせず再試行できる。
+    const delay = Math.min(60_000, Math.max(0, startedAtMs + 60_000 - Date.now()));
+    const timer = setTimeout(() => setExpiredLockKey(lockKey), delay);
+    return () => clearTimeout(timer);
+  }, [analysisLocked, startedAtMs, lockKey]);
 
   useEffect(() => {
     let active = true;
@@ -71,7 +84,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
         <section aria-label="司会者の操作">
           {room.joinCode && <p>参加コード：<strong data-testid="join-code">{room.joinCode}</strong></p>}
           {room.phase === "collecting" && <button disabled={busy} onClick={() => moderate("phase")}>議論を開始する</button>}
-          {room.phase === "discussing" && <button disabled={busy || room.analysis?.status === "running"} onClick={() => moderate("analyze")}>{busy || room.analysis?.status === "running" ? "分析中…" : "未検討の論点を分析する"}</button>}
+          {room.phase === "discussing" && <button disabled={busy || analysisLocked} onClick={() => moderate("analyze")}>{busy || analysisLocked ? "分析中…" : "未検討の論点を分析する"}</button>}
         </section>
       )}
       {room.phase === "collecting" && (
