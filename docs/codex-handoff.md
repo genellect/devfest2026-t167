@@ -23,11 +23,20 @@ DevFest Hackathon 2026 チーム167 の開発用リポジトリ（Public）で�
 | 認証情報の引き継ぎ | [docs/credentials.md](credentials.md) | だれが何を持ち、どう渡し、どう止めるか |
 | 開発のルール | [CONTRIBUTING.md](../CONTRIBUTING.md)、[AGENTS.md](../AGENTS.md) | ブランチ、PR、CI、マージ、報告のルール |
 
-### 段階1の構築設定（2026-11-05）
+### 段階1の構築設定（候補・未完了、2026-11-05）
 
-依頼者が指定した新規 Public リポジトリは [genellect/devfest2026-t167](https://github.com/genellect/devfest2026-t167)。`infra/env.sh` は、`PROJECT_ID=devfest2026-t167`（未確保）、`DEV_REPO=genellect/devfest2026-t167`、`GEMINI_MODEL=gemini-3.5-flash` とし、リージョンと提出先は正本どおりとする。
+依頼者が指定した新規 Public リポジトリは [genellect/devfest2026-t167](https://github.com/genellect/devfest2026-t167)。設定案と調査結果は、この引き継ぎ書で扱う。Google Docs 正本は変更していないため、`docs/infra-manual.md` も正本に対応する状態を維持する。以下は確定した手順書の変更ではない。
 
-**段階1は未完了。** `gemini-3.5-flash` は候補であり、公式資料の Standard PayGo 対応先に東京がないため、正本の東京指定と有料設定を追加しない条件の食い違いを依頼者に確認中。この候補のまま構築しない。モデルを決めた根拠と未確認事項は [手順書の写しの設定](infra-manual.md#段階1で決めた構築設定2026-11-05) にまとめた。公式資料での東京対応確認と、実プロジェクトでの呼び出し確認は区別する。請求先・クレジットの受領は段階2で行い、その前に課金を伴う構築を進めない。
+- `DEV_REPO=genellect/devfest2026-t167`：依頼者指定で新規作成した Public リポジトリ。提出先は変更しない。
+- `PROJECT_ID=devfest2026-t167`：新規リポジトリ名にそろえた候補。まだ GCP プロジェクトは作成しておらず、ID の確保は未確認。段階3で使用済みと判明した場合は末尾に数字を足す。
+- `REGION=asia-northeast1`、`APPHOSTING_REGION=asia-east1`：正本の構成に従う。
+- `GEMINI_MODEL=gemini-3.5-flash`：候補。Google 公式の[モデル情報](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-5-flash)で東京の Model availability、構造化出力、temperature の指定を確認した（2026-11-05）。[ライフサイクル](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions)上の廃止予定は2027-05-19以降。
+
+**段階1は接続先の判断待ちで未完了。** 同じ公式資料の Standard PayGo 対応先は `global`・`us`・`eu` で、東京には Single Zone Provisioned Throughput のみという注記がある。東京の Model availability だけでは通常の従量課金で利用できる根拠にならない。正本の東京指定と、有料設定を追加しない条件の食い違いを依頼者に確認中であり、この候補のまま構築しない。
+
+判断案は「Gemini だけ global に分離する（Cloud Run・Firestore は東京のまま）」または「東京を維持して別モデルを再調査する」。Provisioned Throughput は追加していない。実プロジェクトからのモデル利用・割り当て・実呼び出しも未確認。請求先・クレジットの受領は段階2で行い、その前に課金を伴う構築を進めない。
+
+正本へ反映が必要なリポジトリ名・設定・未確認事項は PR の説明に一覧化する。方針確定後に正本を変更する場合は、依頼者の「手順書の内容を変えたら写しも同じ PR で直す」という指示に従って反映する。
 
 ## 1. 依頼の範囲
 

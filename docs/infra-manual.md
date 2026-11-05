@@ -147,7 +147,7 @@ firebase apps:create WEB "t167-web" --project "$PROJECT_ID"
 
 ## 手順5：開発用リポジトリを雛形から作る
 
-1. GitHub で genellect/devfest2026-t167 を Public で作り、メンバーを Collaborator に招待する。公開リポジトリなので、鍵やトークンは置かない。
+1. GitHub で genellect/df-2026-t167-dev を Public で作り、メンバーを Collaborator に招待する。公開リポジトリなので、鍵やトークンは置かない。
 1. 雛形 df-2026-t167-dev.zip を展開し、その中身で初回コミットを作って main に push する。
 1. 下のコマンドで準備して起動し、http://localhost:3000 で参加コード DEMO01 を入れて参加できることを確かめる。
 
@@ -476,14 +476,3 @@ gcloud iam service-accounts keys list --iam-account="ai-dev@${PROJECT_ID}.iam.gs
 | dev.sh pr の auto-merge でエラーになる | main のルール（test の成功が必須）が設定されていない。auto-merge にはこのルールが要る | オーナーが bash infra/setup-github.sh を実行する |
 | GEMINI_MOCK=0 で起動すると ADC のエラーで止まる | gcloud auth application-default login をしていない、または編集者の権限がない | 「認証情報の引き継ぎ」の「実装担当が加わるとき」の3を行う |
 | Codespaces で画面からログインできない | ブラウザ版の Codespaces で開いたので、画面がエミュレータに 127.0.0.1 でつなげない | VS Code から Codespaces を開く |
-
-## 段階1で決めた構築設定（2026-11-05）
-
-依頼者の指定で、開発用 Public リポジトリは `genellect/devfest2026-t167` を新規作成した。`infra/env.sh` の `DEV_REPO` もこの値にする。提出先は変更しない。
-
-- `PROJECT_ID=devfest2026-t167`：新規リポジトリ名にそろえる。まだ GCP プロジェクトは作成していないため、ID の確保は未確認。段階3で使用済みと判明した場合は末尾に数字を足す。
-- `REGION=asia-northeast1`、`APPHOSTING_REGION=asia-east1`：正本の構成に従う。
-- `GEMINI_MODEL=gemini-3.5-flash`：Google 公式の[モデル情報](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-5-flash)で東京 (`asia-northeast1`) の Model availability、構造化出力、temperature の指定への対応を確認した（2026-11-05）。[ライフサイクル](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions)には2027-05-19以降の廃止予定とある。
-- **段階1は接続先の判断待ち。** 同じ公式モデル情報の Standard PayGo 対応先は `global`・`us`・`eu` で、東京には Single Zone Provisioned Throughput のみという注記がある。東京の Model availability だけでは通常の従量課金で利用できる根拠にならない。正本の東京指定と、有料設定を追加しない条件を両立できるかは未解決であり、この候補のまま構築しない。依頼者に「Gemini だけ global に分離する」か「東京を維持して別モデルを再調査する」か確認中。Provisioned Throughput は追加していない。
-
-Google Docs 正本には、手順5の開発用リポジトリ名と、この設定・未確認事項の反映が必要。正本はこの PR では更新しない。
