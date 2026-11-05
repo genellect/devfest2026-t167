@@ -23,6 +23,10 @@ http://localhost:3000 を開き、参加コード `DEMO01` で参加する。Aut
 
 本物の Gemini で試すときは、Google Cloud CLI（gcloud。`.devcontainer` と Codespaces には入っていない）を入れ、プロジェクトの編集者の権限で `gcloud auth application-default login` をしてから `GEMINI_MOCK=0 bash scripts/dev.sh serve` で起動する。Firestore と Auth はエミュレータのままで、Vertex AI だけ本番のプロジェクトを使う（`infra/env.sh` の PROJECT_ID・VERTEX_LOCATION・GEMINI_MODEL）。Gemini の接続先は global、Cloud Run と Firestore は東京に分けている。
 
+司会者の導線を手元で確かめるときは、トップでテーマを入力し、「Googleでログインして部屋を作る」を押す。ローカルでは認証エミュレータの「Add new account」から架空のメールアドレスを入力する。本物の Google アカウントやパスワードは使わない。
+
+表示された参加コードを、別のブラウザープロファイルかプライベートウィンドウから入力し、架空の事前意見を提出する。司会者が「議論を開始する」→「未検討の論点を分析する」を押すと、司会者への提案が表示される。通常の起動は「デモデータ」、`GEMINI_MOCK=0` で起動したときは「Geminiによる提案」と表示される。Auth と Firestore は後者でもエミュレータで、Vertex AI に送る文章には架空のものを使う。
+
 クラウドの Claude Code では環境のセットアップスクリプトに `bash .claude/cloud-setup.sh` を、Codex では `bash .codex/setup.sh` を登録する。
 
 ## 開発の流れ

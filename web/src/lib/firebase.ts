@@ -1,8 +1,8 @@
 "use client";
 import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import {
-  browserLocalPersistence, browserSessionPersistence, connectAuthEmulator,
-  getAuth, indexedDBLocalPersistence, initializeAuth, signInAnonymously, type Auth,
+  browserLocalPersistence, browserSessionPersistence, browserPopupRedirectResolver, connectAuthEmulator, GoogleAuthProvider,
+  getAuth, indexedDBLocalPersistence, initializeAuth, signInAnonymously, signInWithPopup, type Auth,
 } from "firebase/auth";
 import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
 
@@ -15,7 +15,7 @@ let db: Firestore | undefined;
 export function firebase() {
   if (!app) {
     app = getApps()[0] ?? (useEmulators
-      ? initializeApp({ projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, apiKey: "demo-key" }) // submit-allow: エミュレータ専用のダミー
+      ? initializeApp({ projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, apiKey: "demo-key", authDomain: "localhost" }) // submit-allow: エミュレータ専用のダミー
       : initializeApp());
     // 匿名のローカル開発では OAuth iframe を先読みせず、外部通信を待たない。
     auth = useEmulators
@@ -36,4 +36,9 @@ export async function ensureSignedIn() {
   await auth.authStateReady();
   if (!auth.currentUser) await signInAnonymously(auth);
   return auth.currentUser!;
+}
+
+/** 司会者のログイン操作でだけ OAuth を開始する。匿名の起動時には iframe を作らない */
+export async function signInModerator() {
+  return (await signInWithPopup(firebase().auth, new GoogleAuthProvider(), browserPopupRedirectResolver)).user;
 }
