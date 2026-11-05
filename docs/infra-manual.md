@@ -64,13 +64,13 @@
 
 ## 全体構成
 
-- 参加者・司会者（スマホ・PC のブラウザ）→ **App Hosting**（Next.js、asia-east1）→ /api を **Cloud Run**（API、asia-northeast1）へ転送 → **Gemini**（Vertex AI）と **Firestore**（asia-northeast1）
+- 参加者・司会者（スマホ・PC のブラウザ）→ **App Hosting**（Next.js、asia-east1）→ /api を **Cloud Run**（API、asia-northeast1）へ転送 → **Gemini**（Vertex AI、global）と **Firestore**（asia-northeast1）
 - 画面のリアルタイム更新は、ブラウザが Firestore を直接購読する（Rules で読める範囲を制限）
 - ブラウザは常に同じオリジンの /api を呼ぶので CORS の設定は不要
 
 **ブランチの流れ**：作業ブランチ（<種類>/<内容>）→ main への PR（CI が自動で検証）→ squash merge で本番に自動反映（「開発のルール」の節）。
 
-**変数**は雛形の infra/env.sh に1か所でまとめています。プロジェクト ID が使用済みで作れないときは末尾に数字を足し、infra/env.sh と GitHub の Variables（手順8）を直します。ワークフローには ID を直書きしていません。
+**変数**は雛形の infra/env.sh に1か所でまとめています。このチームの開発用プロジェクトは devfest2026-t167 です。Cloud Run・Firestore は東京、App Hosting は台湾、Gemini の接続先は global に分けます。Gemini の global 接続先では処理地域を日本国内に限定できません（公式の接続先情報：https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/locations）。プロジェクト ID が使用済みで作れないときは末尾に数字を足し、infra/env.sh と GitHub の Variables（手順8）を直します。ワークフローには ID を直書きしていません。
 
 ## 構築の順番
 
@@ -147,7 +147,7 @@ firebase apps:create WEB "t167-web" --project "$PROJECT_ID"
 
 ## 手順5：開発用リポジトリを雛形から作る
 
-1. GitHub で genellect/df-2026-t167-dev を Public で作り、メンバーを Collaborator に招待する。公開リポジトリなので、鍵やトークンは置かない。
+1. GitHub で genellect/devfest2026-t167 を Public で作り、メンバーを Collaborator に招待する。公開リポジトリなので、鍵やトークンは置かない。
 1. 雛形 df-2026-t167-dev.zip を展開し、その中身で初回コミットを作って main に push する。
 1. 下のコマンドで準備して起動し、http://localhost:3000 で参加コード DEMO01 を入れて参加できることを確かめる。
 
@@ -174,7 +174,7 @@ bash scripts/dev.sh serve    # エミュレータ・テストデータ・API・�
 | .claude/ | クラウド環境のセットアップスクリプト（cloud-setup.sh）と、gcloud に自動でログインするフック。Codex 用は .codex/setup.sh、手元に何も入れずに開く環境は .devcontainer |
 | tests/ | submit.sh の回帰テスト16件、ci-changes.sh の回帰テスト9件、dev.sh pr の回帰テスト9件 |
 
-ローカルでは本物の GCP を使いません。Auth と Firestore はエミュレータ、Gemini はモックで動きます。GEMINI_MOCK_FAIL=1 bash scripts/dev.sh serve で起動すると、Gemini が失敗したときの動きを確認できます。PR を出す前には bash scripts/dev.sh check で CI と同じ検査を通します（PR は bash scripts/dev.sh pr で出します。「開発のルール」の節）。本物の Gemini で試すときは、プロジェクトの編集者の権限で gcloud auth application-default login をしてから GEMINI_MOCK=0 bash scripts/dev.sh serve で起動します。Firestore と Auth はエミュレータのままで、Vertex AI だけ本番のプロジェクトを使います。Windows では WSL の中で動かします。手元に Node.js と Java を入れたくない場合は、雛形の .devcontainer を VS Code の Dev Containers か GitHub Codespaces（ブラウザ版ではなく VS Code から）で開きます。Firebase CLI は firebase/ の lockfile で固定したものを、手元でも CI でも npm --prefix firebase run fb -- で実行します。
+ローカルでは本物の GCP を使いません。Auth と Firestore はエミュレータ、Gemini はモックで動きます。GEMINI_MOCK_FAIL=1 bash scripts/dev.sh serve で起動すると、Gemini が失敗したときの動きを確認できます。PR を出す前には bash scripts/dev.sh check で CI と同じ検査を通します（PR は bash scripts/dev.sh pr で出します。「開発のルール」の節）。本物の Gemini で試すときは、プロジェクトの編集者の権限で gcloud auth application-default login をしてから GEMINI_MOCK=0 bash scripts/dev.sh serve で起動します。Firestore と Auth はエミュレータのままで、Vertex AI だけ本番のプロジェクトを使います。Gemini の接続先は infra/env.sh の VERTEX_LOCATION=global、モデルは GEMINI_MODEL=gemini-3.5-flash を使います。Windows では WSL の中で動かします。手元に Node.js と Java を入れたくない場合は、雛形の .devcontainer を VS Code の Dev Containers か GitHub Codespaces（ブラウザ版ではなく VS Code から）で開きます。Firebase CLI は firebase/ の lockfile で固定したものを、手元でも CI でも npm --prefix firebase run fb -- で実行します。
 
 ## 手順6：App Hosting のバックエンドと API の URL
 
@@ -221,7 +221,7 @@ bash infra/setup-deployer.sh
 bash infra/setup-github.sh    # gh でログインしたリポジトリ管理者が1回実行する
 ```
 
-GitHub Actions 用のデプロイ用サービスアカウントと WIF（鍵を使わない認証）を作り、GitHub に登録する値を表示します。開発用リポジトリの「Settings」→「Secrets and variables」→「Actions」→「Variables」に、表示された PROJECT_ID・REGION・GEMINI_MODEL・WIF_PROVIDER・DEPLOYER_SA を登録します。GEMINI_MODEL は、Vertex AI の Model Garden で asia-northeast1 で使えるモデルを確かめて決めます。
+GitHub Actions 用のデプロイ用サービスアカウントと WIF（鍵を使わない認証）を作り、GitHub に登録する値を表示します。開発用リポジトリの「Settings」→「Secrets and variables」→「Actions」→「Variables」に、表示された6つの PROJECT_ID・REGION・VERTEX_LOCATION・GEMINI_MODEL・WIF_PROVIDER・DEPLOYER_SA を登録します。GEMINI_MODEL は gemini-3.5-flash、VERTEX_LOCATION は global にします。2026-11-05 に公式モデル情報（https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-5-flash）で global の Standard PayGo への対応を確認し、依頼者が承認しました。Cloud Run・Firestore の REGION=asia-northeast1 と分け、Provisioned Throughput は追加しません。
 
 **GitHub の設定**（infra/setup-github.sh）：マージは squash だけにし、マージしたブランチを自動で削除し、auto-merge を使えるようにします。鍵を含む push を GitHub が止める secret scanning と push protection も有効にします（公開リポジトリでは無料）。main には、PR 経由でだけ更新でき、CI の test の成功が必須で、force push と削除ができないルールを設定します。レビューの承認は必須にしません。開発用リポジトリは公開なので、Free プランでもルールを設定できます。gh のアカウントに管理者権限がなく設定できなかった場合は、スクリプトがそう表示して続行します。ルールが設定されるまでも、main に直接 push せず、CI の成功を確かめてからマージする運用は同じです。
 
@@ -373,7 +373,7 @@ scripts/submit.sh は、次の順で動きます。
 | Actions の auth ステップで unauthorized | WIF_PROVIDER・DEPLOYER_SA の登録違い、または DEV_REPO の綴り違い | setup-deployer.sh の表示どおりに Variables を登録し直す |
 | App Hosting のデプロイで権限エラー | 手順6のバックエンド作成前にデプロイした | 手順6を済ませてから main に push し直す |
 | 画面から API を呼ぶと 404 | web/apphosting.yaml の API_ORIGIN が PROJECT_NUMBER のまま | 手順6の sed を実行して push する |
-| Gemini 呼び出しが PERMISSION_DENIED | モデルがそのリージョンで使えない、または GEMINI_MODEL が未設定 | Model Garden で確認し、Variables の GEMINI_MODEL を直す |
+| Gemini 呼び出しが PERMISSION_DENIED | GEMINI_MODEL・VERTEX_LOCATION が未設定または対応先と不一致、もしくは実行主体に Vertex AI の権限がない | Variables 6つの登録と GEMINI_MODEL=gemini-3.5-flash・VERTEX_LOCATION=global、実行主体の Vertex AI 権限を確認する |
 | ログイン画面で auth/unauthorized-domain | App Hosting のドメインが未承認 | 手順4の承認済みドメインに追加する |
 | 文書だけの PR で test が skipped になる | 変更判定で重い検査を省いた（正常） | そのままマージしてよい。必須チェックでは成功として扱われる |
 | setup-github.sh で main のルールを設定できない | gh でログインしたアカウントが、リポジトリの管理者ではない | オーナーが実行し直す。それまでは main に直接 push せず、gh pr checks --watch で確かめてからマージする |
@@ -402,7 +402,7 @@ scripts/submit.sh は、次の順で動きます。
 | 手元の ADC | 秘密（各自の PC の中） | 各自の PC | 任意（手元から本物の Gemini を試すとき。GEMINI_MOCK=0 bash scripts/dev.sh serve） | 本人が gcloud auth application-default login | 本人が gcloud auth application-default revoke |
 | 開発用リポジトリの書き込み権限 | 権限 | 各自の GitHub アカウント | 要る | オーナーが Collaborator に招待し、本人が受け入れる | オーナーが Collaborator から外す |
 | 提出用リポジトリの書き込み権限 | 権限 | 各自の GitHub アカウント | 締切前に反映する人だけ | 運営から届く招待を7日以内に受け入れる | 運営に連絡する |
-| GitHub Actions から GCP への認証 | 秘密なし（WIF） | GitHub の Actions の Variables（PROJECT_ID・REGION・GEMINI_MODEL・WIF_PROVIDER・DEPLOYER_SA） | 要らない | オーナーが infra/setup-deployer.sh の表示どおりに登録する | オーナーが WIF のプロバイダを無効にするか、github-deployer を消す |
+| GitHub Actions から GCP への認証 | 秘密なし（WIF） | GitHub の Actions の Variables（PROJECT_ID・REGION・VERTEX_LOCATION・GEMINI_MODEL・WIF_PROVIDER・DEPLOYER_SA） | 要らない | オーナーが infra/setup-deployer.sh の表示どおりに登録する | オーナーが WIF のプロバイダを無効にするか、github-deployer を消す |
 | AI 用サービスアカウントの鍵（GCP_SA_KEY） | 秘密 | クラウドの Claude Code・Codex の環境変数だけ | 任意（クラウドの AI ツールから GCP を操作するとき） | 使う人が自分で作り、自分の環境に登録する（下の手順） | 作った人かオーナーが鍵を消す |
 | Firebase の Web 設定（apiKey など） | 秘密ではない | App Hosting が画面に自動で渡す | 要らない | — | — |
 | Gemini | 鍵なし | Cloud Run の api-runtime が Vertex AI を権限で呼ぶ | 要らない | — | — |
@@ -463,7 +463,7 @@ gcloud iam service-accounts keys list --iam-account="ai-dev@${PROJECT_ID}.iam.gs
 | 1. 招待を受けて clone すれば、秘密情報なしに数コマンドで動く | bash scripts/dev.sh setup と serve（エミュレータとモック）。Windows は WSL、手元に入れたくない人は .devcontainer | Linux で起動と check を確認。.devcontainer は形式だけ確認 | Codespaces（VS Code から）で起動と check |
 | 2. PR を出せば自動で検査し、文書だけの PR は待たない | ci.yml の changes と test。test は bash scripts/dev.sh check を呼ぶだけ | check の全件、変更判定の回帰テスト9件 | 文書だけの PR で test が省かれ、コードの PR で通る |
 | 3. CI が通れば追加の操作なしにマージされ、本番に反映される | bash scripts/dev.sh pr が検査・push・PR の作成・auto-merge を1回で行う。deploy.yml が Rules → API → 画面の順に反映する | dev.sh pr の回帰テスト9件（偽の gh と手元のリポジトリ） | コードの PR が人の操作なしにマージされ、deploy が成功する |
-| 4. マージの前に本物の Gemini で試せる | GEMINI_MOCK=0 bash scripts/dev.sh serve。API の VERTEX_PROJECT で、Firestore（エミュレータ）と Vertex AI のプロジェクトを分ける | モデルが未定のとき、ADC がないときに、理由を表示して止まる | 手元のエミュレータで、本物の Gemini の提案が司会者の画面に出る |
+| 4. マージの前に本物の Gemini で試せる | GEMINI_MOCK=0 bash scripts/dev.sh serve。API の VERTEX_PROJECT で、Firestore（エミュレータ）と Vertex AI のプロジェクトを分け、VERTEX_LOCATION=global で Gemini に接続する | モデルが未定のとき、ADC がないときに、理由を表示して止まる | 手元のエミュレータで、本物の Gemini の提案が司会者の画面に出る |
 | 5. 本番が壊れたら1回の操作で戻せる | deploy の手動実行。過去にデプロイが成功したコミットだけに戻せる | — | 直前のコミットに戻せ、成功していないコミットの指定は止まる |
 | 6. 鍵を誤って push しようとしても止まる | infra/setup-github.sh が secret scanning と push protection を有効にする。提出のときは submit.sh が検査する | submit.sh の回帰テスト16件 | push protection が有効になっている |
 | 7. 2人と AI エージェントが同時に PR を出しても食い違わない | Rules・API・画面を同じコミットから順に反映し、デプロイは同時に1つだけ。main の CI が通らなければ反映しない。Rules・ワークフロー・構築の変更はレビューを通す | — | 2つの PR を続けてマージし、2回とも正しく反映される |
