@@ -40,7 +40,7 @@ export default function NewRoom() {
     return (
       <main className="screen"><div className="body body--center">
         <div className="box box--lg card card--narrow"><p className="t-label">部屋を作るには、先生としてログインしてください。</p>
-          <Link className="btn btn--yellow" href="/host">ログインする</Link></div>
+          <Link className="btn btn--yellow" href="/">ログインする</Link></div>
       </div></main>
     );
   }

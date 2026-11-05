@@ -6,7 +6,7 @@ export default function About() {
     <main className="screen">
       <header className="header">
         <div className="header__title"><p className="header__eyebrow">グループディスカッション支援</p><h1 className="header__name">使い方とプライバシー</h1></div>
-        <div className="header__actions"><Link className="btn btn--small" href="/">トップに戻る</Link></div>
+        <div className="header__actions"><Link className="btn btn--small" href="/">最初の画面に戻る</Link></div>
       </header>
       <div className="body" style={{ maxWidth: 1100, width: "100%", margin: "0 auto" }}>
         <div className="row">

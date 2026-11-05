@@ -2,43 +2,17 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Header, Loading } from "@/components/ui";
-import { canUseTestHost, signInAsHost, signInAsTestHost, signOutHost, useHostUser } from "@/lib/hostAuth";
+import { useRouter } from "next/navigation";
+import { signOutHost, useHostUser } from "@/lib/hostAuth";
 import { getHistory, getProfile, getRoomLabel, shortDate, type HistoryItem, type Profile } from "@/lib/local";
 
-/** S1 先生のログイン → H1 先生のホーム */
+/** H1 先生のホーム。ログインしていなければログイン画面へ */
 export default function HostHome() {
+  const router = useRouter();
   const user = useHostUser();
-  if (user === undefined) return <Loading />;
-  if (user === null) return <HostLogin />;
+  useEffect(() => { if (user === null) router.replace("/"); }, [user, router]);
+  if (!user) return <Loading />;
   return <HostDashboard fallbackName={user.displayName ?? user.email ?? "先生"} />;
-}
-
-function HostLogin() {
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  async function login(how: () => Promise<void>) {
-    setBusy(true); setError("");
-    try { await how(); } catch (e) { setError(`ログインできませんでした：${(e as Error).message}`); setBusy(false); }
-  }
-  return (
-    <main className="screen" style={{ display: "grid", gridTemplateColumns: "minmax(0, 11fr) minmax(0, 7fr)" }}>
-      <section className="box--blue" style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 64px", gap: 24 }}>
-        <h1 className="t-hero" style={{ fontSize: 56, lineHeight: 1.5 }}>話し合いのあとに、<br />次の一歩が見つかる。</h1>
-        <p className="t-label" style={{ fontSize: 19 }}>一人ひとりの考えと成長を、授業につなげます。</p>
-      </section>
-      <section style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 64px", gap: 16 }}>
-        <h2 className="t-md">先生としてログイン</h2>
-        <p className="t-note">授業の部屋を作るには、ログインが必要です。</p>
-        <button className="btn btn--yellow btn--block" onClick={() => login(signInAsHost)} disabled={busy}>{busy ? "ログインしています…" : "Googleでログイン"}</button>
-        {canUseTestHost && (
-          <button className="btn btn--block" onClick={() => login(signInAsTestHost)} disabled={busy}>テスト用の先生でログイン（エミュレータ）</button>
-        )}
-        {error && <p className="notice notice--error" role="alert">{error}</p>}
-        <p className="t-note">はじめての方は <Link href="/host/signup" style={{ color: "inherit" }}>新規登録</Link></p>
-        <Link className="btn btn--small" href="/" style={{ alignSelf: "flex-start" }}>トップに戻る</Link>
-      </section>
-    </main>
-  );
 }
 
 function HostDashboard({ fallbackName }: { fallbackName: string }) {
@@ -50,7 +24,7 @@ function HostDashboard({ fallbackName }: { fallbackName: string }) {
     <main className="screen">
       <Header eyebrow={profile?.school} title={`${name}のホーム`}>
         <Link className="btn btn--small" href="/host/profile">設定</Link>
-        <button className="btn btn--small" onClick={() => signOutHost()}>ログアウト</button>
+        <button className="btn btn--small" onClick={async () => { await signOutHost(); window.location.assign("/"); }}>ログアウト</button>
       </Header>
       {!profile && (
         <p className="notice notice--warn" style={{ margin: "20px 32px 0", display: "flex", alignItems: "center", gap: 16 }}>

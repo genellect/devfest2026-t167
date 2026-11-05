@@ -10,7 +10,7 @@ export default function NotFound() {
           <p className="t-label">URL が変わったか、まちがっている可能性があります。議論に参加するときは、参加コードを入力してください。</p>
           <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
             <Link className="btn btn--blue" href="/join">参加コードを入力</Link>
-            <Link className="btn" href="/">トップに戻る</Link>
+            <Link className="btn" href="/">最初の画面に戻る</Link>
           </div>
         </div>
       </div>

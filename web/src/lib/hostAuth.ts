@@ -23,6 +23,11 @@ export async function signInAsTestHost() {
   await signInWithEmailAndPassword(firebase().auth, "mod@example.com", "password"); // submit-allow: エミュレータ専用のダミー
 }
 
+/** エミュレータで動かしているときだけ使う。firebase/seed.mjs のテスト用の生徒でログインする */
+export async function signInAsTestStudent() {
+  await signInWithEmailAndPassword(firebase().auth, "p1@example.com", "password"); // submit-allow: エミュレータ専用のダミー
+}
+
 export async function signOutHost() {
   await signOut(firebase().auth);
 }

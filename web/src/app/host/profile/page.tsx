@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Header, Loading } from "@/components/ui";
 import { ProfileForm } from "@/components/host/ProfileForm";
 import { signOutHost, useHostUser } from "@/lib/hostAuth";
+import { setRole } from "@/lib/local";
 
 /** 先生の設定：プロフィールの変更とログアウト */
 export default function ProfilePage() {
@@ -16,7 +17,7 @@ export default function ProfilePage() {
     return (
       <main className="screen"><div className="body body--center">
         <div className="box box--lg card card--narrow"><p className="t-label">設定を変えるには、先生としてログインしてください。</p>
-          <Link className="btn btn--yellow" href="/host">ログインする</Link></div>
+          <Link className="btn btn--yellow" href="/">ログインする</Link></div>
       </div></main>
     );
   }
@@ -30,6 +31,7 @@ export default function ProfilePage() {
           {saved && <p className="notice" role="status">保存しました。</p>}
           <div style={{ borderTop: "3px solid #000", paddingTop: 16, display: "flex", alignItems: "center", gap: 16 }}>
             <p className="t-note" style={{ flex: 1 }}>ログイン中：{user.email ?? user.displayName}</p>
+            <button className="btn" onClick={() => { setRole(user.uid, "student"); router.push("/student"); }}>生徒として使う</button>
             <button className="btn" onClick={async () => { await signOutHost(); router.push("/"); }}>ログアウト</button>
           </div>
         </div>

@@ -11,7 +11,7 @@ export default function ErrorPage({ reset }: { error: Error; reset: () => void }
           <p className="t-label">通信が切れたか、一時的な問題が起きました。入力した意見や発言は保存されています。もう一度試してください。</p>
           <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
             <button className="btn btn--blue" onClick={() => reset()}>もう一度試す</button>
-            <Link className="btn" href="/">トップに戻る</Link>
+            <Link className="btn" href="/">最初の画面に戻る</Link>
           </div>
         </div>
       </div>
