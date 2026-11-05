@@ -9,6 +9,8 @@ import type { Phase } from "@/components/ui";
 
 export interface Room {
   title: string; phase: Phase; joinCode?: string; createdBy: string; groups?: number;
+  /** グループごとの進行（キーはグループ番号）。生徒が議論を終えると consensus、全員の一文がそろって結果が出ると done */
+  groupState?: Record<string, { status?: "consensus" | "done"; total?: number; submitted?: number }>;
   phaseChangedAt?: Partial<Record<Phase, Timestamp>>;
   analysis?: { status: "idle" | "running" | "done" | "failed"; startedAt?: Timestamp; error?: string };
 }
@@ -24,6 +26,14 @@ export interface Summary {
   byGroup?: { group: number; respondents: number; alignmentRate: number | null; clusters: { label: string; count: number }[] }[];
   source?: string;
 }
+/** グループの結果（rooms/{部屋}/results/group-{番号}） */
+export interface GroupResult { group: number; respondents: number; clusters: { label: string; count: number }[]; alignmentRate: number | null; source?: string }
+/** 部屋のすべてのグループの結果を購読する */
+export const useGroupResults = (roomId: string, on: boolean) =>
+  useQuery<GroupResult & { id: string }>(on ? `gr:${roomId}` : undefined, () => collection(db(), `rooms/${roomId}/results`))
+    .filter((r) => r.id.startsWith("group-"))
+    .sort((a, b) => a.group - b.group);
+
 export interface Progress {
   participants: number; opinions: number; statements: number;
   byGroup?: { group: number; participants: number; opinions: number; statements: number }[];

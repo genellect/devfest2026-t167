@@ -199,6 +199,88 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
     res.json({ status: 'approved' });
   })));
 
+  // ---- グループごとの進行 ----
+  // 部屋ドキュメントの groupState.{グループ番号} = { status: 'consensus' | 'done', total, submitted }。
+  // 生徒と先生は部屋ドキュメントの購読で、グループの状態と提出人数をリアルタイムに見る（本文は含めない）
+  const participantOnly = run(async (req) => {
+    if (req.ctx.role !== 'participant') throw new HttpError(403, 'participant_only', '生徒だけが実行できます');
+  });
+  async function groupMembers(roomId: string, group: number) {
+    const ms = await db.collection(`rooms/${roomId}/members`).where('role', '==', 'participant').get();
+    return ms.docs.filter((m) => ((m.get('group') as number | undefined) ?? 1) === group).map((m) => m.id);
+  }
+  async function myGroup(roomId: string, uid: string) {
+    return ((await db.doc(`rooms/${roomId}/members/${uid}`).get()).get('group') as number | undefined) ?? 1;
+  }
+  /** グループ全員の一文がそろったら（force なら今ある分で）、そのグループの理解の分かれ方を分析して results/group-{番号} に保存する */
+  async function analyzeGroup(roomId: string, group: number, force = false) {
+    const uids = await groupMembers(roomId, group);
+    const stmts = (await db.collection(`rooms/${roomId}/consensusStatements`).get()).docs.filter((d) => uids.includes(d.id));
+    await roomRef(roomId).set({ groupState: { [group]: { submitted: stmts.length, total: uids.length } } }, { merge: true });
+    const ready = uids.length > 0 && stmts.length >= uids.length;
+    if ((!ready && !force) || stmts.length === 0) return { ready, analyzed: false, submitted: stmts.length, total: uids.length };
+    let cmp;
+    try {
+      cmp = await gemini.compare(stmts.map((d) => d.get('text') as string), [], []);
+    } catch {
+      return { ready, analyzed: false, submitted: stmts.length, total: uids.length, error: 'gemini_unavailable' };
+    }
+    const clusters = cmp.groups.map((c) => ({ label: c.label, count: new Set(c.members).size })).filter((c) => c.count > 0);
+    await db.doc(`rooms/${roomId}/results/group-${group}`).set({
+      group, respondents: stmts.length, clusters, alignmentRate: alignmentRate(cmp.groups, stmts.length),
+      source: gemini.source, updatedAt: FieldValue.serverTimestamp(),
+    });
+    await roomRef(roomId).set({ groupState: { [group]: { status: 'done' } } }, { merge: true });
+    return { ready, analyzed: true, submitted: stmts.length, total: uids.length };
+  }
+
+  // 自分のグループの議論を終える（生徒）。グループは結論の一文の記入に進む。2回目以降は何もしない
+  app.post('/rooms/:roomId/groups/end', ...chain(authenticate, member, participantOnly, wrap(async (req, res) => {
+    const roomId = req.params.roomId;
+    const group = await myGroup(roomId, req.ctx.uid);
+    const total = (await groupMembers(roomId, group)).length;
+    await db.runTransaction(async (tx) => {
+      const room = await tx.get(roomRef(roomId));
+      if (!room.exists) throw new HttpError(404, 'room_not_found', '部屋がありません');
+      if (room.get('phase') !== 'discussing') throw new HttpError(409, 'wrong_phase', '議論中ではありません');
+      if (room.get('groupState')?.[group]?.status) return;
+      tx.set(roomRef(roomId), { groupState: { [group]: { status: 'consensus', total, submitted: 0, endedAt: FieldValue.serverTimestamp() } } }, { merge: true });
+    });
+    res.json({ group, status: 'consensus' });
+  })));
+
+  // 結論の一文を出す（生徒）。グループが議論を終えたあと、または部屋が合意の確認に進んだあとに受け付ける。
+  // グループ全員がそろったら、そのグループの結果を自動で出す
+  app.post('/rooms/:roomId/statement', ...chain(authenticate, member, participantOnly, wrap(async (req, res) => {
+    const roomId = req.params.roomId;
+    const body = parse(z.object({
+      text: z.string().trim().min(1).max(300),
+      agreement: z.number().int().min(1).max(5),
+      concern: z.string().trim().max(300).optional(),
+    }), req.body);
+    const group = await myGroup(roomId, req.ctx.uid);
+    const room = await roomRef(roomId).get();
+    const status = room.get('groupState')?.[group]?.status;
+    if (!(room.get('phase') === 'consensus' || status === 'consensus' || status === 'done'))
+      throw new HttpError(409, 'wrong_phase', 'グループの議論が終わってから書いてください');
+    await db.doc(`rooms/${roomId}/consensusStatements/${req.ctx.uid}`).set({
+      text: body.text, agreement: body.agreement, ...(body.concern ? { concern: body.concern } : {}), updatedAt: FieldValue.serverTimestamp(),
+    });
+    res.json({ group, ...(await analyzeGroup(roomId, group)) });
+  })));
+
+  // グループの結果を出し直す。生徒は自分のグループ（全員そろっているときだけ）、先生は任意のグループを今ある回答で出せる
+  app.post('/rooms/:roomId/groups/analyze', ...chain(authenticate, member, wrap(async (req, res) => {
+    const roomId = req.params.roomId;
+    const isMod = req.ctx.role === 'moderator';
+    const group = isMod
+      ? parse(z.object({ group: z.number().int().min(1).max(MAX_GROUPS) }), req.body).group
+      : await myGroup(roomId, req.ctx.uid);
+    const r = await analyzeGroup(roomId, group, isMod);
+    if (r.error) throw new HttpError(503, 'gemini_unavailable', 'AI の分析は一時停止中です。少し待ってから再実行してください');
+    res.json({ group, ...r });
+  })));
+
   // 合意の実態検証と4つの指標（司会者）
   app.post('/rooms/:roomId/consensus/analyze', ...chain(authenticate, member, moderator, wrap(async (req, res) => {
     const roomId = req.params.roomId;

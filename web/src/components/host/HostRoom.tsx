@@ -8,51 +8,58 @@ import { formatMetric } from "@/lib/format";
 import Link from "next/link";
 import { getDuration, getRoomLabel } from "@/lib/local";
 import {
-  millis, useCountdown, useDoc, useInsights,
-  type Coverage, type Insight, type Progress, type Room, type Summary,
+  millis, useCountdown, useDoc, useGroupResults, useInsights, useMembers,
+  type Coverage, type GroupResult, type Insight, type Progress, type Room, type Summary,
 } from "@/lib/room";
 
 interface Props { roomId: string; room: Room }
 
-/** 先生（PC）の画面。部屋のフェーズで切り替える */
+/** 先生（PC）の画面。事前意見 → 議論のダッシュボード（グループの進み具合と結果）→ クラス全体の結果 */
 export function HostRoom({ roomId, room }: Props) {
   const source = useGeminiSource();
   const summary = useDoc<Summary>(room.phase === "consensus" || room.phase === "closed" ? `rooms/${roomId}/results/summary` : undefined).data;
+  const results = useGroupResults(roomId, room.phase !== "collecting");
   const [phaseError, setPhaseError] = useState("");
   const [moving, setMoving] = useState(false);
-  const [openGroup, setOpenGroup] = useState<number>();
+  const [view, setView] = useState<"dashboard" | "class" | number>("dashboard");
 
-  async function advance(to: Room["phase"]) {
+  async function advance(...to: Room["phase"][]) {
     setMoving(true); setPhaseError("");
-    try { await callApi(`/rooms/${roomId}/phase`, { to }); }
+    try { for (const p of to) await callApi(`/rooms/${roomId}/phase`, { to: p }); }
     catch (e) { setPhaseError((e as Error).message); }
     finally { setMoving(false); }
   }
 
-  const showResult = !!summary && (room.phase === "closed" || room.phase === "consensus");
   const [label, setLabel] = useState("");
   useEffect(() => { setLabel(getRoomLabel(roomId)); }, [roomId]);
-  const eyebrow = showResult
-    ? (openGroup ? `クラス全体 ＞ グループ${openGroup}` : `${label ? `${label}　` : ""}議論の結果`)
-    : `${label ? `${label}　` : ""}参加コード ${room.joinCode ?? ""}`;
+  const closed = room.phase === "closed";
+  const current = closed && view === "dashboard" ? "class" : view;
+  const eyebrow = typeof current === "number"
+    ? `クラス全体 ＞ グループ${current}`
+    : `${label ? `${label}　` : ""}${current === "class" ? "クラス全体の結果" : `参加コード ${room.joinCode ?? ""}`}`;
   return (
     <main className="screen">
-      <Header eyebrow={eyebrow} title={showResult && openGroup ? `グループ${openGroup}の話し合い` : room.title} demo={source === "mock"}>
+      <Header eyebrow={eyebrow} title={typeof current === "number" ? `グループ${current}の話し合い` : room.title} demo={source === "mock"}>
         <PhaseSteps phase={room.phase} />
-        {!openGroup && <Link className="btn btn--small" href="/host">ホーム</Link>}
-        {showResult && openGroup && <button className="btn btn--small" onClick={() => setOpenGroup(undefined)}>クラス全体に戻る</button>}
-        {room.phase === "consensus" && summary && (
-          <button className="btn btn--small" onClick={() => advance("closed")} disabled={moving}>部屋を閉じる</button>
+        {current !== "dashboard" && !(closed && current === "class") && (
+          <button className="btn btn--small" onClick={() => setView(typeof current === "number" && closed ? "class" : "dashboard")}>
+            {typeof current === "number" && closed ? "クラス全体に戻る" : "ダッシュボードに戻る"}
+          </button>
         )}
+        {current === "dashboard" && room.phase !== "collecting" && results.length > 0 && (
+          <button className="btn btn--small" onClick={() => setView("class")}>クラス全体の結果</button>
+        )}
+        <Link className="btn btn--small" href="/host">ホーム</Link>
       </Header>
       {phaseError && <p className="notice notice--error" role="alert" style={{ margin: "16px 32px 0" }}>{phaseError}</p>}
       {room.phase === "collecting" && <Lobby roomId={roomId} room={room} onStart={() => advance("discussing")} moving={moving} />}
-      {room.phase === "discussing" && <Discussion roomId={roomId} room={room} onEnd={() => advance("consensus")} moving={moving} />}
-      {room.phase === "consensus" && !summary && <ConsensusWait roomId={roomId} room={room} />}
-      {showResult && summary && !openGroup && <ClassResult summary={summary} groups={room.groups ?? 1} onOpen={setOpenGroup} roomId={roomId} source={source} />}
-      {showResult && summary && openGroup && <GroupResult summary={summary} group={openGroup} roomId={roomId} source={source} />}
-      {room.phase === "closed" && !summary && (
-        <div className="body body--center"><p className="box box--md pad t-label">この議論は、結果を分析しないまま終了しました。</p></div>
+      {(room.phase === "discussing" || room.phase === "consensus") && current === "dashboard" && (
+        <Dashboard roomId={roomId} room={room} results={results} onOpen={setView} moving={moving}
+          onClose={() => advance(...(room.phase === "discussing" ? ["consensus", "closed"] as const : ["closed"] as const))} />
+      )}
+      {room.phase !== "collecting" && current === "class" && <ClassResult roomId={roomId} room={room} results={results} summary={summary ?? null} onOpen={setView} />}
+      {room.phase !== "collecting" && typeof current === "number" && (
+        <GroupResultView result={results.find((r) => r.group === current) ?? null} group={current} roomId={roomId} source={source} />
       )}
     </main>
   );
@@ -88,6 +95,8 @@ function GroupGrid({ p, render }: { p?: Progress; render: (g: NonNullable<Progre
 /** S3 参加コード・QR の表示 → S4 事前意見の提出状況 */
 function Lobby({ roomId, room, onStart, moving }: { roomId: string; room: Room; onStart: () => void; moving: boolean }) {
   const p = useProgress(roomId);
+  // 参加者の数は Firestore の購読で数える（提出数だけ API の progress を使う）
+  const joined = useMembers(roomId, true).filter((m) => m.role === "participant").length;
   const [qr, setQr] = useState<string>();
   const [view, setView] = useState<"code" | "status">("code");
   const code = room.joinCode ?? "";
@@ -102,7 +111,7 @@ function Lobby({ roomId, room, onStart, moving }: { roomId: string; room: Room; 
       <div className="body">
         <div style={{ display: "flex", alignItems: "flex-end", gap: 16 }}>
           <div style={{ flex: 1 }}>
-            <h2 className="t-lg">{p ? `${p.opinions}/${p.participants}人が提出しました` : "提出状況を確認しています…"}</h2>
+            <h2 className="t-lg">{p ? `${p.opinions}/${p.participants}人が提出しました` : `${joined}人が参加しています`}</h2>
             <p className="t-label">先生には提出した人数だけを表示します。本文は見えません。</p>
           </div>
           <button className="btn" onClick={() => setView("code")}>参加コードを表示</button>
@@ -129,7 +138,7 @@ function Lobby({ roomId, room, onStart, moving }: { roomId: string; room: Room; 
           </div>
           <div className="box box--md pad stack stack--tight">
             <p className="t-label">参加した人</p>
-            <p className="t-xl">{p ? `${p.participants}人` : "—"}</p>
+            <p className="t-xl">{joined}人</p>
           </div>
           <button className="btn btn--yellow btn--block" onClick={() => setView("status")}>事前の記入状況を見る</button>
         </div>
@@ -138,13 +147,27 @@ function Lobby({ roomId, room, onStart, moving }: { roomId: string; room: Room; 
   );
 }
 
-/** S5 議論の見守り。残り時間、グループの様子、AI の分析と提案の承認 */
-function Discussion({ roomId, room, onEnd, moving }: { roomId: string; room: Room; onEnd: () => void; moving: boolean }) {
+/** S5 議論のダッシュボード。残り時間、グループの進み具合（議論中・記入中・結果あり）、AI の提案 */
+function Dashboard({ roomId, room, results, onOpen, onClose, moving }: {
+  roomId: string; room: Room; results: GroupResult[]; onOpen: (g: number) => void; onClose: () => void; moving: boolean;
+}) {
   const minutes = getDuration(roomId);
   const timer = useCountdown(millis(room.phaseChangedAt?.discussing), minutes);
   const insights = useInsights(roomId, true, false);
   const coverage = useDoc<Coverage>(`rooms/${roomId}/results/coverage`).data;
-  const p = useProgress(roomId);
+  const members = useMembers(roomId, true).filter((m) => m.role === "participant");
+  const [confirm, setConfirm] = useState(false);
+  const [busyGroup, setBusyGroup] = useState<number>();
+  const [error, setError] = useState("");
+  const groupCount = room.groups ?? 1;
+  const done = results.length;
+
+  async function analyzeNow(g: number) {
+    setBusyGroup(g); setError("");
+    try { await callApi(`/rooms/${roomId}/groups/analyze`, { group: g }); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusyGroup(undefined); }
+  }
 
   return (
     <div className="body" style={{ gap: 24 }}>
@@ -153,12 +176,48 @@ function Discussion({ roomId, room, onEnd, moving }: { roomId: string; room: Roo
           <p className="t-label">議論の残り時間</p>
           <p style={{ fontSize: 56, fontWeight: 900, lineHeight: 1.2 }} aria-live="off">{timer.over ? "時間です" : timer.text}</p>
         </div>
-        {coverage && <p className="t-label">事前意見の論点の反映率 {formatMetric(coverage.reflectionRate, coverage.source === "mock" ? "mock" : "gemini")}</p>}
-        <button className="btn btn--yellow" onClick={onEnd} disabled={moving}>議論を終える</button>
+        <div className="stack stack--tight" style={{ textAlign: "right" }}>
+          <p className="t-label">結果が出たグループ {done}/{groupCount}</p>
+          {coverage && <p className="t-label">事前意見の論点の反映率 {formatMetric(coverage.reflectionRate, coverage.source === "mock" ? "mock" : "gemini")}</p>}
+        </div>
+        {!confirm
+          ? <button className="btn btn--yellow" onClick={() => setConfirm(true)} disabled={moving}>授業を終える</button>
+          : (
+            <div className="stack stack--tight">
+              <button className="btn btn--yellow" onClick={onClose} disabled={moving}>終えて結果を見る</button>
+              <button className="btn btn--small" onClick={() => setConfirm(false)} disabled={moving}>まだ続ける</button>
+            </div>
+          )}
       </section>
+      {error && <p className="notice notice--warn" role="alert">{error}</p>}
       <div className="split" style={{ gridTemplateColumns: "minmax(0, 1fr) 420px" }}>
-        <GroupGrid p={p} render={(g) => ({ big: "話し合い中", note: `${g.participants}人・各端末で録音中` })} />
-        <AiPanel roomId={roomId} room={room} insights={insights} />
+        <div className="grid-auto">
+          {Array.from({ length: groupCount }, (_, i) => i + 1).map((g) => {
+            const st = room.groupState?.[String(g)];
+            const result = results.find((r) => r.group === g);
+            const n = members.filter((m) => (m.group ?? 1) === g).length;
+            const writing = !result && (st?.status === "consensus" || room.phase === "consensus");
+            return (
+              <section key={g} className={`box box--md group-card${result ? " box--tint" : writing ? " box--yellow" : ""}`}>
+                <p className="t-label">グループ{g}</p>
+                <p className="t-lg">{result ? "結果あり" : writing ? "結論を記入中" : "話し合い中"}</p>
+                <p className="t-small">
+                  {writing ? `提出 ${st?.submitted ?? 0}/${st?.total ?? n}人` : `${n}人`}
+                  {result && result.clusters.length > 1 ? `・理解が${result.clusters.length}通り` : ""}
+                </p>
+                {result && <button className="btn btn--small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => onOpen(g)}>詳しく見る</button>}
+                {writing && (st?.submitted ?? 0) > 0 && (
+                  <button className="btn btn--small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => analyzeNow(g)} disabled={busyGroup === g}>
+                    {busyGroup === g ? "分析中…" : "今の回答で結果を出す"}
+                  </button>
+                )}
+              </section>
+            );
+          })}
+        </div>
+        {room.phase === "discussing" ? <AiPanel roomId={roomId} room={room} insights={insights} /> : (
+          <section className="box box--md pad stack"><p className="t-label">全員が結論を書いています。</p><p className="t-note">グループごとに、全員がそろうと結果が出ます。</p></section>
+        )}
       </div>
     </div>
   );
@@ -227,64 +286,33 @@ function AiPanel({ roomId, room, insights }: { roomId: string; room: Room; insig
   );
 }
 
-/** S6 合意の回答待ち */
-function ConsensusWait({ roomId, room }: { roomId: string; room: Room }) {
-  const p = useProgress(roomId);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  async function analyze() {
-    setBusy(true); setError("");
-    try { await callApi(`/rooms/${roomId}/consensus/analyze`); }
-    catch (e) { setError((e as Error).message); setBusy(false); }
-  }
-  return (
-    <div className="body">
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 24 }}>
-        <div style={{ flex: 1 }}>
-          <h2 className="t-lg">{p ? `${p.statements}/${p.participants}人が提出しました` : "提出状況を確認しています…"}</h2>
-          <p className="t-label">全員がそろったら、結果を分析します。本文は先生にも表示しません。</p>
-        </div>
-        <button className="btn btn--yellow" onClick={analyze} disabled={busy || !p?.statements}>{busy ? "分析中…" : "結果を分析する"}</button>
-      </div>
-      {error && <p className="notice notice--warn" role="alert">{error}</p>}
-      {(room.groups ?? 1) > 1 ? (
-        <GroupGrid p={p} render={(g) => ({ big: `${g.statements}/${g.participants}人`, note: "結論の一文を提出済み", done: g.participants > 0 && g.statements === g.participants })} />
-      ) : (
-        <section className="box box--lg pad-lg stack" style={{ flex: 1, justifyContent: "center", gap: 20 }}>
-          <p className="t-md">結論の一文を書いた人</p>
-          <p style={{ fontSize: 112, fontWeight: 900, lineHeight: 1.1 }}>{p ? p.statements : "—"}<span className="t-lg"> / {p ? p.participants : "—"}人</span></p>
-          <div className="meter" style={{ height: 28 }} aria-hidden="true"><span style={{ width: `${p && p.participants ? (p.statements / p.participants) * 100 : 0}%` }} /></div>
-        </section>
-      )}
-    </div>
-  );
-}
-
 const describeGap = (clusters: { count: number }[] | undefined) =>
   !clusters || clusters.length === 0 ? "回答なし" : clusters.length === 1 ? "大きなちがいなし" : `理解が${clusters.length}通り`;
 
-/** T1 クラス全体の結果。4つの指標と、グループの比較 */
-function ClassResult({ summary, groups, onOpen }: { summary: Summary; groups: number; onOpen: (g: number) => void; roomId: string; source?: string }) {
-  const m = summary.metrics;
-  const byGroup = summary.byGroup ?? [{ group: 1, respondents: summary.respondents, alignmentRate: m.alignmentRate, clusters: summary.groups.map((g) => ({ label: g.label, count: g.members.length })) }];
-  const split = byGroup.filter((g) => g.clusters.length > 1).length;
+/** T1 クラス全体の結果。グループの結果を並べて比べる。指標は分かるものだけ出す */
+function ClassResult({ roomId, room, results, summary, onOpen }: { roomId: string; room: Room; results: GroupResult[]; summary: Summary | null; onOpen: (g: number) => void }) {
+  const coverage = useDoc<Coverage>(`rooms/${roomId}/results/coverage`).data;
+  const respondents = results.reduce((a, r) => a + r.respondents, 0);
+  const largest = results.reduce((a, r) => a + Math.max(0, ...r.clusters.map((c) => c.count)), 0);
+  const split = results.filter((r) => r.clusters.length > 1).length;
+  const source = results[0]?.source ?? summary?.source;
   const signals: { title: string; note: string; value: number | null }[] = [
-    { title: "意見の反映率", note: "事前意見の論点のうち、議論で取り上げられた割合", value: m.reflectionRate },
-    { title: "認識一致度", note: "最も多い理解に入った人の割合", value: m.alignmentRate },
-    { title: "参加の公平性", note: "発言数の偏りの少なさ（全員同じなら100%）", value: m.participationFairness },
-    { title: "介入の有効率", note: "承認した提案のうち、その後に取り上げられた割合", value: m.interventionEffectiveness },
+    { title: "認識一致度", note: "グループごとに、最も多い理解に入った人の割合", value: respondents >= 2 ? largest / respondents : null },
+    { title: "意見の反映率", note: "事前意見の論点のうち、議論で取り上げられた割合", value: summary?.metrics.reflectionRate ?? coverage?.reflectionRate ?? null },
+    { title: "介入の有効率", note: "承認した提案のうち、その後に取り上げられた割合", value: summary?.metrics.interventionEffectiveness ?? null },
   ];
+  const groupCount = room.groups ?? 1;
   return (
     <div className="body">
       <div style={{ display: "grid", gridTemplateColumns: "380px minmax(0, 1fr)", gap: 28 }}>
         <div className="stack" style={{ gap: 20 }}>
           <section className="box box--lg box--blue pad stack">
-            <div className="heading-row"><p className="t-label">次の授業で扱えそうなこと</p><SourceTag source={summary.source} /></div>
-            <p className="t-lg" style={{ lineHeight: 1.4 }}>{split > 0 ? "結論の言葉を、全員でそろえる" : "結論の理由を、さらに深める"}</p>
+            <div className="heading-row"><p className="t-label">次の授業で扱えそうなこと</p><SourceTag source={source} /></div>
+            <p className="t-lg" style={{ lineHeight: 1.4 }}>{split > 0 ? "結論の言葉を、全員でそろえる" : results.length ? "結論の理由を、さらに深める" : "結果を待っています"}</p>
             <p className="t-label">
               {split > 0
-                ? `${groups > 1 ? `${byGroup.length}グループ中${split}グループで、` : ""}同じ結論の理解が分かれました。次の授業の始めに「私たちの結論は何のため？」を5分話し合います。`
-                : "結論の理解はそろっていました。次は、結論を支える理由を一人ひとりが説明できるか確かめます。"}
+                ? `${results.length}グループ中${split}グループで、同じ結論の理解が分かれました。次の授業の始めに「私たちの結論は何のため？」を5分話し合います。`
+                : results.length ? "結論の理解はそろっていました。次は、結論を支える理由を一人ひとりが説明できるか確かめます。" : "グループの全員が結論を書くと、ここにまとめが出ます。"}
             </p>
           </section>
           {signals.map((s) => (
@@ -296,22 +324,25 @@ function ClassResult({ summary, groups, onOpen }: { summary: Summary; groups: nu
               <p className="t-lg" style={{ whiteSpace: "nowrap" }}>{s.value === null ? <span className="t-small">データなし</span> : `${Math.round(s.value * 100)}%`}</p>
             </section>
           ))}
-          <p className="t-small">{summary.source === "mock" ? "数値はデモデータです。" : "数値には Gemini による推定を含みます。"}実測の改善効果とは区別してください。</p>
+          <p className="t-small">{source === "mock" ? "数値はデモデータです。" : "数値には Gemini による推定を含みます。"}実測の改善効果とは区別してください。</p>
         </div>
         <section className="box box--lg pad stack">
           <h2 className="t-md">グループを比べる</h2>
           <table className="table">
             <thead><tr><th>グループ</th><th>認識のちがい</th><th>一致度</th><th>回答</th><th /></tr></thead>
             <tbody>
-              {byGroup.map((g) => (
-                <tr key={g.group}>
-                  <td style={{ fontWeight: 900 }}>グループ{g.group}</td>
-                  <td>{g.clusters.length > 1 ? <span className="mark">{describeGap(g.clusters)}</span> : describeGap(g.clusters)}</td>
-                  <td>{formatMetric(g.alignmentRate)}</td>
-                  <td>{g.respondents}人</td>
-                  <td style={{ textAlign: "right" }}><button className="btn btn--small" onClick={() => onOpen(g.group)}>詳しく見る</button></td>
-                </tr>
-              ))}
+              {Array.from({ length: groupCount }, (_, i) => i + 1).map((g) => {
+                const r = results.find((x) => x.group === g);
+                return (
+                  <tr key={g}>
+                    <td style={{ fontWeight: 900 }}>グループ{g}</td>
+                    <td>{!r ? "結果待ち" : r.clusters.length > 1 ? <span className="mark">{describeGap(r.clusters)}</span> : describeGap(r.clusters)}</td>
+                    <td>{r ? formatMetric(r.alignmentRate) : "—"}</td>
+                    <td>{r ? `${r.respondents}人` : "—"}</td>
+                    <td style={{ textAlign: "right" }}>{r && <button className="btn btn--small" onClick={() => onOpen(g)}>詳しく見る</button>}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </section>
@@ -321,15 +352,14 @@ function ClassResult({ summary, groups, onOpen }: { summary: Summary; groups: nu
 }
 
 /** T2 グループの話し合い。理解の分かれ方、議論の流れ、ここがよかった／ここを見直そう */
-function GroupResult({ summary, group, roomId, source }: { summary: Summary; group: number; roomId: string; source?: string }) {
-  const g = summary.byGroup?.find((x) => x.group === group);
-  const clusters = [...(g?.clusters ?? summary.groups.map((c) => ({ label: c.label, count: c.members.length })))].sort((a, b) => b.count - a.count);
+function GroupResultView({ result, group, roomId, source }: { result: GroupResult | null; group: number; roomId: string; source?: string }) {
+  const clusters = [...(result?.clusters ?? [])].sort((a, b) => b.count - a.count);
   const { flow } = useFlow(roomId, group, source);
   return (
     <div className="body">
       <section className="box box--lg box--yellow pad stack">
-        <div className="heading-row"><h2 className="t-label">結論の認識のちがい</h2><SourceTag source={summary.source} /></div>
-        <p className="t-md">{clusters.length > 1 ? `同じ結論の理解が、${clusters.length}通りに分かれました。` : clusters.length === 1 ? "結論の理解は、ほぼそろっていました。" : "このグループの回答はありませんでした。"}</p>
+        <div className="heading-row"><h2 className="t-label">結論の認識のちがい</h2>{result && <SourceTag source={result.source} />}</div>
+        <p className="t-md">{!result ? "このグループの結果はまだありません。" : clusters.length > 1 ? `同じ結論の理解が、${clusters.length}通りに分かれました。` : "結論の理解は、ほぼそろっていました。"}</p>
         <div className="row">
           {clusters.map((c, i) => (
             <div key={i} className="box pad stack stack--tight">

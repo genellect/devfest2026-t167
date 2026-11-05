@@ -4,18 +4,22 @@ import { useEffect, useRef, useState } from "react";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { FlowTimeline, GoodReview, useFlow } from "@/components/flow";
 import { Header, PhaseSteps, SourceTag, Tag, useGeminiSource } from "@/components/ui";
+import { callApi } from "@/lib/api";
 import { firebase } from "@/lib/firebase";
 import { formatMetric } from "@/lib/format";
 import { getNextGoal, getReflection, saveReflection } from "@/lib/local";
 import { mmss, useRecorder } from "@/lib/recorder";
-import { useDoc, useInsights, type Room, type Summary } from "@/lib/room";
+import { useDoc, useInsights, type GroupResult, type Room } from "@/lib/room";
 
 interface Props { roomId: string; room: Room; uid: string; group: number }
 
 /** 生徒（タブレット横向き）の画面。部屋のフェーズで切り替える */
 export function ParticipantRoom({ roomId, room, uid, group }: Props) {
   const source = useGeminiSource();
-  const summary = useDoc<Summary>(room.phase === "consensus" || room.phase === "closed" ? `rooms/${roomId}/results/summary` : undefined).data;
+  const gs = room.groupState?.[String(group)];
+  // グループの結果。全員の一文がそろうと API が書く
+  const result = useDoc<GroupResult>(room.phase !== "collecting" ? `rooms/${roomId}/results/group-${group}` : undefined).data;
+  const writing = !result && room.phase !== "closed" && (room.phase === "consensus" || gs?.status === "consensus" || gs?.status === "done");
   return (
     <main className="screen">
       <Header eyebrow={(room.groups ?? 1) > 1 ? `あなたはグループ${group}` : undefined} title={room.title} demo={source === "mock"}>
@@ -23,9 +27,9 @@ export function ParticipantRoom({ roomId, room, uid, group }: Props) {
         <Link className="btn btn--small" href="/student">ホーム</Link>
       </Header>
       {room.phase === "collecting" && <OpinionStep roomId={roomId} uid={uid} />}
-      {room.phase === "discussing" && <VoiceStep roomId={roomId} />}
-      {room.phase === "consensus" && !summary && <ConsensusStep roomId={roomId} uid={uid} title={room.title} />}
-      {(room.phase === "closed" || summary) && <ResultStep roomId={roomId} uid={uid} group={group} source={source} title={room.title} summary={summary ?? null} closed={room.phase === "closed"} />}
+      {room.phase === "discussing" && !gs?.status && !result && <VoiceStep roomId={roomId} />}
+      {writing && <ConsensusStep roomId={roomId} uid={uid} title={room.title} submitted={gs?.submitted} total={gs?.total} />}
+      {(result || room.phase === "closed") && <ResultStep roomId={roomId} uid={uid} group={group} source={source} title={room.title} result={result ?? null} />}
     </main>
   );
 }
@@ -91,6 +95,16 @@ function OpinionStep({ roomId, uid }: { roomId: string; uid: string }) {
 function VoiceStep({ roomId }: { roomId: string }) {
   const insights = useInsights(roomId, true, true);
   const rec = useRecorder();
+  const [confirming, setConfirming] = useState(false);
+  const [ending, setEnding] = useState(false);
+  const [error, setError] = useState("");
+  async function endDiscussion() {
+    setEnding(true); setError("");
+    try {
+      await rec.stop(); // 録音は端末に残す（送信はバックエンドの実装後）
+      await callApi(`/rooms/${roomId}/groups/end`);
+    } catch (e) { setError((e as Error).message); setEnding(false); }
+  }
   const scale = 1 + rec.level * 0.45;
   const status = {
     idle: "録音を始めると、議論が終わるまで自動で記録します。",
@@ -127,9 +141,21 @@ function VoiceStep({ roomId }: { roomId: string }) {
             ? <p className="t-note">まだ話されていない論点が見つかると、先生がここに出します。</p>
             : insights.map((i) => <p key={i.id} className="t-sm" style={{ borderTop: "3px solid #000", paddingTop: 8 }}>{i.summary}</p>)}
         </section>
-        <section className="box box--sm pad stack stack--tight">
-          <p className="t-label">議論が終わったら</p>
-          <p className="t-note">先生が合意の確認に進めると、結論を自分の言葉で書く画面に変わります。</p>
+        <section className="box box--md pad stack">
+          <p className="t-label">グループの結論が出たら</p>
+          {!confirming ? (
+            <>
+              <p className="t-note">だれか1人が押すと、グループ全員が結論を書く画面に進みます。</p>
+              <button className="btn btn--blue btn--block" onClick={() => setConfirming(true)}>グループの議論を終える</button>
+            </>
+          ) : (
+            <>
+              <p className="t-note">グループのみんなで、結論が出たことを確かめましたか？</p>
+              <button className="btn btn--blue btn--block" onClick={endDiscussion} disabled={ending}>{ending ? "終えています…" : "終える"}</button>
+              <button className="btn btn--block" onClick={() => setConfirming(false)} disabled={ending}>まだ話す</button>
+            </>
+          )}
+          {error && <p className="notice notice--error" role="alert">{error}</p>}
         </section>
       </aside>
     </div>
@@ -139,7 +165,7 @@ function VoiceStep({ roomId }: { roomId: string }) {
 const AGREEMENT = ["まったく納得していない", "あまり納得していない", "どちらともいえない", "おおむね納得", "とても納得"];
 
 /** P4 結論の理解を入力。本人だけが読み書きできる */
-function ConsensusStep({ roomId, uid, title }: { roomId: string; uid: string; title: string }) {
+function ConsensusStep({ roomId, uid, title, submitted, total }: { roomId: string; uid: string; title: string; submitted?: number; total?: number }) {
   const mine = useDoc<{ text: string; agreement: number; concern?: string }>(`rooms/${roomId}/consensusStatements/${uid}`).data;
   const [text, setText] = useState("");
   const [agreement, setAgreement] = useState(0);
@@ -153,9 +179,8 @@ function ConsensusStep({ roomId, uid, title }: { roomId: string; uid: string; ti
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setError("");
     try {
-      await setDoc(doc(firebase().db, `rooms/${roomId}/consensusStatements/${uid}`), {
-        text: text.trim(), agreement, ...(concern.trim() ? { concern: concern.trim() } : {}), updatedAt: serverTimestamp(),
-      });
+      // API 経由で出す。グループ全員がそろうと、API がそのグループの結果を出す
+      await callApi(`/rooms/${roomId}/statement`, { text: text.trim(), agreement, ...(concern.trim() ? { concern: concern.trim() } : {}) });
     } catch (err) { setError(`提出できませんでした：${(err as Error).message}`); }
   }
 
@@ -186,7 +211,12 @@ function ConsensusStep({ roomId, uid, title }: { roomId: string; uid: string; ti
         </div>
         {error && <p className="notice notice--error" role="alert">{error}</p>}
         <button className="btn btn--blue btn--block" type="submit" disabled={!text.trim() || !agreement}>{mine ? "書き直して提出する" : "提出する"}</button>
-        {mine && <p className="notice" role="status">提出しました。全員がそろったら、先生が結果を分析します。</p>}
+        {mine && (
+          <div className="notice notice--warn stack stack--tight" role="status">
+            <p className="t-label">提出しました。グループのみんなを待っています{total ? `（${submitted ?? 0}/${total}人）` : ""}</p>
+            <p className="t-note">全員がそろうと、自動で結果の画面に変わります。</p>
+          </div>
+        )}
       </form>
     </div>
   );
@@ -196,18 +226,14 @@ const ACHIEVED = ["できた", "少しできた", "まだ"];
 const SPOKE = ["言えた", "一部言えた", "言えなかった", "特になかった"];
 
 /** P4-2 認識のちがい ＋ P5 振り返り。グループの結果は全員に、振り返りはこの端末にだけ残す */
-function ResultStep({ roomId, uid, group, source, title, summary, closed }: { roomId: string; uid: string; group: number; source?: string; title: string; summary: Summary | null; closed: boolean }) {
+function ResultStep({ roomId, uid, group, source, title, result }: { roomId: string; uid: string; group: number; source?: string; title: string; result: GroupResult | null }) {
   const mine = useDoc<{ text: string }>(`rooms/${roomId}/consensusStatements/${uid}`).data;
   const opinion = useDoc<{ text: string }>(`rooms/${roomId}/privateOpinions/${uid}`).data;
   const [r, setR] = useState(() => getReflection(roomId));
   const [saved, setSaved] = useState(false);
   const set = (patch: Partial<typeof r>) => { setR({ ...r, ...patch }); setSaved(false); };
-  // 自分のグループの分かれ方を出す（グループ別の結果がなければクラス全体）
-  const mine_ = summary?.byGroup?.find((g) => g.group === group);
-  const groups = mine_
-    ? [...mine_.clusters].sort((a, b) => b.count - a.count).map((c) => ({ label: c.label, n: c.count }))
-    : [...(summary?.groups ?? [])].sort((a, b) => b.members.length - a.members.length).map((g) => ({ label: g.label, n: g.members.length }));
-  const alignment = mine_ ? mine_.alignmentRate : summary?.metrics.alignmentRate ?? null;
+  const groups = [...(result?.clusters ?? [])].sort((a, b) => b.count - a.count).map((c) => ({ label: c.label, n: c.count }));
+  const alignment = result?.alignmentRate ?? null;
   const { flow } = useFlow(roomId, group, source);
 
   return (
@@ -218,8 +244,8 @@ function ResultStep({ roomId, uid, group, source, title, summary, closed }: { ro
       </section>
 
       <h2 className="t-md">同じ結論を、どう理解した？</h2>
-      {!summary ? (
-        <p className="box box--sm pad t-label">先生が結果を分析すると、ここにみんなの理解の分かれ方が出ます。</p>
+      {!result ? (
+        <p className="box box--sm pad t-label">グループの結果はまだありません。グループ全員が結論の一文を書くと、ここに理解の分かれ方が出ます。</p>
       ) : (
         <div className="row">
           <section className="box box--sm box--yellow pad stack">
@@ -227,17 +253,17 @@ function ResultStep({ roomId, uid, group, source, title, summary, closed }: { ro
             <p className="t-md">{mine?.text ?? "（入力していません）"}</p>
           </section>
           <section className="box box--sm pad stack">
-            <div className="heading-row"><h3 className="t-sm">{mine_ ? "グループの理解の分かれ方" : "みんなの理解の分かれ方"}</h3><SourceTag source={summary.source} /></div>
+            <div className="heading-row"><h3 className="t-sm">グループの理解の分かれ方</h3><SourceTag source={result.source} /></div>
             <p className="t-md">{groups.length <= 1 ? "理解はほぼそろっていました。" : `${groups.length}通りに分かれました。`}</p>
             <ul className="stack stack--tight" style={{ margin: 0, paddingLeft: 20 }}>
               {groups.map((g, i) => <li key={i} className="t-label">{g.label}（{g.n}人）</li>)}
             </ul>
-            <p className="t-note">認識一致度：{formatMetric(alignment, summary.source === "mock" ? "mock" : "gemini")}</p>
+            <p className="t-note">認識一致度：{formatMetric(alignment, result.source === "mock" ? "mock" : "gemini")}</p>
           </section>
         </div>
       )}
 
-      {closed && (
+      {(
         <>
           <h2 className="t-md">グループで何が起きたか</h2>
           <FlowTimeline flow={flow} compact />

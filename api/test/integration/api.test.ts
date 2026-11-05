@@ -170,6 +170,50 @@ describe('クラス内のグループ', () => {
   });
 });
 
+describe('グループごとの進行', () => {
+  it('生徒がグループの議論を終え、全員の一文がそろうとグループの結果が出る', async () => {
+    const { roomId, mod, p1, p2 } = await setupRoom();
+    const say = (t: string, text: string) => api(t).post(`/rooms/${roomId}/statement`, { text, agreement: 4 });
+    await api(p1).post(`/rooms/${roomId}/groups/end`).expect(409); // まだ議論中ではない
+    await api(mod).post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(200);
+    await say(p1, '申告すれば利用可').expect(409); // 議論を終える前は書けない
+    await api(mod).post(`/rooms/${roomId}/groups/end`).expect(403); // 先生は生徒の代わりに終えられない
+    await api(p1).post(`/rooms/${roomId}/groups/end`).expect(200);
+    await api(p2).post(`/rooms/${roomId}/groups/end`).expect(200); // 2回目は何もしない
+    expect((await db.doc(`rooms/${roomId}`).get()).get('groupState')['1']).toMatchObject({ status: 'consensus', total: 2, submitted: 0 });
+
+    const r1 = await say(p1, '申告すれば利用可').expect(200);
+    expect(r1.body).toMatchObject({ group: 1, ready: false, analyzed: false, submitted: 1, total: 2 });
+    expect((await db.doc(`rooms/${roomId}/results/group-1`).get()).exists).toBe(false);
+    const r2 = await say(p2, '教員の許可があれば利用可').expect(200);
+    expect(r2.body).toMatchObject({ ready: true, analyzed: true, submitted: 2, total: 2 });
+    const result = (await db.doc(`rooms/${roomId}/results/group-1`).get()).data();
+    expect(result).toMatchObject({ group: 1, respondents: 2, alignmentRate: 0.5, source: 'mock' });
+    expect(result?.clusters).toHaveLength(2);
+    expect((await db.doc(`rooms/${roomId}`).get()).get('groupState')['1'].status).toBe('done');
+  });
+  it('先生はそろっていなくても、今ある回答でグループの結果を出せる。生徒はそろうまで出せない', async () => {
+    const { roomId, mod, p1 } = await setupRoom();
+    await api(mod).post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(200);
+    await api(p1).post(`/rooms/${roomId}/groups/end`).expect(200);
+    await api(p1).post(`/rooms/${roomId}/statement`, { text: '費用が心配', agreement: 3 }).expect(200);
+    expect((await api(p1).post(`/rooms/${roomId}/groups/analyze`).expect(200)).body.analyzed).toBe(false);
+    expect((await api(mod).post(`/rooms/${roomId}/groups/analyze`, { group: 1 }).expect(200)).body.analyzed).toBe(true);
+  });
+  it('Gemini が失敗しても一文は保存され、あとで出し直せる', async () => {
+    const { roomId, mod, p1, p2 } = await setupRoom();
+    await api(mod).post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(200);
+    await api(p1).post(`/rooms/${roomId}/groups/end`).expect(200);
+    await api(p1).post(`/rooms/${roomId}/statement`, { text: 'a', agreement: 3 }).expect(200);
+    fail = true;
+    expect((await api(p2).post(`/rooms/${roomId}/statement`, { text: 'b', agreement: 3 }).expect(200)).body).toMatchObject({ analyzed: false, error: 'gemini_unavailable' });
+    expect((await db.doc(`rooms/${roomId}/consensusStatements/${uidOf(p2)}`).get()).exists).toBe(true);
+    await api(p2).post(`/rooms/${roomId}/groups/analyze`).expect(503);
+    fail = false;
+    expect((await api(p2).post(`/rooms/${roomId}/groups/analyze`).expect(200)).body.analyzed).toBe(true);
+  });
+});
+
 describe('承認と合意の検証', () => {
   it('参加者は承認できず、司会者は承認でき、2回目は 409', async () => {
     const { roomId, mod, p1 } = await setupRoom();
