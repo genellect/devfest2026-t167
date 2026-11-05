@@ -41,6 +41,8 @@ Google Docs 正本はまだ変更していないため、`docs/infra-manual.md` 
 
 Codex と Claude は同格のメインエンジニアとして、目的に向けて独立に設計・実装し、互いの PR をレビューする。Claude は自身が提案した起動設定・デプロイ前検証・クラウドログイン・開発環境・関連文書の改善を自律的に進める。Codex は Firebase 以降の実環境構築と構築記録を進める。設計、作業ブランチ、PR の切り方は各担当が判断し、担当が重なる点は当事者同士で調整する。
 
+本番反映の承諾（依頼者の追加指示）：mainへのマージから自動デプロイまでを「本番反映」と呼び、開始前に必ずYuto Matsui（GitHub：genellect）の承諾を得る。承諾はそのPRの本番反映への1回にまとめる。通常のPR作成は`bash scripts/dev.sh pr --no-merge`とし、CI・レビュー・プレビューの成功だけでは本番反映を開始しない。
+
 ## 1. 依頼の範囲
 
 **やること**
@@ -65,7 +67,7 @@ Codex と Claude は同格のメインエンジニアとして、目的に向け
 | 1. AI ツールのクラウド環境 | Claude Code は `.claude/cloud-setup.sh`、Codex は `.codex/setup.sh` | Claude Code は同じ手順で確かめた。Codex Desktop から WSL Ubuntu 26.04.1・Node.js 22.22.1・Java 21 で `.codex/setup.sh` と `scripts/dev.sh check` を実行し、ともに終了コード0（2026-11-05）。Codex クラウド環境への登録・実行は未確認 |
 | 2. PR で自動検査・文書だけなら待たない | 文書だけの PR #1 で changes 成功・test 省略、設定変更の PR #2 の `88c79fd` で全検査70件が成功。Claude も同コミットで独立に全検査を再実行し成功 | GitHub と手元で確認済み。実行時間の README への記録は段階9で行う |
 | 2. 手元の検査が CI と一致 | CI は `bash scripts/dev.sh check` を呼ぶだけ | 達成（手元で全件通った） |
-| 3. CI が通れば追加の操作なしにマージ | `bash scripts/dev.sh pr` が、手元の検査・push・PR の作成・auto-merge の設定を1回で行う。Rules・ワークフロー・構築スクリプトを変える PR には auto-merge を付けず、レビューを求める。回帰テスト9件（偽の gh と手元の bare リポジトリ）が通った | 手順と仕組みは完成。GitHub 上の auto-merge は未確認（main のルールで test が必須になっていないと auto-merge は使えない） |
+| 3. 本番反映の承諾後、CI が通れば追加の操作なしにマージ | `bash scripts/dev.sh pr` が、手元の検査・push・PR の作成・auto-merge の設定を1回で行う。Rules・ワークフロー・構築スクリプトを変える PR には auto-merge を付けず、レビューを求める。回帰テスト9件（偽の gh と手元の bare リポジトリ）が通った | 手順と仕組みは完成。GitHub 上の auto-merge は未確認（main のルールで test が必須になっていないと auto-merge は使えない） |
 | 3. 本番に自動で反映し、結果が分かる | `deploy.yml` が CI 通過後に Rules → API → 画面の順に反映し、サマリーに記録する | 未検証。失敗の通知は GitHub の既定の通知だけ |
 | 4. マージ前に本物の Gemini を試せる | Firestore・Auth はエミュレータ、Vertex AI は本番プロジェクトに分離する。Gemini の接続先は依頼者承認済みの global。空・未設定時の起動処理と gcloud がない場合の案内は Claude のレビューで改善点として確認した | 接続先の受け渡しとモックの検査は確認済み。実モデルの呼び出しと起動時の改善は未完了 |
 | 5. 1つの操作で戻せる | `deploy.yml` の手動実行で、過去に成功したコミットだけに戻せる | 未検証 |
@@ -89,9 +91,9 @@ Codex と Claude は同格のメインエンジニアとして、目的に向け
 | 5 | 手順4：Firebase の追加と Web アプリ、Authentication | Codex と人 | Google と匿名のログインが有効 |
 | 6 | 手順6：App Hosting のバックエンド（ID は web、asia-east1、ルートは web）と `web/apphosting.yaml` の API_ORIGIN | Codex | `firebase apphosting:backends:list` に web があり、API_ORIGIN が本物の URL |
 | 7 | 手順8：`bash infra/setup-deployer.sh`、GitHub の Variables 6つ、`bash infra/setup-github.sh` | Codex と人（setup-github.sh はオーナー） | Variables が登録され、main のルールと push protection が有効 |
-| 8 | **目標3を確かめる。** `bash scripts/dev.sh pr` でコードの PR を出す | Codex | CI が通った PR が、人の操作なしに squash merge される。Rules を変える PR には auto-merge が付かない |
+| 8 | **目標3を確かめる。** Yuto Matsuiが本番反映を承諾したコードのPRで`bash scripts/dev.sh pr`を実行する | Codex | CI が通った PR が、人の操作なしに squash merge される。Rules を変える PR には auto-merge が付かない |
 | 9 | CI を GitHub で確かめる。文書だけの PR とコードの PR を1つずつ出す | Codex | 文書だけの PR で test が省かれ、コードの PR で test が通る。所要時間を README に書く |
-| 10 | 初回のデプロイ。オーナーの指示で main にマージする | Codex と人 | deploy が成功し、サマリーにコミットと API のリビジョンがある |
+| 10 | 初回の本番反映。Yuto Matsuiの事前承諾を受けた担当者がmainへマージする | Codex と人 | deploy が成功し、サマリーにコミットと API のリビジョンがある |
 | 11 | 本番の確認 | Codex と人 | 本番の URL が開き、`/api/health` が `{"ok":true,"gemini":"gemini"}` を返す（Cloud Run は `/healthz` を予約していてコンテナに届かない）。司会者が Google ログインで部屋を作り、参加者が参加コードで匿名で参加できる |
 | 12 | ロールバックの確認。Run workflow で直前の成功したコミットを指定する | Codex（オーナーの指示を受けて） | 成功し、成功していないコミットの指定は止まる |
 | 13 | **目標4を確かめる。** 編集者の権限で ADC を作り、`GEMINI_MOCK=0 bash scripts/dev.sh serve` で分析を実行する | Codex | 手元のエミュレータで、本物の Gemini の提案が司会者の画面に出る |

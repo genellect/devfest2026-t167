@@ -247,6 +247,7 @@ done
 鍵は提出スクリプトが検出して止めるので、誤って提出用リポジトリに入ることはありません。ハッカソンが終わったら、プロジェクトの削除と一緒に消えます。
 
 ## 開発のルール（人と AI エージェント）
+初心者の contributor は、リポジトリの docs/contributor-preview-guide.md（文書更新 PR の反映後）で、PR の作成、プレビューの確認、本番反映の依頼と確認を順に行う。クラウドの権限や請求の設定は担当者が済ませる。
 
 ルールの正本は雛形の CONTRIBUTING.md（人向け）と AGENTS.md（エージェント向け）で、ここはその要約です。ルールを変えるときは、この2つを同じ PR で更新し、食い違いを残さないようにします。
 
@@ -254,27 +255,27 @@ done
 
 | 役割 | 担当 | 責任 |
 |---|---|---|
-| メンバー | チームの3人 | 実装、PR の作成、CI が通った PR のマージ（だれでもよい） |
+| メンバー | チームの3人 | 実装、PR の作成、プレビューの確認。本番反映は Yuto Matsui の事前承諾を受けた担当者が行う |
 | AI エージェント | Claude Code、Codex など | 依頼者の指示による実装と検査。成果物の責任は依頼者が持つ |
 
 **開発の流れ**
 
 1. git fetch origin main のあと、最新の origin/main からブランチを作る。名前は <種類>/<内容>。種類は feat・fix・docs・test・chore・ci のどれか（例：feat/consensus-gap-view）。AI ツールが名前を決める場合は claude/・codex/ のままでよい。
 1. 1つの PR では1つの目的だけを扱う。関係するテストと文書を同じ PR で更新する。たとえば API のエンドポイントを変えたら、画面の呼び出し、API の結合テスト、README の認可の表も変える。
-1. コミットしたら bash scripts/dev.sh pr を実行する。手元の検査（check --quick）、push、PR の作成、auto-merge の設定までを1回で行う。PR の本文にはコミットの件名が入るので、テンプレートの残りの項目（背景・目的、本番への影響、検証、残る課題、スクリーンショット）を書き足す。途中で見せたいだけのときは --no-merge を付ける。
-1. CI が通ると自動で squash merge され、本番に反映される。CI が落ちたら直して push すれば、同じ PR で検査がやり直される。PR のタイトル（最初のコミットの件名）は <種類>(<範囲>): <変更の内容> の形にする（例：fix(api): 分析中の再実行に 409 を返す）。Rules（firebase/firestore.rules）・firebase.json・web/apphosting*.yaml・ワークフロー（.github/）・構築スクリプト（infra/）を変える PR には、dev.sh pr が auto-merge を付けない。もう1人に見てもらい、承認されたら gh pr merge --auto --squash --delete-branch を実行する。
+1. コミットしたら bash scripts/dev.sh pr --no-merge を実行する。手元の検査（check --quick）、push、PR の作成を1回で行い、auto-merge は付けない。PR の本文には、背景・目的、検査とプレビューの結果、未確認のこと、スクリーンショットを書く。
+1. main へのマージから自動デプロイまでを、まとめて「本番反映」と呼ぶ。本番反映を始める前に、必ず Yuto Matsui（GitHub：genellect）の承諾を得る。承諾はその PR の「本番反映」への1回とし、マージとデプロイで2回に分けない。CI・レビュー・プレビューの成功は承諾の代わりにならない。承諾待ちの間はマージせず、auto-merge も付けない。承諾後は Yuto Matsui または任された担当者が、CI の成功と必要なレビューを確認して本番反映を進める。Rules・ワークフロー・構築の変更はレビューを通す。
 
 ```
 git switch -c feat/consensus-gap-view && git commit -am "feat(web): ずれの一覧を表示する"
-bash scripts/dev.sh pr        # 検査・push・PR・auto-merge を1回で
+bash scripts/dev.sh pr --no-merge  # 検査・push・PR。Yuto Matsui の本番反映の承諾を待つ
 ```
 
 **AI エージェントの統制**（AGENTS.md）
 
 - エージェントへの指示は AGENTS.md に1か所でまとめる。CLAUDE.md は冒頭の @AGENTS.md で読み込み、Claude Code 固有のこと（セットアップスクリプト、ブラウザの場所、Co-Authored-By 行を残すこと）だけを足す。ツールごとに指示を書き分けない。実装の前と PR を出す前に、毎回この手順書を読ませる。Claude も Codex も、Google Docs の接続でこの正本を読む。読めなかったときだけリポジトリの写し docs/infra-manual.md を読み、そのことを報告する。この手順書を変えた人は、同じ日に写しを更新する PR を出す（メンバーのメールアドレスは写しに入れない）。
-- 常に守ることは5つだけにする。クレジットコード・鍵・トークンを書かない。非公開の事前意見を本人以外に出さない。実行していない検査を通ったと報告しない。マージは依頼者がその PR について指示したときだけ行う。提出用リポジトリへの commit と push は人が行う。
+- 常に守ることは5つだけにする。クレジットコード・鍵・トークンを書かない。非公開の事前意見を本人以外に出さない。実行していない検査を通ったと報告しない。本番反映は Yuto Matsui がその PR の本番反映を事前に承諾したときだけ行う。提出用リポジトリへの commit と push は人が行う。
 - 依頼するときは、目的・変更してよい範囲・完了条件を書く。並行して動かすエージェントには、別々のブランチと git worktree を割り当て、同じファイルを編集させない。
-- エージェントは PR を bash scripts/dev.sh pr --no-merge で出し、依頼者がマージを指示した場合だけ --no-merge を外して auto-merge を付ける。auto-merge は CI が通った head だけをマージし、後から push すると CI をやり直すので、確かめていないコミットはマージされない。
+- エージェントも PR を bash scripts/dev.sh pr --no-merge で出す。Yuto Matsui がその PR の本番反映を承諾した場合だけ、任された担当者が auto-merge またはマージを行う。main へのマージから自動デプロイまでを本番反映として、承諾は1回にまとめる。確認していない変更や、承諾のない本番反映を進めない。
 - 報告では「実装した」「CI が通った」「本番に反映した」「本番の URL で動作を確かめた」を分けて書かせる。
 - 引き継ぎは PR の説明に書く。セッションごとの引き継ぎ文書は作らない。
 - 文書とコードが食い違っていたら、コードと設定で事実を確かめ、直す前に依頼者に確認する。
@@ -356,7 +357,7 @@ scripts/submit.sh は、次の順で動きます。
 - [ ] bash infra/setup-project.sh が最後まで通った
 - [ ] Authentication の Google と匿名が有効
 - [ ] bash scripts/dev.sh serve で起動し、参加コード DEMO01 で参加できる
-- [ ] bash scripts/dev.sh check が通り、bash scripts/dev.sh pr で出したコードの PR が、CI の通過後に自動でマージされる
+- [ ] bash scripts/dev.sh check が通り、Yuto Matsui が本番反映を承諾したコードの PR が、CI の通過後に自動でマージされる
 - [ ] bash infra/setup-github.sh を実行した（main のルールを設定できなかった場合は、その表示を確かめた）
 - [ ] App Hosting の web が asia-east1 にあり、web/apphosting.yaml の API_ORIGIN が本物の URL になっている
 - [ ] main への push で deploy が成功し、本番の URL で参加できる
@@ -462,7 +463,7 @@ gcloud iam service-accounts keys list --iam-account="ai-dev@${PROJECT_ID}.iam.gs
 |---|---|---|---|
 | 1. 招待を受けて clone すれば、秘密情報なしに数コマンドで動く | bash scripts/dev.sh setup と serve（エミュレータとモック）。Windows は WSL、手元に入れたくない人は .devcontainer | Linux で起動と check を確認。.devcontainer は形式だけ確認 | Codespaces（VS Code から）で起動と check |
 | 2. PR を出せば自動で検査し、文書だけの PR は待たない | ci.yml の changes と test。test は bash scripts/dev.sh check を呼ぶだけ | check の全件、変更判定の回帰テスト9件 | 文書だけの PR で test が省かれ、コードの PR で通る |
-| 3. CI が通れば追加の操作なしにマージされ、本番に反映される | bash scripts/dev.sh pr が検査・push・PR の作成・auto-merge を1回で行う。deploy.yml が Rules → API → 画面の順に反映する | dev.sh pr の回帰テスト9件（偽の gh と手元のリポジトリ） | コードの PR が人の操作なしにマージされ、deploy が成功する |
+| 3. Yuto Matsui の本番反映の承諾後、CI の通過から本番反映まで自動で進む | bash scripts/dev.sh pr が検査・push・PR の作成・auto-merge を1回で行う。deploy.yml が Rules → API → 画面の順に反映する | dev.sh pr の回帰テスト9件（偽の gh と手元のリポジトリ） | Yuto Matsui が本番反映を承諾したコードの PR が、追加の操作なしにマージされ、deploy が成功する |
 | 4. マージの前に本物の Gemini で試せる | GEMINI_MOCK=0 bash scripts/dev.sh serve。API の VERTEX_PROJECT で、Firestore（エミュレータ）と Vertex AI のプロジェクトを分け、VERTEX_LOCATION=global で Gemini に接続する | モデルが未定のとき、ADC がないときに、理由を表示して止まる | 手元のエミュレータで、本物の Gemini の提案が司会者の画面に出る |
 | 5. 本番が壊れたら1回の操作で戻せる | deploy の手動実行。過去にデプロイが成功したコミットだけに戻せる | — | 直前のコミットに戻せ、成功していないコミットの指定は止まる |
 | 6. 鍵を誤って push しようとしても止まる | infra/setup-github.sh が secret scanning と push protection を有効にする。提出のときは submit.sh が検査する | submit.sh の回帰テスト16件 | push protection が有効になっている |

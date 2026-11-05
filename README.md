@@ -37,7 +37,7 @@
   ブラウザ → Firestore を直接購読（firebase/firestore.rules で読める範囲を制限）
 
 デプロイ
-  PR → CI（bash scripts/dev.sh check）→ main に squash merge
+  PR → CI・プレビューで確認 → Yuto Matsui が本番反映を承諾 → main に squash merge
   → Variables の検査 → 鍵なしの認証（Workload Identity 連携）
   → Rules → API（Cloud Run）→ 画面（App Hosting）を同じコミットから順に反映
 ```
@@ -191,7 +191,7 @@ http://localhost:3000 を開き、参加コード `DEMO01` で参加する。
 | Dev Container・Codespaces | VS Code（Codespaces もブラウザ版ではなく VS Code から開く） | `.devcontainer` が自動で行う |
 | クラウドの AI ツール | — | Claude Code は `bash .claude/cloud-setup.sh`、Codex は `bash .codex/setup.sh` |
 
-PR の前に `bash scripts/dev.sh check` で CI と同じ検査を通し、`bash scripts/dev.sh pr` で検査・push・PR の作成・auto-merge までを1回で行う。本物の Gemini で試すときは `GEMINI_MOCK=0 bash scripts/dev.sh serve`（gcloud と ADC が要る。[CONTRIBUTING](CONTRIBUTING.md#起動する)）。
+PRの前に`bash scripts/dev.sh check`を通し、`bash scripts/dev.sh pr --no-merge`で検査・push・PR作成を行う。**mainへのマージから自動デプロイまでを「本番反映」と呼び、開始前に必ずYuto Matsui（GitHub：genellect）の承諾を得る。** 承諾は本番反映への1回にまとめる。初心者は[PR・プレビュー確認マニュアル](docs/contributor-preview-guide.md)を読む。本物のGeminiを試す手順は[CONTRIBUTING](CONTRIBUTING.md#起動する)にある。
 
 開発の流れと Git・CI のルールは [CONTRIBUTING](CONTRIBUTING.md)、AI エージェントへの指示は [AGENTS.md](AGENTS.md)、認証情報の扱いは [docs/credentials.md](docs/credentials.md) にある。
 
