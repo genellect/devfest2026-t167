@@ -26,7 +26,7 @@
 参加者・司会者（スマホ・PC のブラウザ）
   → web/        Next.js（Firebase App Hosting、asia-east1）。/api を同じオリジンで受けて Cloud Run へ転送
   → api/        Express + TypeScript（Cloud Run、asia-northeast1）。認可、フェーズ、分析の排他、指標の計算
-    → Gemini    Vertex AI。論点の抽出、未検討論点の判定、合意文のまとめ（構造化出力）
+    → Gemini    Vertex AI（接続先 global）。論点の抽出、未検討論点の判定、合意文のまとめ（構造化出力）
     → Firestore asia-northeast1。部屋ごとのサブコレクション
 リアルタイム更新
   ブラウザ → Firestore を直接購読（firebase/firestore.rules で読める範囲を制限）
@@ -36,6 +36,7 @@
 |---|---|---|
 | 画面 | Firebase App Hosting（asia-east1。東京は非対応） | — |
 | API | Cloud Run（asia-northeast1）。使わない時間は0台 | 部屋の事前意見・発言・合意文の本文（持ち主の ID は送らない） |
+| Gemini | Vertex AI（接続先 global）。通常従量課金で利用する構築設定 | 部屋の事前意見・発言・合意文の本文 |
 | データ | Cloud Firestore（asia-northeast1） | — |
 | ログイン | Firebase Authentication（参加者は匿名、司会者は Google） | — |
 

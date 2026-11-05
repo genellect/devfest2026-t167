@@ -47,8 +47,8 @@ serve() {
     case "${GEMINI_MODEL:-}" in ""|*ここに*) echo "NG: infra/env.sh の GEMINI_MODEL を決めてください" >&2; exit 1 ;; esac
     command -v gcloud >/dev/null 2>&1 && gcloud auth application-default print-access-token >/dev/null 2>&1 \
       || { echo "NG: 本物の Gemini には gcloud auth application-default login が要ります（プロジェクトの編集者の権限で）" >&2; exit 1; }
-    extra=(VERTEX_PROJECT="$PROJECT_ID" VERTEX_LOCATION="$REGION" GEMINI_MODEL="$GEMINI_MODEL")
-    echo "本物の Gemini（${PROJECT_ID} の Vertex AI、${GEMINI_MODEL}）を使います。Firestore と Auth はエミュレータのままです"
+    extra=(VERTEX_PROJECT="$PROJECT_ID" VERTEX_LOCATION="$VERTEX_LOCATION" GEMINI_MODEL="$GEMINI_MODEL")
+    echo "本物の Gemini（${PROJECT_ID} の Vertex AI、${VERTEX_LOCATION}、${GEMINI_MODEL}）を使います。Firestore と Auth はエミュレータのままです"
   fi
   trap 'trap - EXIT; kill 0' INT TERM EXIT
   "$FB" emulators:start --project "$EMU_PROJECT" --only auth,firestore >/tmp/t167-emulators.log 2>&1 &

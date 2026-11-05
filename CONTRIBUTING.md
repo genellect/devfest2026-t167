@@ -21,7 +21,7 @@ bash scripts/dev.sh serve    # エミュレータ・テストデータ・API・�
 
 http://localhost:3000 を開き、参加コード `DEMO01` で参加する。Auth と Firestore はエミュレータ、Gemini はモックで動く。Gemini が失敗したときの動きは `GEMINI_MOCK_FAIL=1 bash scripts/dev.sh serve` で確かめる。
 
-本物の Gemini で試すときは、プロジェクトの編集者の権限で `gcloud auth application-default login` をしてから `GEMINI_MOCK=0 bash scripts/dev.sh serve` で起動する。Firestore と Auth はエミュレータのままで、Vertex AI だけ本番のプロジェクトを使う（`infra/env.sh` の PROJECT_ID と GEMINI_MODEL）。
+本物の Gemini で試すときは、プロジェクトの編集者の権限で `gcloud auth application-default login` をしてから `GEMINI_MOCK=0 bash scripts/dev.sh serve` で起動する。Firestore と Auth はエミュレータのままで、Vertex AI だけ本番のプロジェクトを使う（`infra/env.sh` の PROJECT_ID・VERTEX_LOCATION・GEMINI_MODEL）。Gemini の接続先は global、Cloud Run と Firestore は東京に分けている。
 
 クラウドの Claude Code では環境のセットアップスクリプトに `bash .claude/cloud-setup.sh` を、Codex では `bash .codex/setup.sh` を登録する。
 
@@ -71,7 +71,7 @@ PR の CI は、同じブランチの新しい実行が古い実行を取り消�
 
 | 値 | 置き場所 |
 |---|---|
-| デプロイの設定（PROJECT_ID など5つ） | GitHub の Actions の Variables。鍵ではない |
+| デプロイの設定（PROJECT_ID など6つ） | GitHub の Actions の Variables。鍵ではない |
 | クラウドの Claude Code 用の鍵 | Claude Code の環境変数 `GCP_SA_KEY` |
 | クレジットコード | どこにも書かない（代表者だけが使う） |
 

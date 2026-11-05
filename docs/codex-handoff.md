@@ -23,20 +23,19 @@ DevFest Hackathon 2026 チーム167 の開発用リポジトリ（Public）で�
 | 認証情報の引き継ぎ | [docs/credentials.md](credentials.md) | だれが何を持ち、どう渡し、どう止めるか |
 | 開発のルール | [CONTRIBUTING.md](../CONTRIBUTING.md)、[AGENTS.md](../AGENTS.md) | ブランチ、PR、CI、マージ、報告のルール |
 
-### 段階1の構築設定（候補・未完了、2026-11-05）
+### 段階1の構築設定（2026-11-05）
 
-依頼者が指定した新規 Public リポジトリは [genellect/devfest2026-t167](https://github.com/genellect/devfest2026-t167)。設定案と調査結果は、この引き継ぎ書で扱う。Google Docs 正本は変更していないため、`docs/infra-manual.md` も正本に対応する状態を維持する。以下は確定した手順書の変更ではない。
+依頼者が指定した新規 Public リポジトリは [genellect/devfest2026-t167](https://github.com/genellect/devfest2026-t167)。依頼者は同日、Gemini だけを global に変更し、Cloud Run・Firestore は東京に維持する方針を承認した。
 
-- `DEV_REPO=genellect/devfest2026-t167`：依頼者指定で新規作成した Public リポジトリ。提出先は変更しない。
-- `PROJECT_ID=devfest2026-t167`：新規リポジトリ名にそろえた候補。まだ GCP プロジェクトは作成しておらず、ID の確保は未確認。段階3で使用済みと判明した場合は末尾に数字を足す。
-- `REGION=asia-northeast1`、`APPHOSTING_REGION=asia-east1`：正本の構成に従う。
-- `GEMINI_MODEL=gemini-3.5-flash`：候補。Google 公式の[モデル情報](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-5-flash)で東京の Model availability、構造化出力、temperature の指定を確認した（2026-11-05）。[ライフサイクル](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions)上の廃止予定は2027-05-19以降。
+- `DEV_REPO=genellect/devfest2026-t167`：今回新規作成した Public リポジトリ。提出先は変更しない。
+- `PROJECT_ID=devfest2026-t167`：新規リポジトリ名にそろえた作成候補。段階3で使用済みと判明した場合は末尾に数字を足す。まだプロジェクトは作成していない。
+- `REGION=asia-northeast1`、`APPHOSTING_REGION=asia-east1`：Cloud Run・Firestore と画面のリージョンは維持する。
+- `VERTEX_LOCATION=global`、`GEMINI_MODEL=gemini-3.5-flash`：Google 公式の[モデル情報](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-5-flash)で global の Standard PayGo、構造化出力、temperature の指定への対応を確認した（2026-11-05）。[ライフサイクル](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions)上の廃止予定は2027-05-19以降。
+- `setup-deployer.sh` が示す GitHub Variables は `PROJECT_ID`・`REGION`・`VERTEX_LOCATION`・`GEMINI_MODEL`・`WIF_PROVIDER`・`DEPLOYER_SA` の6つ。ローカルの `GEMINI_MOCK=0` も同じ接続先を使う。
 
-**段階1は接続先の判断待ちで未完了。** 同じ公式資料の Standard PayGo 対応先は `global`・`us`・`eu` で、東京には Single Zone Provisioned Throughput のみという注記がある。東京の Model availability だけでは通常の従量課金で利用できる根拠にならない。正本の東京指定と、有料設定を追加しない条件の食い違いを依頼者に確認中であり、この候補のまま構築しない。
+正本の東京指定に対し、公式資料はモデルの東京の利用可能性と Standard PayGo の対応先を分けており、東京には Single Zone Provisioned Throughput のみという注記があるため、依頼者の承認を受けて接続先を分離した。Provisioned Throughput は追加しない。実プロジェクトからのモデル利用・割り当て・実呼び出しは構築後に検証し、設定とモックの検査だけで本番の動作確認済みとはしない。
 
-判断案は「Gemini だけ global に分離する（Cloud Run・Firestore は東京のまま）」または「東京を維持して別モデルを再調査する」。Provisioned Throughput は追加していない。実プロジェクトからのモデル利用・割り当て・実呼び出しも未確認。請求先・クレジットの受領は段階2で行い、その前に課金を伴う構築を進めない。
-
-正本へ反映が必要なリポジトリ名・設定・未確認事項は PR の説明に一覧化する。方針確定後に正本を変更する場合は、依頼者の「手順書の内容を変えたら写しも同じ PR で直す」という指示に従って反映する。
+Google Docs 正本はまだ変更していないため、`docs/infra-manual.md` は正本に対応する状態を維持する。正本への反映事項（リポジトリ名、Gemini の接続先、Variables の6つへの変更）は PR の説明に一覧化する。正本を変更する段階で、依頼者の指示どおり写しも反映する。
 
 ## 1. 依頼の範囲
 
@@ -79,13 +78,13 @@ DevFest Hackathon 2026 チーム167 の開発用リポジトリ（Public）で�
 | 段階 | 内容 | 担当 | 完了条件 |
 |---|---|---|---|
 | 0 | Codex の環境に `bash .codex/setup.sh` を登録し、`bash scripts/dev.sh check` を実行する | Codex | すべて通る |
-| 1 | `infra/env.sh` の値を決める。DEV_REPO はオーナーが作ったリポジトリ名、PROJECT_ID は使用済みなら末尾に数字を足す、GEMINI_MODEL は Model Garden で asia-northeast1 で使えるモデル | Codex（モデルは確かめた根拠を PR に書く） | PR で変更し、決めた理由が書いてある |
+| 1 | `infra/env.sh` の値を決める。DEV_REPO はオーナーが作ったリポジトリ名、PROJECT_ID は使用済みなら末尾に数字を足す、GEMINI_MODEL は Model Garden で global の Standard PayGo に対応するモデル | Codex（モデルは確かめた根拠を PR に書く） | PR で変更し、決めた理由が書いてある |
 | 2 | 手順1：クレジットと請求先 | 人 | 請求先アカウントの ID とクレジット額が Codex に伝わっている |
 | 3 | 手順2：プロジェクトの作成、請求先とのリンク、予算2本 | Codex（リンクに請求先の権限が要るなら人） | `gcloud billing budgets list` で2本ある |
 | 4 | 手順3：`bash infra/setup-project.sh` | Codex | 2回実行しても成功する |
 | 5 | 手順4：Firebase の追加と Web アプリ、Authentication | Codex と人 | Google と匿名のログインが有効 |
 | 6 | 手順6：App Hosting のバックエンド（ID は web、asia-east1、ルートは web）と `web/apphosting.yaml` の API_ORIGIN | Codex | `firebase apphosting:backends:list` に web があり、API_ORIGIN が本物の URL |
-| 7 | 手順8：`bash infra/setup-deployer.sh`、GitHub の Variables 5つ、`bash infra/setup-github.sh` | Codex と人（setup-github.sh はオーナー） | Variables が登録され、main のルールと push protection が有効 |
+| 7 | 手順8：`bash infra/setup-deployer.sh`、GitHub の Variables 6つ、`bash infra/setup-github.sh` | Codex と人（setup-github.sh はオーナー） | Variables が登録され、main のルールと push protection が有効 |
 | 8 | **目標3を確かめる。** `bash scripts/dev.sh pr` でコードの PR を出す | Codex | CI が通った PR が、人の操作なしに squash merge される。Rules を変える PR には auto-merge が付かない |
 | 9 | CI を GitHub で確かめる。文書だけの PR とコードの PR を1つずつ出す | Codex | 文書だけの PR で test が省かれ、コードの PR で test が通る。所要時間を README に書く |
 | 10 | 初回のデプロイ。オーナーの指示で main にマージする | Codex と人 | deploy が成功し、サマリーにコミットと API のリビジョンがある |
@@ -103,7 +102,7 @@ DevFest Hackathon 2026 チーム167 の開発用リポジトリ（Public）で�
 - **リポジトリは Public。** コード、PR、Issue、Actions のログは誰でも見られる。鍵・トークン・クレジットコードは、コミット・ログ・PR に書かない。鍵は環境変数だけで渡す。
 - **公開リポジトリでの CI。** 外部からの PR でも CI が動く。`ci.yml` は GCP を使わないので、そのままでよい。`deploy.yml` は `main` への push と手動実行だけで動かし、`pull_request_target` は使わない。
 - **Actions と main のルール。** 開発用リポジトリでは Actions が使え、公開リポジトリなので Free プランでも main のルールを設定できる（提出用リポジトリでは Actions が使えない）。
-- **リージョン。** App Hosting は asia-east1（東京は非対応）。Cloud Run・Firestore・Vertex AI は asia-northeast1。
+- **リージョン。** App Hosting は asia-east1（東京は非対応）。Cloud Run・Firestore は asia-northeast1。Vertex AI の Gemini 接続先は依頼者の承認により global。
 - **締切。** 提出は 2026-11-10 19:00 で、過ぎると提出用リポジトリは読み取り専用になる。17:00 までに一度提出用に反映できる状態にする。
 - **費用。** 運営のクレジットで賄う。予算アラートを2本設定する（手順2）。
 

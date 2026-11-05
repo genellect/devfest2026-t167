@@ -29,6 +29,7 @@ jobs:
       WIF_PROVIDER: ${{ vars.WIF_PROVIDER }}
       DEPLOYER_SA: ${{ vars.DEPLOYER_SA }}
       REGION: ${{ vars.REGION }}
+      VERTEX_LOCATION: ${{ vars.VERTEX_LOCATION }}
       GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
       DEPLOY_REF: ${{ inputs.ref || github.sha }}
     steps:
@@ -69,7 +70,7 @@ jobs:
           gcloud run deploy api --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE" \
             --service-account "api-runtime@${PROJECT_ID}.iam.gserviceaccount.com" \
             --allow-unauthenticated --labels "commit=${SHA:0:12}" \
-            --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},VERTEX_LOCATION=${REGION},GEMINI_MODEL=${GEMINI_MODEL},GEMINI_MOCK=0"
+            --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},VERTEX_LOCATION=${VERTEX_LOCATION},GEMINI_MODEL=${GEMINI_MODEL},GEMINI_MOCK=0"
       - name: 3/3 Web (App Hosting)
         run: firebase/node_modules/.bin/firebase deploy --only apphosting:web --project "$PROJECT_ID" --non-interactive
       - name: Record what is deployed
