@@ -120,6 +120,20 @@ global では、リクエストがどのリージョンで処理されるかが�
 
 応答を速くするため、Vertex AI は既定でプロンプトをキャッシュする。メモリ上と、暗号化された保存領域（durable。このプロジェクトでも既定のまま有効）の2段で、どちらも書き込みから24時間以内に消え、学習には使われない。global ではキャッシュも、どのリージョンに置かれるかが決まらない。また Google は、不正利用の検出のためにプロンプトを記録することがある（[データの保持](https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/zero-data-retention#implicit_data_caching)、2026-11-05 に確認）。
 
+### API の認可
+
+画面は下のパスに `/api` を付けて呼ぶ。ヘルスチェックの公開パスは `/api/healthz` で、Next.js が Cloud Run の `/health` へ転送する。Cloud Run の基盤側で扱われる `/healthz` を避け、実際の API が返す接続種別を確認するため。`gemini: "gemini"` は接続設定を示す値で、生成の成功を保証するものではない。
+
+| API のパス | ログイン | 部屋の所属 | 司会者 | フェーズ |
+|---|---|---|---|---|
+| GET /health（ローカルでは /healthz も可） | 不要 | 不要 | 不要 | — |
+| POST /rooms | 必要（匿名不可） | 作成前 | 作成者が司会者になる | — |
+| POST /rooms/join | 必要（匿名可） | 参加コードで特定 | 不要 | closed 以外 |
+| POST /rooms/{部屋}/phase | 必要 | 必要 | 必要 | 1つずつ順に進める |
+| POST /rooms/{部屋}/analyze | 必要 | 必要 | 必要 | discussing |
+| POST /rooms/{部屋}/insights/{提案}/approve | 必要 | 必要 | 必要 | 制限なし |
+| POST /rooms/{部屋}/consensus/analyze | 必要 | 必要 | 必要 | consensus |
+
 ## 4つの指標
 
 指標は API が保存データから計算する（[`api/src/metrics.ts`](api/src/metrics.ts)）。Gemini の判定を使う値には「Gemini による推定」と表示し、モックで動かしたときは「デモデータ」と表示して、実測の改善効果とは区別する。
