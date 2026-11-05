@@ -29,9 +29,22 @@ jobs:
       WIF_PROVIDER: ${{ vars.WIF_PROVIDER }}
       DEPLOYER_SA: ${{ vars.DEPLOYER_SA }}
       REGION: ${{ vars.REGION }}
+      VERTEX_LOCATION: ${{ vars.VERTEX_LOCATION }}
       GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
       DEPLOY_REF: ${{ inputs.ref || github.sha }}
     steps:
+      # 1つでも空なら、認証やビルドの前に止める。空のまま Cloud Run に渡すと、デプロイは成功しても Gemini が動かないため
+      # 一覧は infra/setup-deployer.sh の表示と同じ（tests/config.test.sh が一致を確かめる）
+      - name: Check repository Variables
+        run: |
+          missing=""
+          for v in PROJECT_ID REGION VERTEX_LOCATION GEMINI_MODEL WIF_PROVIDER DEPLOYER_SA; do
+            [ -n "$(printf '%s' "${!v}" | tr -d '[:space:]')" ] || missing="${missing} ${v}"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::GitHub の Variables が未登録です:${missing}。infra/setup-deployer.sh の表示どおりに Settings → Secrets and variables → Actions → Variables に登録してください"
+            exit 1
+          fi
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_REF }}
@@ -69,7 +82,7 @@ jobs:
           gcloud run deploy api --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE" \
             --service-account "api-runtime@${PROJECT_ID}.iam.gserviceaccount.com" \
             --allow-unauthenticated --labels "commit=${SHA:0:12}" \
-            --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},VERTEX_LOCATION=${REGION},GEMINI_MODEL=${GEMINI_MODEL},GEMINI_MOCK=0"
+            --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},VERTEX_LOCATION=${VERTEX_LOCATION},GEMINI_MODEL=${GEMINI_MODEL},GEMINI_MOCK=0"
       - name: 3/3 Web (App Hosting)
         run: firebase/node_modules/.bin/firebase deploy --only apphosting:web --project "$PROJECT_ID" --non-interactive
       - name: Record what is deployed

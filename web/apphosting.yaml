@@ -4,5 +4,5 @@ runConfig:
 env:
   # infra/setup-deployer.sh の最後に表示される URL に置き換える（Cloud Run の URL はプロジェクト番号で決まる）
   - variable: API_ORIGIN
-    value: https://api-PROJECT_NUMBER.asia-northeast1.run.app
+    value: https://api-1086529845261.asia-northeast1.run.app
     availability: [BUILD, RUNTIME]

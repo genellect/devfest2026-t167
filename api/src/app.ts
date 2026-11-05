@@ -30,7 +30,7 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
     (req: Request, res: Response, next: NextFunction) => {
       fn(req as Req, res).then(() => { if (!res.headersSent) next(); }).catch(next);
     };
-  // 認証：ID トークンを検証する（/healthz 以外）
+  // 認証：ID トークンを検証する（/health 以外）
   const authenticate = run(async (req) => {
     const token = req.header('authorization')?.match(/^Bearer (.+)$/)?.[1];
     if (!token) throw new HttpError(401, 'unauthenticated', 'ログインが必要です');
@@ -65,7 +65,9 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
     return r.data;
   };
 
-  app.get('/healthz', (_req, res) => { res.json({ ok: true, gemini: gemini.source }); });
+  // 稼働確認。Cloud Run は z で終わるパス（/healthz など）を予約していてコンテナに届かないので、/health を使う。
+  // /healthz は手元と古い手順のために残す
+  app.get(['/health', '/healthz'], (_req, res) => { res.json({ ok: true, gemini: gemini.source }); });
 
   // 部屋の作成：匿名でないログインが必要。所属はまだないので所属確認はしない
   app.post('/rooms', ...chain(authenticate, wrap(async (req, res) => {

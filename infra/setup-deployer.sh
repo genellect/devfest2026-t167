@@ -26,6 +26,7 @@ gcloud iam service-accounts add-iam-policy-binding "$SA" --project "$P" \
 echo "GitHub の Variables に登録してください:"
 echo "  PROJECT_ID=${P}"
 echo "  REGION=${REGION}"
+echo "  VERTEX_LOCATION=${VERTEX_LOCATION}"
 echo "  GEMINI_MODEL=${GEMINI_MODEL}"
 echo "  WIF_PROVIDER=projects/${NUMBER}/locations/global/workloadIdentityPools/github/providers/github-oidc"
 echo "  DEPLOYER_SA=${SA}"

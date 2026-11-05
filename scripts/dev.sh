@@ -4,7 +4,7 @@
 #   bash scripts/dev.sh doctor    ツールと準備の状態を確かめる
 #   bash scripts/dev.sh serve     エミュレータ・テストデータ・API・画面をまとめて起動（Ctrl-C で全部止まる。GEMINI_MOCK=0 で本物の Gemini）
 #   bash scripts/dev.sh check     CI と同じ検査（--quick でエミュレータを使う試験を省く）
-#   bash scripts/dev.sh pr        検査・push・PR の作成・auto-merge を1回で行う（--no-merge で auto-merge を付けない）
+#   bash scripts/dev.sh pr        検査・push・PR の作成を1回で行う。auto-merge は付けない（本番反映は Yuto Matsui の承諾の後。--approved で付ける）
 set -euo pipefail
 cd "$(dirname "$0")/.."
 FB="firebase/node_modules/.bin/firebase"
@@ -34,6 +34,9 @@ doctor() {
   if command -v gcloud >/dev/null 2>&1 && [ -n "$(gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null)" ]; then
     ok "gcloud: $(gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null | head -1)"
   else warn "gcloud は未ログイン（ローカルの開発と試験には不要）"; fi
+  if command -v gcloud >/dev/null 2>&1 && gcloud auth application-default print-access-token >/dev/null 2>&1; then
+    ok "ADC（GEMINI_MOCK=0 で本物の Gemini を試せる）"
+  else warn "ADC なし（GEMINI_MOCK=0 で本物の Gemini を試すときだけ必要。gcloud auth application-default login）"; fi
   return $bad
 }
 
@@ -44,11 +47,19 @@ serve() {
   if [ "$mock" = 0 ]; then
     # 本物の Gemini：Firestore と Auth はエミュレータのまま、Vertex AI だけ本番のプロジェクトを使う
     source infra/env.sh
-    case "${GEMINI_MODEL:-}" in ""|*ここに*) echo "NG: infra/env.sh の GEMINI_MODEL を決めてください" >&2; exit 1 ;; esac
-    command -v gcloud >/dev/null 2>&1 && gcloud auth application-default print-access-token >/dev/null 2>&1 \
-      || { echo "NG: 本物の Gemini には gcloud auth application-default login が要ります（プロジェクトの編集者の権限で）" >&2; exit 1; }
-    extra=(VERTEX_PROJECT="$PROJECT_ID" VERTEX_LOCATION="$REGION" GEMINI_MODEL="$GEMINI_MODEL")
-    echo "本物の Gemini（${PROJECT_ID} の Vertex AI、${GEMINI_MODEL}）を使います。Firestore と Auth はエミュレータのままです"
+    # モデルの比較だけに使う（CONTRIBUTING の「Gemini のモデルと費用」）。本番のモデルは infra/env.sh と GitHub の Variables
+    [ -n "${GEMINI_MODEL_OVERRIDE:-}" ] && GEMINI_MODEL="$GEMINI_MODEL_OVERRIDE"
+    local v
+    for v in PROJECT_ID VERTEX_LOCATION GEMINI_MODEL; do
+      case "${!v:-}" in ""|*ここに*) echo "NG: infra/env.sh の $v を決めてください" >&2; exit 1 ;; esac
+    done
+    command -v gcloud >/dev/null 2>&1 \
+      || { echo "NG: 本物の Gemini には Google Cloud CLI（gcloud）が要ります。.devcontainer・Codespaces には入っていません（https://cloud.google.com/sdk/docs/install）。モックでの起動は gcloud なしで使えます" >&2; exit 1; }
+    gcloud auth application-default print-access-token >/dev/null 2>&1 \
+      || { echo "NG: 本物の Gemini には gcloud auth application-default login が要ります（プロジェクトの編集者の権限で。docs/credentials.md の「実装担当が加わるとき」）" >&2; exit 1; }
+    # 個人の ADC でも課金と割り当てをこのプロジェクトに付ける（gcloud の quota project の設定に頼らない）
+    extra=(VERTEX_PROJECT="$PROJECT_ID" VERTEX_LOCATION="$VERTEX_LOCATION" GEMINI_MODEL="$GEMINI_MODEL" GOOGLE_CLOUD_QUOTA_PROJECT="$PROJECT_ID")
+    echo "本物の Gemini（${PROJECT_ID} の Vertex AI、${VERTEX_LOCATION}、${GEMINI_MODEL}）を使います。Firestore と Auth はエミュレータのままです"
   fi
   trap 'trap - EXIT; kill 0' INT TERM EXIT
   "$FB" emulators:start --project "$EMU_PROJECT" --only auth,firestore >/tmp/t167-emulators.log 2>&1 &
@@ -75,6 +86,7 @@ check() {
   bash tests/submit.test.sh
   bash tests/ci-changes.test.sh
   bash tests/dev-pr.test.sh
+  bash tests/config.test.sh
   step "ビルド"
   npm --prefix api run build
   npm --prefix web run build
@@ -89,8 +101,10 @@ check() {
 REVIEW_PATHS='^(firebase/firestore\.rules|firebase\.json|web/apphosting[^/]*\.yaml|\.github/|infra/)'
 
 pr() {
-  local merge=1
-  [ "${1:-}" = "--no-merge" ] && merge=0
+  # main へのマージから自動デプロイまでが「本番反映」。始める前に Yuto Matsui の承諾が要るので、既定では auto-merge を付けない。
+  # --approved：その PR の本番反映を承諾されたあとに、任された担当者が付ける。--no-merge は既定と同じ（以前の書き方のため残す）
+  local merge=0
+  case "${1:-}" in --approved) merge=1 ;; --no-merge|"") ;; *) echo "NG: 知らない指定です: $1（--approved か --no-merge）" >&2; exit 1 ;; esac
   command -v gh >/dev/null 2>&1 || { echo "NG: gh がありません（https://cli.github.com）" >&2; exit 1; }
   gh auth status >/dev/null 2>&1 || { echo "NG: gh auth login をしてください" >&2; exit 1; }
   local br; br=$(git branch --show-current)
@@ -112,13 +126,13 @@ pr() {
   fi
   local hot; hot=$(git diff --name-only origin/main...HEAD | grep -E "$REVIEW_PATHS" || true)
   if [ -n "$hot" ]; then
-    echo "注意: 次のファイルを変えたので auto-merge を付けません。もう1人にレビューを頼み、承認されたら gh pr merge --auto --squash --delete-branch を実行してください:"
+    echo "注意: 次のファイルを変えたので auto-merge を付けません。もう1人のレビューと、Yuto Matsui の本番反映の承諾の両方を得てから、gh pr merge --auto --squash --delete-branch を実行してください:"
     echo "$hot" | sed 's/^/  /'
   elif [ "$merge" = 1 ]; then
     gh pr merge --auto --squash --delete-branch
-    echo "OK: CI が通ると自動で squash merge され、本番に反映されます"
+    echo "OK: 本番反映の承諾済みとして auto-merge を付けました。CI が通ると squash merge され、本番に反映されます"
   else
-    echo "OK: PR を作りました（--no-merge なので auto-merge は付けていません）"
+    echo "OK: PR を作りました（auto-merge は付けていません）。プレビューを確かめ、PR のコメントで Yuto Matsui に本番反映の承諾を依頼してください（docs/contributor-preview-guide.md）"
   fi
   gh pr view --json url --jq .url
 }
