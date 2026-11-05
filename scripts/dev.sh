@@ -61,7 +61,8 @@ serve() {
     extra=(VERTEX_PROJECT="$PROJECT_ID" VERTEX_LOCATION="$VERTEX_LOCATION" GEMINI_MODEL="$GEMINI_MODEL" GOOGLE_CLOUD_QUOTA_PROJECT="$PROJECT_ID")
     echo "本物の Gemini（${PROJECT_ID} の Vertex AI、${VERTEX_LOCATION}、${GEMINI_MODEL}）を使います。Firestore と Auth はエミュレータのままです"
   fi
-  trap 'trap - EXIT; kill 0' INT TERM EXIT
+  # グループへの終了通知が自分にも届くので、先に全ハンドラーを解除して再帰を防ぐ。
+  trap 'trap - INT TERM EXIT; kill 0' INT TERM EXIT
   "$FB" emulators:start --project "$EMU_PROJECT" --only auth,firestore >/tmp/t167-emulators.log 2>&1 &
   wait_port 8080 && wait_port 9099
   npm --prefix firebase run seed
@@ -86,6 +87,7 @@ check() {
   bash tests/submit.test.sh
   bash tests/ci-changes.test.sh
   bash tests/dev-pr.test.sh
+  python3 tests/dev-serve.test.py
   bash tests/config.test.sh
   step "ビルド"
   npm --prefix api run build
