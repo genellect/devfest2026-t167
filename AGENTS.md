@@ -29,7 +29,7 @@
 - 正本はチームドキュメントの「インフラ構築手順書」タブ：https://docs.google.com/document/d/1zHg74msQ1xBgsautfcQNsv-dDlQcO4WqzbV0ZDNnv5A/edit?tab=t.t1975sujc4nn
 - Claude も Codex も、Google Docs の接続で正本を読む。正本と写しの [docs/infra-manual.md](docs/infra-manual.md) が違っていたら、正本に従い、違いを依頼者に知らせる。
 - 正本を読めなかったときだけ写しを読み、そのことを報告する。
-- 写しは、正本を変えた人が同じ日に、写しを更新する PR（`docs/infra-manual.md` だけを変える）で追いつかせる。メンバーのメールアドレスは写しに入れない。
+- 正本を変えた人は、関係するコードや運用ルールの変更と同じ PR で、同じ日に `docs/infra-manual.md` も更新する。写しだけを追いつかせる場合は専用 PR にする。メンバーのメールアドレスは写しに入れない。
 
 ## 作業の手順
 

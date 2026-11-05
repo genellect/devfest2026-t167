@@ -65,7 +65,7 @@ Codex と Claude は同格のメインエンジニアとして、目的に向け
 | 1. AI ツールのクラウド環境 | Claude Code は `.claude/cloud-setup.sh`、Codex は `.codex/setup.sh` | Claude Code は同じ手順で確かめた。Codex Desktop から WSL Ubuntu 26.04.1・Node.js 22.22.1・Java 21 で `.codex/setup.sh` と `scripts/dev.sh check` を実行し、ともに終了コード0（2026-11-05）。Codex クラウド環境への登録・実行は未確認 |
 | 2. PR で自動検査・文書だけなら待たない | 文書だけの PR #1 で changes 成功・test 省略、設定変更の PR #2 の `88c79fd` で全検査70件が成功。Claude も同コミットで独立に全検査を再実行し成功 | GitHub と手元で確認済み。実行時間の README への記録は段階9で行う |
 | 2. 手元の検査が CI と一致 | CI は `bash scripts/dev.sh check` を呼ぶだけ | 達成（手元で全件通った） |
-| 3. 承諾後、CI が通れば追加の操作なしにマージ | `bash scripts/dev.sh pr --no-merge` が、手元の検査・push・PR の作成を1回で行い、auto-merge は付けない。Yuto Matsui の本番反映の承諾後に、担当者が `bash scripts/dev.sh pr --approved` で auto-merge を付ける。Rules・ワークフロー・構築スクリプトを変える PR には auto-merge を付けず、レビューを求める。回帰テスト9件（偽の gh と手元の bare リポジトリ）が通った | 手順と仕組みは完成。GitHub 上の auto-merge は未確認（main のルールで test が必須になっていないと auto-merge は使えない） |
+| 3. 承諾後、CI が通れば追加の操作なしにマージ | `bash scripts/dev.sh pr --no-merge` が、手元の検査・push・PR の作成を1回で行い、auto-merge は付けない。Yuto Matsui の本番反映の承諾後に、担当者が `bash scripts/dev.sh pr --approved` で auto-merge を付ける。Rules・ワークフロー・構築スクリプトを変える PR には auto-merge を付けず、レビューを求める。回帰テスト11件（偽の gh と手元の bare リポジトリ）が通った | 手順と仕組みは完成。GitHub 上の auto-merge は未確認（main のルールで test が必須になっていないと auto-merge は使えない） |
 | 3. 本番に自動で反映し、結果が分かる | `deploy.yml` が CI 通過後に Rules → API → 画面の順に反映し、サマリーに記録する | 未検証。失敗の通知は GitHub の既定の通知だけ |
 | 4. マージ前に本物の Gemini を試せる | Firestore・Auth はエミュレータ、Vertex AI は本番プロジェクトに分離する。Gemini の接続先は依頼者承認済みの global。空・未設定時の起動処理と gcloud がない場合の案内は Claude のレビューで改善点として確認した | 接続先の受け渡しとモックの検査は確認済み。実モデルの呼び出しと起動時の改善は未完了 |
 | 5. 1つの操作で戻せる | `deploy.yml` の手動実行で、過去に成功したコミットだけに戻せる | 未検証 |
@@ -131,7 +131,7 @@ Codex にはできない、またはさせない作業。必要になったら�
 | リポジトリの管理者として `gh` でログインし、`bash infra/setup-github.sh` を実行する | オーナー | 手順8 |
 | Codex の環境に GCP の認証情報を渡す（6章） | オーナー | 手順9 |
 | メンバーのメールアドレスを伝え、編集者の権限を付ける | オーナー | 手順9 |
-| `main` へのマージの指示 | オーナー | 開発のルール |
+| 本番反映（mainへのマージから自動デプロイまで）の事前承諾 | Yuto Matsui | 開発のルール |
 
 ## 6. Codex から GCP を操作する
 
