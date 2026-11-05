@@ -23,12 +23,12 @@ DevFest Hackathon 2026 チーム167 の開発用リポジトリ（Public）で�
 | 認証情報の引き継ぎ | [docs/credentials.md](credentials.md) | だれが何を持ち、どう渡し、どう止めるか |
 | 開発のルール | [CONTRIBUTING.md](../CONTRIBUTING.md)、[AGENTS.md](../AGENTS.md) | ブランチ、PR、CI、マージ、報告のルール |
 
-### 段階1の構築設定（2026-11-05）
+### 段階1の構築設定と実環境の記録（2026-11-05）
 
 依頼者が指定した新規 Public リポジトリは [genellect/devfest2026-t167](https://github.com/genellect/devfest2026-t167)。依頼者は同日、Gemini だけを global に変更し、Cloud Run・Firestore は東京に維持する方針を承認した。
 
 - `DEV_REPO=genellect/devfest2026-t167`：今回新規作成した Public リポジトリ。提出先は変更しない。
-- `PROJECT_ID=devfest2026-t167`：新規リポジトリ名にそろえた作成候補。段階3で使用済みと判明した場合は末尾に数字を足す。まだプロジェクトは作成していない。
+- `PROJECT_ID=devfest2026-t167`：作成済み。プロジェクト番号は `1086529845261`、状態は `ACTIVE`。新規リポジトリ名と一致している。
 - `REGION=asia-northeast1`、`APPHOSTING_REGION=asia-east1`：Cloud Run・Firestore と画面のリージョンは維持する。
 - `VERTEX_LOCATION=global`、`GEMINI_MODEL=gemini-3.5-flash`：Google 公式の[モデル情報](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-5-flash)で global の Standard PayGo、構造化出力、temperature の指定への対応を確認した（2026-11-05）。[ライフサイクル](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions)上の廃止予定は2027-05-19以降。
 - `setup-deployer.sh` が示す GitHub Variables は `PROJECT_ID`・`REGION`・`VERTEX_LOCATION`・`GEMINI_MODEL`・`WIF_PROVIDER`・`DEPLOYER_SA` の6つ。ローカルの `GEMINI_MOCK=0` も同じ接続先を使う。
@@ -36,6 +36,10 @@ DevFest Hackathon 2026 チーム167 の開発用リポジトリ（Public）で�
 正本の東京指定に対し、公式資料はモデルの東京の利用可能性と Standard PayGo の対応先を分けており、東京には Single Zone Provisioned Throughput のみという注記があるため、依頼者の承認を受けて接続先を分離した。Provisioned Throughput は追加しない。実プロジェクトからのモデル利用・割り当て・実呼び出しは構築後に検証し、設定とモックの検査だけで本番の動作確認済みとはしない。
 
 Google Docs 正本はまだ変更していないため、`docs/infra-manual.md` は正本に対応する状態を維持する。正本への反映事項（リポジトリ名、Gemini の接続先、Variables の6つへの変更）は PR の説明に一覧化する。正本を変更する段階で、依頼者の指示どおり写しも反映する。
+
+### メインエンジニア間の協働
+
+Codex と Claude は同格のメインエンジニアとして、目的に向けて独立に設計・実装し、互いの PR をレビューする。Claude は自身が提案した起動設定・デプロイ前検証・クラウドログイン・開発環境・関連文書の改善を自律的に進める。Codex は Firebase 以降の実環境構築と構築記録を進める。設計、作業ブランチ、PR の切り方は各担当が判断し、担当が重なる点は当事者同士で調整する。
 
 ## 1. 依頼の範囲
 
@@ -53,23 +57,23 @@ Google Docs 正本はまだ変更していないため、`docs/infra-manual.md` 
 - 依頼者の指示がない `main` へのマージ、本番の GCP の削除や作り直し、有料の設定の追加。
 - 速度優先のため、必要以上のセキュリティの仕組みを足すこと（AGENTS.md の「常に守ること」は守る）。
 
-## 2. 最終目標に対する現状（2026-11-05 の点検と修正の後）
+## 2. 最終目標に対する現状（2026-11-05、段階4完了・Firebase追加手続き中）
 
 | 目標 | 現状 | 判定 |
 |---|---|---|
 | 1. 秘密情報なしに数コマンドで動く | `bash scripts/dev.sh setup` と `serve` で、エミュレータとモックで動く。GCP の認証情報は要らない。手元に入れたくない人と Windows の人向けに `.devcontainer`（Node.js 22・Java 21・gh・Chromium）を加えた | Linux で達成。`.devcontainer` は JSON の形だけ確かめ、起動は未確認。macOS は未確認 |
-| 1. AI ツールのクラウド環境 | Claude Code は `.claude/cloud-setup.sh`、Codex は `.codex/setup.sh` | Claude Code は同じ手順で確かめた。`.codex/setup.sh` は未実行 |
-| 2. PR で自動検査・文書だけなら待たない | `ci.yml` の changes と test。判定の回帰テスト9件は手元で通った | 未検証（GitHub 上で動かしていない） |
+| 1. AI ツールのクラウド環境 | Claude Code は `.claude/cloud-setup.sh`、Codex は `.codex/setup.sh` | Claude Code は同じ手順で確かめた。Codex Desktop から WSL Ubuntu 26.04.1・Node.js 22.22.1・Java 21 で `.codex/setup.sh` と `scripts/dev.sh check` を実行し、ともに終了コード0（2026-11-05）。Codex クラウド環境への登録・実行は未確認 |
+| 2. PR で自動検査・文書だけなら待たない | 文書だけの PR #1 で changes 成功・test 省略、設定変更の PR #2 の `88c79fd` で全検査70件が成功。Claude も同コミットで独立に全検査を再実行し成功 | GitHub と手元で確認済み。実行時間の README への記録は段階9で行う |
 | 2. 手元の検査が CI と一致 | CI は `bash scripts/dev.sh check` を呼ぶだけ | 達成（手元で全件通った） |
 | 3. CI が通れば追加の操作なしにマージ | `bash scripts/dev.sh pr` が、手元の検査・push・PR の作成・auto-merge の設定を1回で行う。Rules・ワークフロー・構築スクリプトを変える PR には auto-merge を付けず、レビューを求める。回帰テスト9件（偽の gh と手元の bare リポジトリ）が通った | 手順と仕組みは完成。GitHub 上の auto-merge は未確認（main のルールで test が必須になっていないと auto-merge は使えない） |
 | 3. 本番に自動で反映し、結果が分かる | `deploy.yml` が CI 通過後に Rules → API → 画面の順に反映し、サマリーに記録する | 未検証。失敗の通知は GitHub の既定の通知だけ |
-| 4. マージ前に本物の Gemini を試せる | API に `VERTEX_PROJECT` を加え、Firestore（エミュレータ）と Vertex AI のプロジェクトを分けた。`GEMINI_MOCK=0 bash scripts/dev.sh serve` で本物の Gemini を使う。GEMINI_MODEL が未定、または ADC がないときは理由を表示して止まることを確かめた | 手順と仕組みは完成。本物の Vertex AI の呼び出しは、プロジェクトの作成後に確かめる |
+| 4. マージ前に本物の Gemini を試せる | Firestore・Auth はエミュレータ、Vertex AI は本番プロジェクトに分離する。Gemini の接続先は依頼者承認済みの global。空・未設定時の起動処理と gcloud がない場合の案内は Claude のレビューで改善点として確認した | 接続先の受け渡しとモックの検査は確認済み。実モデルの呼び出しと起動時の改善は未完了 |
 | 5. 1つの操作で戻せる | `deploy.yml` の手動実行で、過去に成功したコミットだけに戻せる | 未検証 |
 | 6. 鍵の誤 push が止まる | `infra/setup-github.sh` が secret scanning と push protection を有効にする（公開リポジトリでは無料） | 未検証 |
 | 7. 同時の PR で食い違わない | Rules・API・画面を同じコミットから順に反映し、デプロイは同時に1つだけ。main の CI が通らなければ反映しない | 設計済み・未検証 |
-| 前提：GCP・Firebase・リポジトリ | 構築していない | **未着手** |
+| 前提：GCP・Firebase・リポジトリ | Public リポジトリ `genellect/devfest2026-t167` と GCP プロジェクト `devfest2026-t167` を作成済み。請求先リンク・予算2本・東京の Firestore・Artifact Registry・api-runtime の作成を確認し、`setup-project.sh` は2回成功。Firebase はコンソールで追加手続き中 | 段階0〜4を確認済み。段階5以降は未完了 |
 
-**結論：手順と雛形は最終目標の1〜7をすべて満たす形になった。** 残っているのは、構築（GCP・Firebase・リポジトリ）と、GitHub と GCP の上でしか確かめられない確認だけで、3章の作業で行う。
+**段階0〜4は確認済みで、最終目標1〜7の完了ではない。** Firebase 以降の構築、実モデル・本番 URL・デプロイ・ロールバック・Codespaces の検証と、独立レビューで見つかった改善を進める。確認済みの検査と、まだ動かしていない実環境の流れを分けて扱う。
 
 ## 3. 作業の順番と完了条件
 
