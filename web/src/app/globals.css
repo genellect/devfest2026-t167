@@ -71,7 +71,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 /* ---------- タグとボタン ---------- */
 .tag {
   display: inline-block; border: var(--line); background: var(--c-paper);
-  padding: 3px 10px; font-size: 14px; white-space: nowrap;
+  padding: 3px 10px; font-size: 14px; white-space: nowrap; color: var(--c-ink);
 }
 .tag--yellow { background: var(--c-yellow); }
 .tag--tint { background: var(--c-tint); }
@@ -166,4 +166,36 @@ textarea.input { resize: vertical; min-height: 96px; }
 
 @media (prefers-reduced-motion: reduce) {
   .btn { transition: none; }
+}
+
+/* 議論の流れの帯（話題ごとの時間） */
+.timeline { display: flex; border: var(--line); }
+.timeline__seg {
+  flex-basis: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--c-tint); border-left: var(--line); padding: 6px 8px; text-align: center; font-size: 15px; font-weight: 900; min-width: 0;
+}
+.timeline__seg:first-child { border-left: 0; }
+.timeline__seg--hl { background: var(--c-yellow); }
+
+/* 録音中の円形の音の表示 */
+.voice { position: relative; width: 220px; height: 220px; display: grid; place-items: center; }
+.voice__ring { position: absolute; inset: 0; border: var(--line); border-radius: 50%; background: var(--c-tint); transition: transform 90ms linear; }
+.voice__core {
+  position: relative; width: 120px; height: 120px; border: var(--line); border-radius: 50%;
+  background: var(--c-blue); color: var(--c-paper); display: grid; place-items: center; font-size: 22px; font-weight: 900;
+}
+.voice[data-state="paused"] .voice__core, .voice[data-state="idle"] .voice__core { background: var(--c-paper); color: var(--c-ink); }
+
+/* グループごとのカード（先生の画面） */
+.group-card { padding: 20px 22px; display: flex; flex-direction: column; gap: 4px; min-height: 150px; justify-content: center; }
+.grid-auto { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; align-content: start; }
+
+/* 比較表 */
+.table { width: 100%; border-collapse: separate; border-spacing: 0 10px; }
+.table th { text-align: left; font-size: 14px; padding: 0 12px; }
+.table td { background: var(--c-bg); padding: 16px 12px; font-size: 16px; }
+.mark { background: var(--c-yellow); padding: 2px 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .voice__ring { transition: none; }
 }

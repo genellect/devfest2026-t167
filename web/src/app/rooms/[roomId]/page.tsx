@@ -11,7 +11,7 @@ import { useDoc, useUid, type Room } from "@/lib/room";
 export default function RoomPage({ params }: { params: Promise<{ roomId: string }> }) {
   const { roomId } = use(params);
   const uid = useUid();
-  const member = useDoc<{ role: "moderator" | "participant" }>(uid ? `rooms/${roomId}/members/${uid}` : undefined);
+  const member = useDoc<{ role: "moderator" | "participant"; group?: number }>(uid ? `rooms/${roomId}/members/${uid}` : undefined);
   const isMember = !!member.data;
   const room = useDoc<Room>(isMember ? `rooms/${roomId}` : undefined);
   const role = member.data?.role;
@@ -26,5 +26,5 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   if (!room.data || !role) return <Loading />;
   return role === "moderator"
     ? <HostRoom roomId={roomId} room={room.data} />
-    : <ParticipantRoom roomId={roomId} room={room.data} uid={uid!} />;
+    : <ParticipantRoom roomId={roomId} room={room.data} uid={uid!} group={member.data?.group ?? 1} />;
 }

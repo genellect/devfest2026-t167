@@ -8,6 +8,7 @@ import { alignmentRate, interventionEffectiveness, participationFairness, reflec
 
 export const PHASES = ['collecting', 'discussing', 'consensus', 'closed'] as const;
 export const ANALYZE_COOLDOWN_MS = 30_000;
+export const MAX_GROUPS = 12;
 const RUNNING_TIMEOUT_MS = 60_000;
 
 type Role = 'moderator' | 'participant';
@@ -72,7 +73,7 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
   // 部屋の作成：匿名でないログインが必要。所属はまだないので所属確認はしない
   app.post('/rooms', ...chain(authenticate, wrap(async (req, res) => {
     if (req.ctx.provider === 'anonymous') throw new HttpError(403, 'moderator_login_required', '司会者は Google でログインしてください');
-    const { title } = parse(z.object({ title: z.string().trim().min(1).max(100) }), req.body);
+    const { title, groups } = parse(z.object({ title: z.string().trim().min(1).max(100), groups: z.number().int().min(1).max(MAX_GROUPS).default(1) }), req.body);
     const roomId = db.collection('rooms').doc().id;
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -81,7 +82,7 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
         const codeRef = db.doc(`joinCodes/${joinCode}`);
         if ((await tx.get(codeRef)).exists) return false;
         tx.set(codeRef, { roomId });
-        tx.set(roomRef(roomId), { title, phase: 'collecting', joinCode, createdBy: req.ctx.uid, createdAt: FieldValue.serverTimestamp(), analysis: { status: 'idle' } });
+        tx.set(roomRef(roomId), { title, groups, joinedCount: 0, phase: 'collecting', joinCode, createdBy: req.ctx.uid, createdAt: FieldValue.serverTimestamp(), analysis: { status: 'idle' } });
         tx.set(db.doc(`rooms/${roomId}/members/${req.ctx.uid}`), { role: 'moderator', joinedAt: FieldValue.serverTimestamp() });
         return true;
       });
@@ -100,7 +101,13 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
       const room = await tx.get(roomRef(roomId));
       if (!room.exists || room.get('phase') === 'closed') throw new HttpError(409, 'room_closed', 'この部屋は終了しています');
       const mRef = db.doc(`rooms/${roomId}/members/${req.ctx.uid}`);
-      if (!(await tx.get(mRef)).exists) tx.set(mRef, { role: 'participant', joinedAt: FieldValue.serverTimestamp() });
+      if (!(await tx.get(mRef)).exists) {
+        // 参加した順にグループへ割り当てる（1, 2, …, groups, 1, 2, …）
+        const joined = room.get('joinedCount') ?? 0;
+        const group = (joined % (room.get('groups') ?? 1)) + 1;
+        tx.set(mRef, { role: 'participant', group, joinedAt: FieldValue.serverTimestamp() });
+        tx.update(roomRef(roomId), { joinedCount: joined + 1 });
+      }
     });
     res.json({ roomId });
   })));
@@ -165,12 +172,19 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
   // 提出状況（司会者）。非公開の事前意見と合意の一文は、本文を返さず件数だけを返す
   app.post('/rooms/:roomId/progress', ...chain(authenticate, member, moderator, wrap(async (req, res) => {
     const roomId = req.params.roomId;
-    const [participants, opinions, statements] = await Promise.all([
-      db.collection(`rooms/${roomId}/members`).where('role', '==', 'participant').count().get(),
-      db.collection(`rooms/${roomId}/privateOpinions`).count().get(),
-      db.collection(`rooms/${roomId}/consensusStatements`).count().get(),
+    const [room, members, opinions, statements] = await Promise.all([
+      roomRef(roomId).get(),
+      db.collection(`rooms/${roomId}/members`).where('role', '==', 'participant').get(),
+      db.collection(`rooms/${roomId}/privateOpinions`).select().get(),
+      db.collection(`rooms/${roomId}/consensusStatements`).select().get(),
     ]);
-    res.json({ participants: participants.data().count, opinions: opinions.data().count, statements: statements.data().count });
+    const groupOf = new Map(members.docs.map((m) => [m.id, (m.get('group') as number | undefined) ?? 1]));
+    const byGroup = Array.from({ length: room.get('groups') ?? 1 }, (_, i) => ({ group: i + 1, participants: 0, opinions: 0, statements: 0 }));
+    const at = (uid: string) => byGroup[(groupOf.get(uid) ?? 1) - 1];
+    for (const m of members.docs) { const g = at(m.id); if (g) g.participants++; }
+    for (const d of opinions.docs) { const g = groupOf.has(d.id) ? at(d.id) : undefined; if (g) g.opinions++; }
+    for (const d of statements.docs) { const g = groupOf.has(d.id) ? at(d.id) : undefined; if (g) g.statements++; }
+    res.json({ participants: members.size, opinions: opinions.size, statements: statements.size, byGroup });
   })));
 
   // 提案の承認（司会者）
@@ -205,9 +219,22 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
       throw new HttpError(503, 'gemini_unavailable', 'AI の分析は一時停止中です。少し待ってから再実行してください');
     }
     const counts = members.docs.map((m) => msgs.docs.filter((d) => d.get('uid') === m.id).length);
+    // クラス内のグループごとに、合意の一文がどのまとまりに入ったかを数える（Gemini の呼び出しは増やさない）
+    const groupOf = new Map(members.docs.map((m) => [m.id, (m.get('group') as number | undefined) ?? 1]));
+    const clusterOf = new Map<number, number>();
+    cmp.groups.forEach((g, ci) => g.members.forEach((i) => clusterOf.set(i, ci)));
+    const groupCount = (await roomRef(roomId).get()).get('groups') ?? 1;
+    const byGroup = Array.from({ length: groupCount }, (_, gi) => {
+      const idx = stmts.docs.map((d, i) => [d.id, i] as const).filter(([uid]) => (groupOf.get(uid) ?? 1) === gi + 1).map(([, i]) => i);
+      const clusters = cmp.groups
+        .map((c, ci) => ({ label: c.label, count: idx.filter((i) => clusterOf.get(i) === ci).length }))
+        .filter((c) => c.count > 0);
+      return { group: gi + 1, respondents: idx.length, clusters, alignmentRate: alignmentRate(clusters.map((c) => ({ members: Array.from({ length: c.count }, (_, k) => k) })), idx.length) };
+    });
     const summary = {
       respondents: stmts.size,
       groups: cmp.groups,
+      byGroup,
       metrics: {
         reflectionRate: coverage.exists ? coverage.get('reflectionRate') : null,
         alignmentRate: alignmentRate(cmp.groups, stmts.size),

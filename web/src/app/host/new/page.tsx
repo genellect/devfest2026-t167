@@ -8,6 +8,7 @@ import { useHostUser } from "@/lib/hostAuth";
 import { addHistory, setDuration } from "@/lib/local";
 
 const DURATIONS = [10, 15, 20, 30];
+const GROUPS = [1, 2, 3, 4, 5, 6, 7, 8];
 
 /** S2 部屋を作る */
 export default function NewRoom() {
@@ -15,6 +16,7 @@ export default function NewRoom() {
   const user = useHostUser();
   const [title, setTitle] = useState("");
   const [minutes, setMinutes] = useState(15);
+  const [groups, setGroups] = useState(6);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -22,7 +24,7 @@ export default function NewRoom() {
     e.preventDefault();
     setBusy(true); setError("");
     try {
-      const { roomId } = await callApi<{ roomId: string }>("/rooms", { title: title.trim() });
+      const { roomId } = await callApi<{ roomId: string }>("/rooms", { title: title.trim(), groups });
       setDuration(roomId, minutes);
       addHistory("host", { roomId, title: title.trim() });
       router.push(`/rooms/${roomId}`);
@@ -48,6 +50,13 @@ export default function NewRoom() {
             <label className="field__label" htmlFor="title">テーマ</label>
             <input id="title" className="input" value={title} maxLength={100} placeholder="例：大学生のうちに経験すべきバイトは？" onChange={(e) => setTitle(e.target.value)} />
           </div>
+          <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend className="field__label" style={{ marginBottom: 6 }}>グループの数</legend>
+            <div className="choices">
+              {GROUPS.map((n) => <button key={n} type="button" className="choice" style={{ minWidth: 56 }} aria-pressed={groups === n} onClick={() => setGroups(n)}>{n}</button>)}
+            </div>
+            <p className="field__hint">生徒は参加した順に、グループへ割り当てられます。</p>
+          </fieldset>
           <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
             <legend className="field__label" style={{ marginBottom: 6 }}>議論の時間</legend>
             <div className="choices">

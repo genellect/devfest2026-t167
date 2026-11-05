@@ -8,18 +8,37 @@ import { ensureSignedIn, firebase } from "./firebase";
 import type { Phase } from "@/components/ui";
 
 export interface Room {
-  title: string; phase: Phase; joinCode?: string; createdBy: string;
+  title: string; phase: Phase; joinCode?: string; createdBy: string; groups?: number;
   phaseChangedAt?: Partial<Record<Phase, Timestamp>>;
   analysis?: { status: "idle" | "running" | "done" | "failed"; startedAt?: Timestamp; error?: string };
 }
 export interface Message { id: string; uid: string; text: string; createdAt?: Timestamp }
 export interface Insight { id: string; summary: string; status: "pending" | "approved"; source?: string; approvedAt?: Timestamp }
-export interface Member { id: string; role: "moderator" | "participant" }
+export interface Member { id: string; role: "moderator" | "participant"; group?: number }
 export interface Coverage { total: number; discussed: number; reflectionRate: number | null; source?: string }
 export interface Summary {
   respondents: number;
   groups: { label: string; members: number[] }[];
   metrics: { reflectionRate: number | null; alignmentRate: number | null; participationFairness: number | null; interventionEffectiveness: number | null };
+  /** クラス内のグループごとの、合意の理解の分かれ方 */
+  byGroup?: { group: number; respondents: number; alignmentRate: number | null; clusters: { label: string; count: number }[] }[];
+  source?: string;
+}
+export interface Progress {
+  participants: number; opinions: number; statements: number;
+  byGroup?: { group: number; participants: number; opinions: number; statements: number }[];
+}
+
+/**
+ * 音声の議論の分析結果（グループごと）。rooms/{部屋}/results/flow-g{グループ番号} に API が書く想定。
+ * 音声の文字起こしと分析はバックエンドで実装予定。届くまでは、デモのときだけ見本を表示する。
+ */
+export interface Flow {
+  totalMinutes: number;
+  segments: { topic: string; minutes: number; highlight?: boolean }[];
+  flowNote?: string;
+  good: { at: string; text: string }[];
+  review: { at: string; text: string; question?: string }[];
   source?: string;
 }
 

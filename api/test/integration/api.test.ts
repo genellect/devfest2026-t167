@@ -141,9 +141,32 @@ describe('提出状況', () => {
     const { roomId, mod, p1 } = await setupRoom();
     await db.doc(`rooms/${roomId}/privateOpinions/${uidOf(p1)}`).set({ text: '非公開の本文', updatedAt: FieldValue.serverTimestamp() });
     const r = await api(mod).post(`/rooms/${roomId}/progress`).expect(200);
-    expect(r.body).toEqual({ participants: 2, opinions: 1, statements: 0 });
+    expect(r.body).toEqual({ participants: 2, opinions: 1, statements: 0, byGroup: [{ group: 1, participants: 2, opinions: 1, statements: 0 }] });
     expect(JSON.stringify(r.body)).not.toContain('非公開の本文');
     await api(p1).post(`/rooms/${roomId}/progress`).expect(403);
+  });
+});
+
+describe('クラス内のグループ', () => {
+  it('参加した順にグループへ割り当て、提出状況をグループごとに返す', async () => {
+    const mod = await named();
+    const { roomId, joinCode } = (await api(mod).post('/rooms', { title: 'グループ', groups: 2 }).expect(201)).body;
+    const ps = [await anon(), await anon(), await anon()];
+    for (const p of ps) await api(p).post('/rooms/join', { code: joinCode }).expect(200);
+    await api(ps[0]).post('/rooms/join', { code: joinCode }).expect(200); // 2回目の参加でグループは変わらない
+    const groups = await Promise.all(ps.map(async (p) => (await db.doc(`rooms/${roomId}/members/${uidOf(p)}`).get()).get('group')));
+    expect(groups).toEqual([1, 2, 1]);
+    await db.doc(`rooms/${roomId}/privateOpinions/${uidOf(ps[1])}`).set({ text: 'x', updatedAt: FieldValue.serverTimestamp() });
+    const r = await api(mod).post(`/rooms/${roomId}/progress`).expect(200);
+    expect(r.body.byGroup).toEqual([
+      { group: 1, participants: 2, opinions: 0, statements: 0 },
+      { group: 2, participants: 1, opinions: 1, statements: 0 },
+    ]);
+  });
+  it('グループの数は1〜12', async () => {
+    const mod = await named();
+    await api(mod).post('/rooms', { title: 'x', groups: 0 }).expect(400);
+    await api(mod).post('/rooms', { title: 'x', groups: 13 }).expect(400);
   });
 });
 
@@ -172,5 +195,8 @@ describe('承認と合意の検証', () => {
     expect(r.body.metrics).toMatchObject({ reflectionRate: 0.5, alignmentRate: 0.5, interventionEffectiveness: 1 });
     expect(r.body.metrics.participationFairness).toBeGreaterThan(0);
     expect(r.body.source).toBe('mock');
+    expect(r.body.byGroup).toEqual([{ group: 1, respondents: 2, alignmentRate: 0.5, clusters: [
+      { label: expect.any(String), count: 1 }, { label: expect.any(String), count: 1 },
+    ] }]);
   });
 });

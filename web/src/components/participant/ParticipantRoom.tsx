@@ -1,28 +1,30 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { addDoc, collection, doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { FlowTimeline, GoodReview, useFlow } from "@/components/flow";
 import { Header, PhaseSteps, SourceTag, Tag, useGeminiSource } from "@/components/ui";
 import { firebase } from "@/lib/firebase";
 import { formatMetric } from "@/lib/format";
 import { getNextGoal, getReflection, saveReflection } from "@/lib/local";
-import { useDoc, useInsights, useMessages, type Room, type Summary } from "@/lib/room";
+import { mmss, useRecorder } from "@/lib/recorder";
+import { useDoc, useInsights, type Room, type Summary } from "@/lib/room";
 
-interface Props { roomId: string; room: Room; uid: string }
+interface Props { roomId: string; room: Room; uid: string; group: number }
 
 /** 生徒（タブレット横向き）の画面。部屋のフェーズで切り替える */
-export function ParticipantRoom({ roomId, room, uid }: Props) {
+export function ParticipantRoom({ roomId, room, uid, group }: Props) {
   const source = useGeminiSource();
   const summary = useDoc<Summary>(room.phase === "consensus" || room.phase === "closed" ? `rooms/${roomId}/results/summary` : undefined).data;
   return (
     <main className="screen">
-      <Header title={room.title} demo={source === "mock"}>
+      <Header eyebrow={(room.groups ?? 1) > 1 ? `あなたはグループ${group}` : undefined} title={room.title} demo={source === "mock"}>
         <PhaseSteps phase={room.phase} />
       </Header>
       {room.phase === "collecting" && <OpinionStep roomId={roomId} uid={uid} />}
-      {room.phase === "discussing" && <DiscussionStep roomId={roomId} uid={uid} />}
+      {room.phase === "discussing" && <VoiceStep roomId={roomId} />}
       {room.phase === "consensus" && !summary && <ConsensusStep roomId={roomId} uid={uid} title={room.title} />}
-      {(room.phase === "closed" || summary) && <ResultStep roomId={roomId} uid={uid} title={room.title} summary={summary ?? null} closed={room.phase === "closed"} />}
+      {(room.phase === "closed" || summary) && <ResultStep roomId={roomId} uid={uid} group={group} source={source} title={room.title} summary={summary ?? null} closed={room.phase === "closed"} />}
     </main>
   );
 }
@@ -80,45 +82,42 @@ function OpinionStep({ roomId, uid }: { roomId: string; uid: string }) {
   );
 }
 
-/** P3 議論。発言は全員の画面に出る。先生が承認した AI の問いだけが届く */
-function DiscussionStep({ roomId, uid }: { roomId: string; uid: string }) {
-  const messages = useMessages(roomId, true);
+/**
+ * P3 議論（音声）。グループで1台、または1人1台で録音する。画面を見なくても話し合えるようにする。
+ * 録音は端末の中に置くだけで、まだ送信しない（送信と文字起こしはバックエンドで実装予定）。
+ * 先生が承認した AI の問いかけだけが届く。
+ */
+function VoiceStep({ roomId }: { roomId: string }) {
   const insights = useInsights(roomId, true, true);
-  const [text, setText] = useState("");
-  const [error, setError] = useState("");
-  const feedEnd = useRef<HTMLDivElement>(null);
-  useEffect(() => { feedEnd.current?.scrollIntoView({ block: "end" }); }, [messages.length]);
-
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
-    const t = text.trim();
-    if (!t) return;
-    setText(""); setError("");
-    try {
-      await addDoc(collection(firebase().db, `rooms/${roomId}/messages`), { uid, text: t, createdAt: serverTimestamp() });
-    } catch (err) { setText(t); setError(`送れませんでした：${(err as Error).message}`); }
-  }
+  const rec = useRecorder();
+  const scale = 1 + rec.level * 0.45;
+  const status = {
+    idle: "録音を始めると、議論が終わるまで自動で記録します。",
+    asking: "マイクの使用を許可してください。",
+    recording: "録音中・議論を続けてください",
+    paused: "一時停止中",
+    stopped: "録音を終えました",
+    denied: "マイクが使えません。ブラウザの設定でマイクを許可してから、もう一度試してください。",
+    unsupported: "この端末やブラウザでは録音できません。別の端末で録音するか、そのまま話し合ってください。",
+  }[rec.state];
 
   return (
-    <div className="body body--tablet" style={{ flexDirection: "row", alignItems: "stretch", minHeight: 0 }}>
-      <section className="box box--md stack" style={{ flex: 1, padding: 22, minHeight: 0 }}>
-        <h2 className="t-md">グループで話し合いましょう</h2>
-        <div className="feed" style={{ flex: 1, minHeight: 240, maxHeight: "calc(100dvh - 330px)" }} aria-live="polite">
-          {messages.length === 0 && <p className="empty">最初のひとことを書いてみましょう。</p>}
-          {messages.map((m) => (
-            <div key={m.id} className={`bubble${m.uid === uid ? " bubble--mine" : ""}`}>
-              <p className="bubble__who">{m.uid === uid ? "あなた" : "メンバー"}</p>
-              <p>{m.text}</p>
-            </div>
-          ))}
-          <div ref={feedEnd} />
+    <div className="body body--tablet" style={{ flexDirection: "row", alignItems: "stretch" }}>
+      <section className="box box--lg pad-lg stack" style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 24, textAlign: "center" }}>
+        <h2 className="t-lg">グループで話し合いましょう</h2>
+        <p className="t-label">議論が終わるまで、画面を見なくても大丈夫です。</p>
+        <div className="voice" data-state={rec.state} aria-hidden="true">
+          <div className="voice__ring" style={{ transform: `scale(${rec.state === "recording" ? scale : 0.82})` }} />
+          <div className="voice__core">{rec.state === "recording" || rec.state === "paused" ? mmss(rec.elapsedMs) : "マイク"}</div>
         </div>
-        <form onSubmit={send} style={{ display: "flex", gap: 12 }}>
-          <label className="sr-only" htmlFor="say">発言</label>
-          <input id="say" className="input" value={text} maxLength={500} placeholder="意見や質問を書く" onChange={(e) => setText(e.target.value)} />
-          <button className="btn btn--blue" type="submit" disabled={!text.trim()}>送る</button>
-        </form>
-        {error && <p className="notice notice--error" role="alert">{error}</p>}
+        <div className={`notice${rec.state === "denied" || rec.state === "unsupported" ? " notice--error" : rec.state === "recording" ? "" : " notice--warn"}`}
+          role="status" style={{ display: "flex", alignItems: "center", gap: 16, width: "min(560px, 100%)", justifyContent: "space-between", textAlign: "left" }}>
+          <span className="t-label">{status}</span>
+          {(rec.state === "idle" || rec.state === "denied") && <button className="btn btn--blue btn--small" onClick={rec.start}>{rec.state === "denied" ? "もう一度試す" : "録音を始める"}</button>}
+          {rec.state === "recording" && <button className="btn btn--small" onClick={rec.pause}>一時停止</button>}
+          {rec.state === "paused" && <button className="btn btn--blue btn--small" onClick={rec.resume}>再開する</button>}
+        </div>
+        <p className="t-small">録音はこの端末の中にだけ残ります（送信と文字起こしは準備中です）。</p>
       </section>
       <aside className="stack" style={{ width: 360, flex: "0 0 auto" }}>
         <section className="box box--md box--yellow pad stack">
@@ -196,13 +195,19 @@ const ACHIEVED = ["できた", "少しできた", "まだ"];
 const SPOKE = ["言えた", "一部言えた", "言えなかった", "特になかった"];
 
 /** P4-2 認識のちがい ＋ P5 振り返り。グループの結果は全員に、振り返りはこの端末にだけ残す */
-function ResultStep({ roomId, uid, title, summary, closed }: { roomId: string; uid: string; title: string; summary: Summary | null; closed: boolean }) {
+function ResultStep({ roomId, uid, group, source, title, summary, closed }: { roomId: string; uid: string; group: number; source?: string; title: string; summary: Summary | null; closed: boolean }) {
   const mine = useDoc<{ text: string }>(`rooms/${roomId}/consensusStatements/${uid}`).data;
   const opinion = useDoc<{ text: string }>(`rooms/${roomId}/privateOpinions/${uid}`).data;
   const [r, setR] = useState(() => getReflection(roomId));
   const [saved, setSaved] = useState(false);
   const set = (patch: Partial<typeof r>) => { setR({ ...r, ...patch }); setSaved(false); };
-  const groups = [...(summary?.groups ?? [])].sort((a, b) => b.members.length - a.members.length);
+  // 自分のグループの分かれ方を出す（グループ別の結果がなければクラス全体）
+  const mine_ = summary?.byGroup?.find((g) => g.group === group);
+  const groups = mine_
+    ? [...mine_.clusters].sort((a, b) => b.count - a.count).map((c) => ({ label: c.label, n: c.count }))
+    : [...(summary?.groups ?? [])].sort((a, b) => b.members.length - a.members.length).map((g) => ({ label: g.label, n: g.members.length }));
+  const alignment = mine_ ? mine_.alignmentRate : summary?.metrics.alignmentRate ?? null;
+  const { flow } = useFlow(roomId, group, source);
 
   return (
     <div className="body body--tablet">
@@ -221,18 +226,20 @@ function ResultStep({ roomId, uid, title, summary, closed }: { roomId: string; u
             <p className="t-md">{mine?.text ?? "（入力していません）"}</p>
           </section>
           <section className="box box--sm pad stack">
-            <div className="heading-row"><h3 className="t-sm">みんなの理解の分かれ方</h3><SourceTag source={summary.source} /></div>
+            <div className="heading-row"><h3 className="t-sm">{mine_ ? "グループの理解の分かれ方" : "みんなの理解の分かれ方"}</h3><SourceTag source={summary.source} /></div>
             <p className="t-md">{groups.length <= 1 ? "理解はほぼそろっていました。" : `${groups.length}通りに分かれました。`}</p>
             <ul className="stack stack--tight" style={{ margin: 0, paddingLeft: 20 }}>
-              {groups.map((g, i) => <li key={i} className="t-label">{g.label}（{g.members.length}人）</li>)}
+              {groups.map((g, i) => <li key={i} className="t-label">{g.label}（{g.n}人）</li>)}
             </ul>
-            <p className="t-note">認識一致度：{formatMetric(summary.metrics.alignmentRate, summary.source === "mock" ? "mock" : "gemini")}</p>
+            <p className="t-note">認識一致度：{formatMetric(alignment, summary.source === "mock" ? "mock" : "gemini")}</p>
           </section>
         </div>
       )}
 
       {closed && (
         <>
+          <h2 className="t-md">グループで何が起きたか</h2>
+          <FlowTimeline flow={flow} compact />
           <h2 className="t-md">自分はどう関わっていたか</h2>
           <div className="row">
             <section className="box box--sm pad stack">
@@ -268,6 +275,8 @@ function ResultStep({ roomId, uid, title, summary, closed }: { roomId: string; u
               {saved && <p role="status">保存しました。次の議論の前に表示します。</p>}
             </section>
           </div>
+          <h2 className="t-md">次はどうするか</h2>
+          <GoodReview flow={flow} />
           <Link className="btn" href="/" style={{ alignSelf: "flex-start" }}>ホームに戻る</Link>
         </>
       )}
