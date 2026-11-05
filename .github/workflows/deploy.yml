@@ -33,6 +33,18 @@ jobs:
       GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
       DEPLOY_REF: ${{ inputs.ref || github.sha }}
     steps:
+      # 1つでも空なら、認証やビルドの前に止める。空のまま Cloud Run に渡すと、デプロイは成功しても Gemini が動かないため
+      # 一覧は infra/setup-deployer.sh の表示と同じ（tests/config.test.sh が一致を確かめる）
+      - name: Check repository Variables
+        run: |
+          missing=""
+          for v in PROJECT_ID REGION VERTEX_LOCATION GEMINI_MODEL WIF_PROVIDER DEPLOYER_SA; do
+            [ -n "$(printf '%s' "${!v}" | tr -d '[:space:]')" ] || missing="${missing} ${v}"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::GitHub の Variables が未登録です:${missing}。infra/setup-deployer.sh の表示どおりに Settings → Secrets and variables → Actions → Variables に登録してください"
+            exit 1
+          fi
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_REF }}

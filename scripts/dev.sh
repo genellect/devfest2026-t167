@@ -34,6 +34,9 @@ doctor() {
   if command -v gcloud >/dev/null 2>&1 && [ -n "$(gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null)" ]; then
     ok "gcloud: $(gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null | head -1)"
   else warn "gcloud は未ログイン（ローカルの開発と試験には不要）"; fi
+  if command -v gcloud >/dev/null 2>&1 && gcloud auth application-default print-access-token >/dev/null 2>&1; then
+    ok "ADC（GEMINI_MOCK=0 で本物の Gemini を試せる）"
+  else warn "ADC なし（GEMINI_MOCK=0 で本物の Gemini を試すときだけ必要。gcloud auth application-default login）"; fi
   return $bad
 }
 
@@ -44,10 +47,16 @@ serve() {
   if [ "$mock" = 0 ]; then
     # 本物の Gemini：Firestore と Auth はエミュレータのまま、Vertex AI だけ本番のプロジェクトを使う
     source infra/env.sh
-    case "${GEMINI_MODEL:-}" in ""|*ここに*) echo "NG: infra/env.sh の GEMINI_MODEL を決めてください" >&2; exit 1 ;; esac
-    command -v gcloud >/dev/null 2>&1 && gcloud auth application-default print-access-token >/dev/null 2>&1 \
-      || { echo "NG: 本物の Gemini には gcloud auth application-default login が要ります（プロジェクトの編集者の権限で）" >&2; exit 1; }
-    extra=(VERTEX_PROJECT="$PROJECT_ID" VERTEX_LOCATION="$VERTEX_LOCATION" GEMINI_MODEL="$GEMINI_MODEL")
+    local v
+    for v in PROJECT_ID VERTEX_LOCATION GEMINI_MODEL; do
+      case "${!v:-}" in ""|*ここに*) echo "NG: infra/env.sh の $v を決めてください" >&2; exit 1 ;; esac
+    done
+    command -v gcloud >/dev/null 2>&1 \
+      || { echo "NG: 本物の Gemini には Google Cloud CLI（gcloud）が要ります。.devcontainer・Codespaces には入っていません（https://cloud.google.com/sdk/docs/install）。モックでの起動は gcloud なしで使えます" >&2; exit 1; }
+    gcloud auth application-default print-access-token >/dev/null 2>&1 \
+      || { echo "NG: 本物の Gemini には gcloud auth application-default login が要ります（プロジェクトの編集者の権限で。docs/credentials.md の「実装担当が加わるとき」）" >&2; exit 1; }
+    # 個人の ADC でも課金と割り当てをこのプロジェクトに付ける（gcloud の quota project の設定に頼らない）
+    extra=(VERTEX_PROJECT="$PROJECT_ID" VERTEX_LOCATION="$VERTEX_LOCATION" GEMINI_MODEL="$GEMINI_MODEL" GOOGLE_CLOUD_QUOTA_PROJECT="$PROJECT_ID")
     echo "本物の Gemini（${PROJECT_ID} の Vertex AI、${VERTEX_LOCATION}、${GEMINI_MODEL}）を使います。Firestore と Auth はエミュレータのままです"
   fi
   trap 'trap - EXIT; kill 0' INT TERM EXIT
@@ -75,6 +84,7 @@ check() {
   bash tests/submit.test.sh
   bash tests/ci-changes.test.sh
   bash tests/dev-pr.test.sh
+  bash tests/config.test.sh
   step "ビルド"
   npm --prefix api run build
   npm --prefix web run build
