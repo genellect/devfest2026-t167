@@ -44,7 +44,7 @@ DevFest Hackathon 2026 チーム167 の開発用リポジトリ（Public）で�
 | 目標 | 現状 | 判定 |
 |---|---|---|
 | 1. 秘密情報なしに数コマンドで動く | `bash scripts/dev.sh setup` と `serve` で、エミュレータとモックで動く。GCP の認証情報は要らない。手元に入れたくない人と Windows の人向けに `.devcontainer`（Node.js 22・Java 21・gh・Chromium）を加えた | Linux で達成。`.devcontainer` は JSON の形だけ確かめ、起動は未確認。macOS は未確認 |
-| 1. AI ツールのクラウド環境 | Claude Code は `.claude/cloud-setup.sh`、Codex は `.codex/setup.sh` | Claude Code は同じ手順で確かめた。`.codex/setup.sh` は未実行 |
+| 1. AI ツールのクラウド環境 | Claude Code は `.claude/cloud-setup.sh`、Codex は `.codex/setup.sh` | Claude Code は同じ手順で確かめた。Codex Desktop から WSL Ubuntu 26.04.1・Node.js 22.22.1・Java 21 で `.codex/setup.sh` と `scripts/dev.sh check` を実行し、ともに終了コード0（2026-11-05）。Codex クラウド環境への登録・実行は未確認 |
 | 2. PR で自動検査・文書だけなら待たない | `ci.yml` の changes と test。判定の回帰テスト9件は手元で通った | 未検証（GitHub 上で動かしていない） |
 | 2. 手元の検査が CI と一致 | CI は `bash scripts/dev.sh check` を呼ぶだけ | 達成（手元で全件通った） |
 | 3. CI が通れば追加の操作なしにマージ | `bash scripts/dev.sh pr` が、手元の検査・push・PR の作成・auto-merge の設定を1回で行う。Rules・ワークフロー・構築スクリプトを変える PR には auto-merge を付けず、レビューを求める。回帰テスト9件（偽の gh と手元の bare リポジトリ）が通った | 手順と仕組みは完成。GitHub 上の auto-merge は未確認（main のルールで test が必須になっていないと auto-merge は使えない） |
@@ -56,6 +56,14 @@ DevFest Hackathon 2026 チーム167 の開発用リポジトリ（Public）で�
 | 前提：GCP・Firebase・リポジトリ | 構築していない | **未着手** |
 
 **結論：手順と雛形は最終目標の1〜7をすべて満たす形になった。** 残っているのは、構築（GCP・Firebase・リポジトリ）と、GitHub と GCP の上でしか確かめられない確認だけで、3章の作業で行う。
+
+### 段階0の実行結果（2026-11-05）
+
+- `bash .codex/setup.sh`：終了コード0。依存・Chromium・Firestore エミュレータを取得した。
+- `bash scripts/dev.sh check`：終了コード0。lint・型・ビルド、単体6件、Rules 13件、API 結合14件、E2E 3件、提出16件、変更判定9件、PR 作成9件が通った。
+- 実行環境は Codex Desktop から操作する WSL。GCP の認証や本番サービスを使わず、Auth・Firestore はエミュレータ、Gemini はモックで検査した。
+- npm の通信タイムアウトは同時接続数を減らして再試行し、容量上限のある `/tmp` を避けて `/var/tmp` の専用作業領域を使った。リポジトリのスクリプトと lockfile は変更していない。
+- GitHub 上の CI、本番デプロイ、本番 URL、Codex クラウド・Codespaces はこの検査の対象外で、未確認のまま。
 
 ## 3. 作業の順番と完了条件
 
