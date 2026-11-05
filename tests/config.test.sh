@@ -30,10 +30,24 @@ env $ALL bash -e "$T/preflight.sh" > "$T/out" 2>&1 && ok "Variables がそろえ
 env $ALL VERTEX_LOCATION= GEMINI_MODEL='  ' bash -e "$T/preflight.sh" > "$T/out" 2>&1
 [ $? -ne 0 ] && grep -q "未登録です: VERTEX_LOCATION GEMINI_MODEL" "$T/out" && ok "空・空白の Variables は名前を出して止まる" || ng "空の Variables で止まらない（$(cat "$T/out")）"
 
+# プレビュー：使う Variables は本番の一覧の中だけ。App Hosting のバックエンド ID が firebase.json・env.sh・ワークフローで一致する
+PREVIEW="$ROOT/.github/workflows/preview.yml"
+extra=$(for v in $(grep -oE 'vars\.[A-Z_]+' "$PREVIEW" | sed 's/vars\.//' | sort -u); do echo " $VARS " | grep -q " $v " || echo "$v"; done)
+[ -z "$extra" ] && ok "preview.yml の Variables は登録済みの一覧の中だけ" || ng "preview.yml が未登録の Variables を使う: $extra"
+BACKENDS=$(python3 -c "import json,sys; a=json.load(open(sys.argv[1]))['apphosting']; print(' '.join(sorted(b['backendId'] for b in (a if isinstance(a,list) else [a]))))" "$ROOT/firebase.json")
+PB=$(source "$ROOT/infra/env.sh" && echo "$PREVIEW_BACKEND")
+same "firebase.json に本番 web とプレビュー ${PB} がある" "$(printf '%s\n' web "$PB" | sort | tr '\n' ' ' | sed 's/ $//')" "$BACKENDS"
+DB=$(grep -oE 'apphosting:[a-z-]+' "$DEPLOY" | head -1 | cut -d: -f2)
+same "本番のデプロイ先は web（プレビューに出さない）" "web" "$DB"
+grep -q 'apphosting:${PREVIEW_BACKEND}' "$PREVIEW" && ok "プレビューは PREVIEW_BACKEND だけに出す" || ng "preview.yml のデプロイ先が PREVIEW_BACKEND でない"
+grep -q "head.repo.full_name == github.repository" "$PREVIEW" && ok "フォークからの PR には GCP の認証を渡さない" || ng "preview.yml にフォークの除外がない"
+grep -qE '^  pull_request_target:' "$PREVIEW" && ! grep -qE '^  pull_request:' "$PREVIEW" && ok "プレビューは main のワークフローで動く（PR が書き換えても効かない）" || ng "preview.yml が PR のワークフローで動く"
+grep -q 'git checkout "$SHA" -- web' "$PREVIEW" && ok "PR からは web/ だけを使い、スクリプトは main のものを使う" || ng "preview.yml が PR のスクリプトを使う"
+
 # infra/env.sh：Variables のうち手元で決める値が、空でも雛形のままでもない
 (
   source "$ROOT/infra/env.sh"
-  for v in PROJECT_ID REGION VERTEX_LOCATION GEMINI_MODEL DEV_REPO; do
+  for v in PROJECT_ID REGION VERTEX_LOCATION GEMINI_MODEL DEV_REPO WEB_APP_NAME PREVIEW_BACKEND APPHOSTING_REGION; do
     case "${!v:-}" in ""|*ここに*) echo "$v"; esac
   done
 ) > "$T/unset"
@@ -44,6 +58,46 @@ CONFIG="$ROOT/api/src/config.ts"
 for v in $(grep -oE -- '--set-env-vars "[^"]+"' "$DEPLOY" | grep -oE '[A-Z_]+=' | tr -d '='); do
   grep -q "'$v'" "$CONFIG" && ok "API が $v を読む（deploy.yml）" || ng "API が $v を読まない（deploy.yml）"
 done
+# infra/setup-preview.sh：偽の firebase・gcloud・curl で、作成とドメインの追加が足りないときだけ行われること
+mkdir -p "$T/pv"
+cat > "$T/pv/firebase" <<'EOF'
+#!/usr/bin/env bash
+echo "firebase $*" >> "$PV_LOG"
+case "$1" in
+  apphosting:backends:get) exit 0 ;;   # 実物の CLI と同じく、見つからなくても 0 で終わる
+  apphosting:backends:list) if [ -f "$PV_HAS_BACKEND" ]; then echo '{"status":"success","result":[{"name":"projects/p/locations/asia-east1/backends/web"},{"name":"projects/p/locations/asia-east1/backends/web-preview"}]}'; else echo '{"status":"success","result":[{"name":"projects/p/locations/asia-east1/backends/web"}]}'; fi ;;
+  apps:list) echo '{"result":[{"appId":"1:9:web:other","displayName":"web"},{"appId":"1:9:web:main","displayName":"t167-web"}]}' ;;
+  apphosting:backends:create) touch "$PV_HAS_BACKEND" ;;
+esac
+EOF
+printf '#!/usr/bin/env bash\necho dummy-token\n' > "$T/pv/gcloud"
+cat > "$T/pv/curl" <<'EOF'
+#!/usr/bin/env bash
+for a in "$@"; do [ "$a" = PATCH ] && { echo "curl PATCH $*" >> "$PV_LOG"; exit 0; }; done
+cat "$PV_DOMAINS"
+EOF
+chmod +x "$T/pv/"*
+pv() { PATH="$T/pv:$PATH" T167_FIREBASE="$T/pv/firebase" PV_LOG="$T/pv.log" PV_HAS_BACKEND="$T/pv.has" PV_DOMAINS="$T/pv.domains" bash "$ROOT/infra/setup-preview.sh" 2>/dev/null; }
+URL="https://$(source "$ROOT/infra/env.sh" && echo "${PREVIEW_BACKEND}--${PROJECT_ID}.${APPHOSTING_REGION}").hosted.app"
+rm -f "$T/pv.log" "$T/pv.has"; echo '{"authorizedDomains":["localhost"]}' > "$T/pv.domains"
+same "プレビューの URL を表示する" "$URL" "$(pv)"
+grep -q "apphosting:backends:create --backend ${PB} .*--app 1:9:web:main " "$T/pv.log" && ok "バックエンドがなければ本番と同じ Web アプリで作る" || ng "バックエンドの作成（$(cat "$T/pv.log")）"
+grep -q "curl PATCH .*${URL#https://}" "$T/pv.log" && grep "curl PATCH" "$T/pv.log" | grep -q localhost && ok "承認済みドメインに既存を残して加える" || ng "承認済みドメインの追加（$(cat "$T/pv.log")）"
+rm -f "$T/pv.log"; echo "{\"authorizedDomains\":[\"localhost\",\"${URL#https://}\"]}" > "$T/pv.domains"
+pv >/dev/null
+grep -qE "backends:create|PATCH" "$T/pv.log" && ng "2回目に変更した（$(cat "$T/pv.log")）" || ok "2回目は何も作らず、何も変えない"
+
+# infra/setup-members.sh：メールアドレスは GCP の編集者、それ以外は GitHub の Collaborator（Write）
+mkdir -p "$T/mb"
+printf '#!/usr/bin/env bash\necho "gcloud $*" >> "$MB_LOG"\n' > "$T/mb/gcloud"
+printf '#!/usr/bin/env bash\necho "gh $*" >> "$MB_LOG"\n' > "$T/mb/gh"
+chmod +x "$T/mb/"*
+rm -f "$T/mb.log"
+PATH="$T/mb:$PATH" MB_LOG="$T/mb.log" bash "$ROOT/infra/setup-members.sh" member@example.com someone >/dev/null 2>&1
+grep -q "add-iam-policy-binding $(source "$ROOT/infra/env.sh" && echo "$PROJECT_ID") --member=user:member@example.com --role=roles/editor" "$T/mb.log" && ok "メールアドレスは GCP の編集者にする" || ng "編集者の付与（$(cat "$T/mb.log" 2>/dev/null)）"
+grep -q "gh api -X PUT repos/$(source "$ROOT/infra/env.sh" && echo "$DEV_REPO")/collaborators/someone -f permission=push" "$T/mb.log" && ok "GitHub のユーザー名は Collaborator（Write）に招待する" || ng "Collaborator の招待（$(cat "$T/mb.log" 2>/dev/null)）"
+grep -q "^for ROLE in.*projectIamAdmin" "$ROOT/infra/setup-deployer.sh" && ng "デプロイ用アカウントにプロジェクト IAM 管理者を付けている" || ok "デプロイ用アカウントにプロジェクト IAM 管理者を付けない"
+
 # 手元の GEMINI_MOCK=0 で dev.sh が渡す値も同じ（GOOGLE_CLOUD_QUOTA_PROJECT は認証ライブラリが読む）
 for v in $(grep -E '^\s*extra=\(' "$ROOT/scripts/dev.sh" | grep -oE '[A-Z_]+=' | tr -d '='); do
   [ "$v" = GOOGLE_CLOUD_QUOTA_PROJECT ] && continue

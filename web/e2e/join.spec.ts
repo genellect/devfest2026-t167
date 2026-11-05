@@ -10,9 +10,11 @@ async function moderatorToken(): Promise<string> {
 }
 
 test("/api は Cloud Run 役の API に転送される", async ({ request }) => {
-  const res = await request.get("/api/health");
-  expect(res.ok()).toBeTruthy();
-  expect(await res.json()).toMatchObject({ ok: true, gemini: "mock" });
+  for (const path of ["/api/healthz", "/api/health"]) {
+    const res = await request.get(path);
+    expect(res.ok()).toBeTruthy();
+    expect(await res.json()).toEqual({ ok: true, gemini: "mock" });
+  }
 });
 
 test("参加コードで参加し、非公開の意見を提出できる", async ({ page, request }) => {

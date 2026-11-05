@@ -6,7 +6,11 @@ if (!apiOrigin) throw new Error("API_ORIGIN が未設定です（ローカルは
 
 const nextConfig: NextConfig = {
   async rewrites() {
-    return [{ source: "/api/:path*", destination: `${apiOrigin}/:path*` }];
+    return [
+      // 公開パスを保ち、Cloud Run の予約パス /healthz を避けて実 API に転送する。
+      { source: "/api/healthz", destination: `${apiOrigin}/health` },
+      { source: "/api/:path*", destination: `${apiOrigin}/:path*` },
+    ];
   },
 };
 

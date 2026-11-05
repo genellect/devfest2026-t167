@@ -32,9 +32,10 @@ http://localhost:3000 を開き、参加コード `DEMO01` で参加する。Aut
 1. **ブランチを作る。** `git fetch origin main` のあと、最新の `origin/main` から作る。
 2. **変更する。** 1つの PR では1つの目的だけを扱い、関係するテストと文書を同じ PR で更新する。
 3. **PR を出す。** コミットしたら `bash scripts/dev.sh pr --no-merge` を実行する。手元の検査（`check --quick`）、push、PR の作成を1回で行い、auto-merge は付けない。PR の本文にはコミットの件名が入るので、[PR テンプレート](.github/pull_request_template.md)の残りの項目（背景・目的、検査とプレビューの結果、未確認のこと、スクリーンショット）を書き足す。
-4. **本番反映の承諾をもらう。** `main` へのマージから自動デプロイまでを「本番反映」と呼ぶ。始める前に、必ず Yuto Matsui（GitHub：`genellect`）の承諾を得る。承諾はその PR の本番反映への1回で、マージとデプロイで2回に分けない。CI・レビュー・プレビューの成功は承諾の代わりにならない。承諾を待つ間はマージせず、auto-merge も付けない。依頼の書き方は [PR の確認から本番反映までの手順](docs/contributor-preview-guide.md) の手順4。
-5. **本番反映する。** 承諾のあと、Yuto Matsui または任された担当者が、CI の成功と必要なレビューを確かめてから `bash scripts/dev.sh pr --approved` で auto-merge を付ける。CI が通ると squash merge され、`deploy` が本番に反映する。CI が落ちたら直して push すれば、同じ PR で検査がやり直される。
-6. **レビューが要る PR。** Rules（`firebase/firestore.rules`）・`firebase.json`・`web/apphosting*.yaml`・ワークフロー（`.github/`）・構築スクリプト（`infra/`）を変える PR には、`--approved` でも `pr` が auto-merge を付けない。もう1人のレビューと本番反映の承諾の両方を得てから、`gh pr merge --auto --squash --delete-branch` を実行する。それ以外の PR はレビューを必須にしない。
+4. **画面を確かめる。** `web/` を変えた PR は、CI と並行して[プレビュー](#画面のプレビュー)に自動で出る。PR の「View deployment」からスマホでも開ける。
+5. **本番反映の承諾をもらう。** `main` へのマージから自動デプロイまでを「本番反映」と呼ぶ。始める前に、必ず Yuto Matsui（GitHub：`genellect`）の承諾を得る。承諾はその PR の本番反映への1回で、マージとデプロイで2回に分けない。CI・レビュー・プレビューの成功は承諾の代わりにならない。承諾を待つ間はマージせず、auto-merge も付けない。依頼の書き方は [PR の確認から本番反映までの手順](docs/contributor-preview-guide.md) の手順4。
+6. **本番反映する。** 承諾のあと、Yuto Matsui または任された担当者が、CI の成功と必要なレビューを確かめてから `bash scripts/dev.sh pr --approved` で auto-merge を付ける。CI が通ると squash merge され、`deploy` が本番に反映する。CI が落ちたら直して push すれば、同じ PR で検査がやり直される。
+7. **レビューが要る PR。** Rules（`firebase/firestore.rules`）・`firebase.json`・`web/apphosting*.yaml`・ワークフロー（`.github/`）・構築スクリプト（`infra/`）を変える PR には、`--approved` でも `pr` が auto-merge を付けない。もう1人のレビューと本番反映の承諾の両方を得てから、`gh pr merge --auto --squash --delete-branch` を実行する。それ以外の PR はレビューを必須にしない。
 
 ```bash
 git switch -c feat/consensus-gap-view
@@ -56,9 +57,26 @@ bash scripts/dev.sh pr --no-merge   # 検査・push・PR。Yuto Matsui の本番
 | `ci` の `changes` | PR | 変更したファイルを見て、文書だけなら `test` を省く（`scripts/ci-changes.sh`） |
 | `ci` の `test` | PR、`main` への push | `bash scripts/dev.sh check`：lint、型、単体テスト、ビルド、エミュレータ上の Rules・API 結合・E2E |
 | `deploy` | `main` への push | CI が通ったコミットを、Rules → API（Cloud Run）→ 画面（App Hosting）の順に反映し、コミットと API のリビジョンをサマリーに記録する |
+| `preview` | `web/` を変えた PR（同じリポジトリのブランチ） | 画面だけをプレビュー用のバックエンドに出す。CI とは並行で、`main` と本番は変えない |
 | `deploy`（手動） | Run workflow | ロールバック。過去にデプロイが成功したコミットだけを、Rules・API・画面ごと再デプロイする |
 
 PR の CI は、同じブランチの新しい実行が古い実行を取り消す。`main` の実行は取り消さない。
+
+### 画面のプレビュー
+
+フロントエンドの変更を、マージする前に実際の画面とスマホで確かめるための環境。
+
+| 項目 | 内容 |
+|---|---|
+| URL | https://web-preview--devfest2026-t167.asia-east1.hosted.app （1つだけ。最後に push された PR が表示される） |
+| 開き方 | PR の画面の「View deployment」、または Actions の `preview` のサマリー。どの PR・コミットが出ているかもサマリーに書かれる |
+| 出るとき | `web/` を変えた PR に push したとき（ビルドに数分かかる）。ほかのブランチを出したいときは Actions → `preview` → Run workflow でブランチ名を入れる |
+| API とデータ | **本番と共有**する（画面だけを差し替える）。試すときは試験用の部屋を作り、本番の部屋は使わない |
+| ログイン | 匿名参加も Google ログインも使える（URL は `infra/setup-preview.sh` が承認済みドメインに加える） |
+
+プレビューを出すワークフローとスクリプトは、`main` にあるものが動く。PR からは `web/` のファイルだけを使うので、`preview.yml` や `infra/` を変える PR は、マージされるまでプレビューに効かない（PR のコードが GCP の認証で動かないようにするため）。
+
+2人が同時に画面の PR を出すと、後から push した方が表示される。確かめたい PR がいま出ているかは、PR の「View deployment」が Active かどうかで分かる。API や Rules の変更はプレビューでは確かめられない（本番の API を使うため）。手元の `bash scripts/dev.sh serve` で確かめる。
 
 ## Gemini のモデルと費用
 

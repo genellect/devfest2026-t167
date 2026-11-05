@@ -54,9 +54,10 @@ beforeAll(async () => { await clear(); });
 beforeEach(() => { fail = false; delay = 0; clock = Date.now(); });
 
 describe('認証と所属', () => {
-  it('/health は認証なしで 200（Cloud Run で届くパス）', async () => {
-    await request(app).get('/health').expect(200);
-    await request(app).get('/healthz').expect(200);
+  it('/health と /healthz は認証なしで実際の Gemini 接続種別を返す', async () => {
+    for (const path of ['/health', '/healthz']) {
+      await request(app).get(path).expect('Content-Type', /json/).expect(200, { ok: true, gemini: 'mock' });
+    }
   });
   it('トークンなしは 401', async () => {
     await api().post('/rooms', { title: 'x' }).expect(401);
