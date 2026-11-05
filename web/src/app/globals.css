@@ -42,13 +42,14 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .header {
   background: var(--c-paper);
   border-bottom: var(--line);
-  display: flex; align-items: center; gap: 14px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
   padding: 12px 32px;
 }
-.header__title { flex: 1; min-width: 0; }
+/* 狭い画面では、操作のボタンが見出しの下に回り込む（見出しは隠さない） */
+.header__title { flex: 1 1 260px; min-width: 0; }
 .header__eyebrow { font-size: 14px; }
 .header__name { font-size: 22px; font-weight: 900; }
-.header__actions { display: flex; align-items: center; gap: 14px; }
+.header__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
 .body { flex: 1; padding: 32px; display: flex; flex-direction: column; gap: 24px; }
 .body--center { align-items: center; justify-content: center; }
 .body--tablet { padding: 20px 24px; gap: 18px; }

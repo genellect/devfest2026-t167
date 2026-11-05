@@ -37,3 +37,12 @@ export const getDuration = (roomId: string) => read<number>(`t167.duration.${roo
 export const setDuration = (roomId: string, minutes: number) => write(`t167.duration.${roomId}`, minutes);
 
 export const shortDate = (at: number) => { const d = new Date(at); return `${d.getMonth() + 1}/${d.getDate()}`; };
+
+/** 先生のプロフィール。この端末にだけ保存する（サーバーには送らない） */
+export interface Profile { name: string; school?: string; className?: string }
+export const getProfile = () => read<Profile | null>("t167.profile", null);
+export const saveProfile = (p: Profile) => write("t167.profile", p);
+
+/** 部屋ごとの「クラス・授業名」（ヘッダーの小さな表示に使う） */
+export const getRoomLabel = (roomId: string) => read<string>(`t167.roomLabel.${roomId}`, "");
+export const setRoomLabel = (roomId: string, label: string) => write(`t167.roomLabel.${roomId}`, label);

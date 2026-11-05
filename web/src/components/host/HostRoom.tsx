@@ -5,7 +5,8 @@ import { FlowTimeline, GoodReview, useFlow } from "@/components/flow";
 import { Header, PhaseSteps, SourceTag, Tag, useGeminiSource } from "@/components/ui";
 import { ApiError, callApi } from "@/lib/api";
 import { formatMetric } from "@/lib/format";
-import { getDuration } from "@/lib/local";
+import Link from "next/link";
+import { getDuration, getRoomLabel } from "@/lib/local";
 import {
   millis, useCountdown, useDoc, useInsights,
   type Coverage, type Insight, type Progress, type Room, type Summary,
@@ -29,13 +30,16 @@ export function HostRoom({ roomId, room }: Props) {
   }
 
   const showResult = !!summary && (room.phase === "closed" || room.phase === "consensus");
+  const [label, setLabel] = useState("");
+  useEffect(() => { setLabel(getRoomLabel(roomId)); }, [roomId]);
   const eyebrow = showResult
-    ? (openGroup ? `クラス全体 ＞ グループ${openGroup}` : "議論の結果")
-    : `参加コード ${room.joinCode ?? ""}`;
+    ? (openGroup ? `クラス全体 ＞ グループ${openGroup}` : `${label ? `${label}　` : ""}議論の結果`)
+    : `${label ? `${label}　` : ""}参加コード ${room.joinCode ?? ""}`;
   return (
     <main className="screen">
       <Header eyebrow={eyebrow} title={showResult && openGroup ? `グループ${openGroup}の話し合い` : room.title} demo={source === "mock"}>
         <PhaseSteps phase={room.phase} />
+        {!openGroup && <Link className="btn btn--small" href="/host">ホーム</Link>}
         {showResult && openGroup && <button className="btn btn--small" onClick={() => setOpenGroup(undefined)}>クラス全体に戻る</button>}
         {room.phase === "consensus" && summary && (
           <button className="btn btn--small" onClick={() => advance("closed")} disabled={moving}>部屋を閉じる</button>

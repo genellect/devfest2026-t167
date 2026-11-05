@@ -20,6 +20,7 @@ export function ParticipantRoom({ roomId, room, uid, group }: Props) {
     <main className="screen">
       <Header eyebrow={(room.groups ?? 1) > 1 ? `あなたはグループ${group}` : undefined} title={room.title} demo={source === "mock"}>
         <PhaseSteps phase={room.phase} />
+        <Link className="btn btn--small" href="/student">ホーム</Link>
       </Header>
       {room.phase === "collecting" && <OpinionStep roomId={roomId} uid={uid} />}
       {room.phase === "discussing" && <VoiceStep roomId={roomId} />}
@@ -277,7 +278,7 @@ function ResultStep({ roomId, uid, group, source, title, summary, closed }: { ro
           </div>
           <h2 className="t-md">次はどうするか</h2>
           <GoodReview flow={flow} />
-          <Link className="btn" href="/" style={{ alignSelf: "flex-start" }}>ホームに戻る</Link>
+          <Link className="btn" href="/student" style={{ alignSelf: "flex-start" }}>ホームに戻る</Link>
         </>
       )}
     </div>

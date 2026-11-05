@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { Header } from "@/components/ui";
@@ -31,7 +32,7 @@ function JoinForm() {
         <label className="field__label" htmlFor="code">参加コード</label>
         <input id="code" className="input input--code" value={code} inputMode="text" autoComplete="off" autoCapitalize="characters"
           maxLength={6} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} />
-        <p className="field__hint">先生の画面に表示されている6文字です。</p>
+        <p className="field__hint">先生の画面に表示されている6文字です。登録やログインはいりません。</p>
       </div>
       {error && <p className="notice notice--error" role="alert">{error}</p>}
       <button className="btn btn--blue btn--block" type="submit" disabled={busy || code.length !== 6}>
@@ -44,7 +45,7 @@ function JoinForm() {
 export default function JoinPage() {
   return (
     <main className="screen">
-      <Header title="議論に参加する" />
+      <Header title="議論に参加する"><Link className="btn btn--small" href="/student">戻る</Link></Header>
       <div className="body body--center">
         <Suspense><JoinForm /></Suspense>
       </div>

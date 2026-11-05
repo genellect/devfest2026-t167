@@ -5,7 +5,8 @@ import { useState } from "react";
 import { Header, Loading } from "@/components/ui";
 import { callApi } from "@/lib/api";
 import { useHostUser } from "@/lib/hostAuth";
-import { addHistory, setDuration } from "@/lib/local";
+import { useEffect } from "react";
+import { addHistory, getProfile, setDuration, setRoomLabel } from "@/lib/local";
 
 const DURATIONS = [10, 15, 20, 30];
 const GROUPS = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -17,6 +18,8 @@ export default function NewRoom() {
   const [title, setTitle] = useState("");
   const [minutes, setMinutes] = useState(15);
   const [groups, setGroups] = useState(6);
+  const [label, setLabel] = useState("");
+  useEffect(() => { setLabel(getProfile()?.className ?? ""); }, []);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -26,6 +29,7 @@ export default function NewRoom() {
     try {
       const { roomId } = await callApi<{ roomId: string }>("/rooms", { title: title.trim(), groups });
       setDuration(roomId, minutes);
+      if (label.trim()) setRoomLabel(roomId, label.trim());
       addHistory("host", { roomId, title: title.trim() });
       router.push(`/rooms/${roomId}`);
     } catch (err) { setError((err as Error).message); setBusy(false); }
@@ -46,6 +50,10 @@ export default function NewRoom() {
       <div className="body body--center">
         <form className="box box--lg card" style={{ width: "min(720px, 100%)" }} onSubmit={create}>
           <h2 className="card__title">今日の議論を準備する</h2>
+          <div className="field">
+            <label className="field__label" htmlFor="label">クラス・授業名（任意）</label>
+            <input id="label" className="input" value={label} maxLength={40} placeholder="例：2年3組 探究の授業" onChange={(e) => setLabel(e.target.value)} />
+          </div>
           <div className="field">
             <label className="field__label" htmlFor="title">テーマ</label>
             <input id="title" className="input" value={title} maxLength={100} placeholder="例：大学生のうちに経験すべきバイトは？" onChange={(e) => setTitle(e.target.value)} />
