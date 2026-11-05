@@ -19,7 +19,7 @@
 - クレジットコード、サービスアカウントの鍵（`GCP_SA_KEY`）、トークンを、コード・ログ・Issue・PR・スクリーンショットに書かない。このリポジトリも提出用リポジトリも公開されている。
 - 非公開の事前意見の本文を、本人以外（司会者、他の参加者、ログ）に出さない。Rules と API の両方で守る（`firebase/firestore.rules`、`api/src/app.ts`）。
 - 実行していない・失敗した検査を、通ったと報告しない。
-- mainへのマージから自動デプロイまでを「本番反映」と呼ぶ。本番反映は、Yuto Matsui（GitHub：genellect）がそのPRの本番反映を事前に承諾した場合だけ行う。承諾は1回にまとめ、マージとデプロイで2回に分けない。実装・push・PR作成、CI・レビュー・プレビューの成功に、本番反映の承諾は含まれない。
+- `main` へのマージから自動デプロイまでを「本番反映」と呼ぶ。本番反映は、Yuto Matsui（GitHub：`genellect`）がその PR の本番反映を事前に承諾したときだけ行う。承諾は本番反映への1回で、マージとデプロイで分けない。実装・push・PR 作成の依頼や、CI・レビュー・プレビューの成功は、承諾の代わりにならない。
 - 提出用リポジトリ（Devfest-Hackathon-2026/df-2026-t167）への commit と push は人が行う。エージェントは `scripts/submit.sh` の実行までにとどめる。
 
 ## 手順書を毎回読む
@@ -29,7 +29,7 @@
 - 正本はチームドキュメントの「インフラ構築手順書」タブ：https://docs.google.com/document/d/1zHg74msQ1xBgsautfcQNsv-dDlQcO4WqzbV0ZDNnv5A/edit?tab=t.t1975sujc4nn
 - Claude も Codex も、Google Docs の接続で正本を読む。正本と写しの [docs/infra-manual.md](docs/infra-manual.md) が違っていたら、正本に従い、違いを依頼者に知らせる。
 - 正本を読めなかったときだけ写しを読み、そのことを報告する。
-- 正本を変えた人は、関係するコードや運用ルールの変更と同じPRで、同じ日に`docs/infra-manual.md`も更新する。写しだけを追いつかせる場合は専用PRにする。メンバーのメールアドレスは写しに入れない。
+- 写しは、正本を変えた人が同じ日に、写しを更新する PR（`docs/infra-manual.md` だけを変える）で追いつかせる。メンバーのメールアドレスは写しに入れない。
 
 ## 作業の手順
 
@@ -44,7 +44,7 @@
    - Gemini のモデル・思考レベル → [CONTRIBUTING](CONTRIBUTING.md#gemini-のモデルと費用) の手順で今の設定と比べた結果を PR に貼る。モデルの変更は依頼者の承認を得てから
 5. `bash scripts/dev.sh check` を通す。CI とまったく同じ検査で、通らなければ PR を出さない。PR は `bash scripts/dev.sh pr --no-merge` で出す（手元の検査、push、PR の作成まで行う）。
 6. PR は[テンプレート](.github/pull_request_template.md)のすべての項目を書く。実行したコマンドと結果を書き、未実施・失敗・残る制約を分けて書く。画面を変えたらスマホ幅のスクリーンショットを貼る。
-7. PRを出す前に、手順書の「開発のルール」と「実装担当の開発UX（到達条件）」を読み直す。PRは`bash scripts/dev.sh pr --no-merge`で出し、Yuto Matsuiの本番反映の承諾を待つ。承諾後に任された担当者だけが、必要なCI・レビューを確認してauto-mergeまたはマージを行う。承諾はmainへのマージから自動デプロイまでを含む1回とする。承諾待ちに本番反映を始めない。
+7. PR を出す前に、手順書の「開発のルール」と「実装担当の開発 UX（到達条件）」を読み直す。PR を出したら、[PR の確認から本番反映までの手順](docs/contributor-preview-guide.md)に従い、プレビューの結果と本番反映の承諾の依頼を PR に書く。Yuto Matsui がその PR の本番反映を承諾した場合だけ、`bash scripts/dev.sh pr --approved` で auto-merge を付ける（PR がすでにあれば auto-merge だけを付ける）。auto-merge は CI が通った head だけをマージし、後から push すると CI をやり直すので、確かめていないコミットはマージされない。Rules・ワークフロー・構築スクリプトを変えた PR には `--approved` でも auto-merge が付かないので、レビューを待つよう依頼者に伝える。
 8. 引き継ぎは PR の説明に書く。セッションごとの引き継ぎ文書は作らない。
 
 ## 報告

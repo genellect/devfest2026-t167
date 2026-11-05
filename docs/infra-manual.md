@@ -247,6 +247,7 @@ done
 鍵は提出スクリプトが検出して止めるので、誤って提出用リポジトリに入ることはありません。ハッカソンが終わったら、プロジェクトの削除と一緒に消えます。
 
 ## 開発のルール（人と AI エージェント）
+
 初心者の contributor は、リポジトリの docs/contributor-preview-guide.md（文書更新 PR の反映後）で、PR の作成、プレビューの確認、本番反映の依頼と確認を順に行う。クラウドの権限や請求の設定は担当者が済ませる。
 
 ルールの正本は雛形の CONTRIBUTING.md（人向け）と AGENTS.md（エージェント向け）で、ここはその要約です。ルールを変えるときは、この2つを同じ PR で更新し、食い違いを残さないようにします。
@@ -272,7 +273,7 @@ bash scripts/dev.sh pr --no-merge  # 検査・push・PR。Yuto Matsui の本番�
 
 **AI エージェントの統制**（AGENTS.md）
 
-- エージェントへの指示は AGENTS.md に1か所でまとめる。CLAUDE.md は冒頭の @AGENTS.md で読み込み、Claude Code 固有のこと（セットアップスクリプト、ブラウザの場所、Co-Authored-By 行を残すこと）だけを足す。ツールごとに指示を書き分けない。実装の前と PR を出す前に、毎回この手順書を読ませる。Claude も Codex も、Google Docs の接続でこの正本を読む。読めなかったときだけリポジトリの写し docs/infra-manual.md を読み、そのことを報告する。この手順書を変えた人は、関係するコードや運用ルールの変更と同じ PR で、同じ日に写しも更新する（メンバーのメールアドレスは写しに入れない）。写しだけを追いつかせるときは専用 PR にする。
+- エージェントへの指示は AGENTS.md に1か所でまとめる。CLAUDE.md は冒頭の @AGENTS.md で読み込み、Claude Code 固有のこと（セットアップスクリプト、ブラウザの場所、Co-Authored-By 行を残すこと）だけを足す。ツールごとに指示を書き分けない。実装の前と PR を出す前に、毎回この手順書を読ませる。Claude も Codex も、Google Docs の接続でこの正本を読む。読めなかったときだけリポジトリの写し docs/infra-manual.md を読み、そのことを報告する。この手順書を変えた人は、同じ日に写しを更新する PR を出す（メンバーのメールアドレスは写しに入れない）。
 - 常に守ることは5つだけにする。クレジットコード・鍵・トークンを書かない。非公開の事前意見を本人以外に出さない。実行していない検査を通ったと報告しない。本番反映は Yuto Matsui がその PR の本番反映を事前に承諾したときだけ行う。提出用リポジトリへの commit と push は人が行う。
 - 依頼するときは、目的・変更してよい範囲・完了条件を書く。並行して動かすエージェントには、別々のブランチと git worktree を割り当て、同じファイルを編集させない。
 - エージェントも PR を bash scripts/dev.sh pr --no-merge で出す。Yuto Matsui がその PR の本番反映を承諾した場合だけ、任された担当者が auto-merge またはマージを行う。main へのマージから自動デプロイまでを本番反映として、承諾は1回にまとめる。確認していない変更や、承諾のない本番反映を進めない。
@@ -463,7 +464,7 @@ gcloud iam service-accounts keys list --iam-account="ai-dev@${PROJECT_ID}.iam.gs
 |---|---|---|---|
 | 1. 招待を受けて clone すれば、秘密情報なしに数コマンドで動く | bash scripts/dev.sh setup と serve（エミュレータとモック）。Windows は WSL、手元に入れたくない人は .devcontainer | Linux で起動と check を確認。.devcontainer は形式だけ確認 | Codespaces（VS Code から）で起動と check |
 | 2. PR を出せば自動で検査し、文書だけの PR は待たない | ci.yml の changes と test。test は bash scripts/dev.sh check を呼ぶだけ | check の全件、変更判定の回帰テスト9件 | 文書だけの PR で test が省かれ、コードの PR で通る |
-| 3. Yuto Matsui の本番反映の承諾後、CI の通過から本番反映まで自動で進む | bash scripts/dev.sh pr が検査・push・PR の作成・auto-merge を1回で行う。deploy.yml が Rules → API → 画面の順に反映する | dev.sh pr の回帰テスト9件（偽の gh と手元のリポジトリ） | Yuto Matsui が本番反映を承諾したコードの PR が、追加の操作なしにマージされ、deploy が成功する |
+| 3. Yuto Matsui の本番反映の承諾後、CI の通過から本番反映まで自動で進む | bash scripts/dev.sh pr --no-merge が検査・push・PR の作成を1回で行い、auto-merge は付けない。承諾後に担当者が bash scripts/dev.sh pr --approved で auto-merge を付ける。deploy.yml が Rules → API → 画面の順に反映する | dev.sh pr の回帰テスト11件（偽の gh と手元のリポジトリ。既定で auto-merge を付けないこと、--approved で付けることを含む） | Yuto Matsui が本番反映を承諾したコードの PR が、追加の操作なしにマージされ、deploy が成功する |
 | 4. マージの前に本物の Gemini で試せる | GEMINI_MOCK=0 bash scripts/dev.sh serve。API の VERTEX_PROJECT で、Firestore（エミュレータ）と Vertex AI のプロジェクトを分け、VERTEX_LOCATION=global で Gemini に接続する | モデルが未定のとき、ADC がないときに、理由を表示して止まる | 手元のエミュレータで、本物の Gemini の提案が司会者の画面に出る |
 | 5. 本番が壊れたら1回の操作で戻せる | deploy の手動実行。過去にデプロイが成功したコミットだけに戻せる | — | 直前のコミットに戻せ、成功していないコミットの指定は止まる |
 | 6. 鍵を誤って push しようとしても止まる | infra/setup-github.sh が secret scanning と push protection を有効にする。提出のときは submit.sh が検査する | submit.sh の回帰テスト16件 | push protection が有効になっている |

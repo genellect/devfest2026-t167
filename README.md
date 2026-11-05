@@ -37,7 +37,7 @@
   ブラウザ → Firestore を直接購読（firebase/firestore.rules で読める範囲を制限）
 
 デプロイ
-  PR → CI・プレビューで確認 → Yuto Matsui が本番反映を承諾 → main に squash merge
+  PR → CI（bash scripts/dev.sh check）→ main に squash merge
   → Variables の検査 → 鍵なしの認証（Workload Identity 連携）
   → Rules → API（Cloud Run）→ 画面（App Hosting）を同じコミットから順に反映
 ```
@@ -154,7 +154,7 @@ global では、リクエストがどのリージョンで処理されるかが�
 | API の結合 | 14 | エンドポイントごとの認可（`401`・`403`）、フェーズ（`409`）、分析の排他と30秒制限（`409`・`429`）、Gemini の失敗（`503`） |
 | E2E | 3 | スマホ幅で、参加コードからの参加と非公開意見の提出 |
 | 提出スクリプト | 16 | 秘密情報の検出と、検査前に提出先を変えないこと |
-| 開発の入口 | 18 | CI の変更判定（9）、`dev.sh pr` の PR 作成と auto-merge の判定（9） |
+| 開発の入口 | 20 | CI の変更判定（9）、`dev.sh pr` の PR 作成と、承諾前に auto-merge を付けないこと（11） |
 | 設定の受け渡し | 21 | GitHub の Variables の一覧の一致とデプロイ前の検査、API が受け取る環境変数、クラウドのログインのプロジェクト、gcloud・ADC がないときの案内 |
 
 Rules・API の結合・E2E は、Auth と Firestore のエミュレータと Gemini のモックで動かす。GCP の認証情報は使わない。
@@ -191,7 +191,7 @@ http://localhost:3000 を開き、参加コード `DEMO01` で参加する。
 | Dev Container・Codespaces | VS Code（Codespaces もブラウザ版ではなく VS Code から開く） | `.devcontainer` が自動で行う |
 | クラウドの AI ツール | — | Claude Code は `bash .claude/cloud-setup.sh`、Codex は `bash .codex/setup.sh` |
 
-PRの前に`bash scripts/dev.sh check`を通し、`bash scripts/dev.sh pr --no-merge`で検査・push・PR作成を行う。**mainへのマージから自動デプロイまでを「本番反映」と呼び、開始前に必ずYuto Matsui（GitHub：genellect）の承諾を得る。** 承諾は本番反映への1回にまとめる。初心者は[PR・プレビュー確認マニュアル](docs/contributor-preview-guide.md)を読む。本物のGeminiを試す手順は[CONTRIBUTING](CONTRIBUTING.md#起動する)にある。
+PR の前に `bash scripts/dev.sh check` で CI と同じ検査を通し、`bash scripts/dev.sh pr --no-merge` で検査・push・PR の作成を1回で行う。`main` へのマージから自動デプロイまで（本番反映）は、Yuto Matsui の承諾を得てから行う（[PR の確認から本番反映までの手順](docs/contributor-preview-guide.md)）。本物の Gemini で試すときは `GEMINI_MOCK=0 bash scripts/dev.sh serve`（gcloud と ADC が要る。[CONTRIBUTING](CONTRIBUTING.md#起動する)）。
 
 開発の流れと Git・CI のルールは [CONTRIBUTING](CONTRIBUTING.md)、AI エージェントへの指示は [AGENTS.md](AGENTS.md)、認証情報の扱いは [docs/credentials.md](docs/credentials.md) にある。
 

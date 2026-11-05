@@ -4,7 +4,7 @@
 #   bash scripts/dev.sh doctor    ツールと準備の状態を確かめる
 #   bash scripts/dev.sh serve     エミュレータ・テストデータ・API・画面をまとめて起動（Ctrl-C で全部止まる。GEMINI_MOCK=0 で本物の Gemini）
 #   bash scripts/dev.sh check     CI と同じ検査（--quick でエミュレータを使う試験を省く）
-#   bash scripts/dev.sh pr        検査・push・PR の作成・auto-merge を1回で行う（--no-merge で auto-merge を付けない）
+#   bash scripts/dev.sh pr        検査・push・PR の作成を1回で行う。auto-merge は付けない（本番反映は Yuto Matsui の承諾の後。--approved で付ける）
 set -euo pipefail
 cd "$(dirname "$0")/.."
 FB="firebase/node_modules/.bin/firebase"
@@ -101,8 +101,10 @@ check() {
 REVIEW_PATHS='^(firebase/firestore\.rules|firebase\.json|web/apphosting[^/]*\.yaml|\.github/|infra/)'
 
 pr() {
-  local merge=1
-  [ "${1:-}" = "--no-merge" ] && merge=0
+  # main へのマージから自動デプロイまでが「本番反映」。始める前に Yuto Matsui の承諾が要るので、既定では auto-merge を付けない。
+  # --approved：その PR の本番反映を承諾されたあとに、任された担当者が付ける。--no-merge は既定と同じ（以前の書き方のため残す）
+  local merge=0
+  case "${1:-}" in --approved) merge=1 ;; --no-merge|"") ;; *) echo "NG: 知らない指定です: $1（--approved か --no-merge）" >&2; exit 1 ;; esac
   command -v gh >/dev/null 2>&1 || { echo "NG: gh がありません（https://cli.github.com）" >&2; exit 1; }
   gh auth status >/dev/null 2>&1 || { echo "NG: gh auth login をしてください" >&2; exit 1; }
   local br; br=$(git branch --show-current)
@@ -124,13 +126,13 @@ pr() {
   fi
   local hot; hot=$(git diff --name-only origin/main...HEAD | grep -E "$REVIEW_PATHS" || true)
   if [ -n "$hot" ]; then
-    echo "注意: 次のファイルを変えたので auto-merge を付けません。もう1人にレビューを頼み、承認されたら gh pr merge --auto --squash --delete-branch を実行してください:"
+    echo "注意: 次のファイルを変えたので auto-merge を付けません。もう1人のレビューと、Yuto Matsui の本番反映の承諾の両方を得てから、gh pr merge --auto --squash --delete-branch を実行してください:"
     echo "$hot" | sed 's/^/  /'
   elif [ "$merge" = 1 ]; then
     gh pr merge --auto --squash --delete-branch
-    echo "OK: CI が通ると自動で squash merge され、本番に反映されます"
+    echo "OK: 本番反映の承諾済みとして auto-merge を付けました。CI が通ると squash merge され、本番に反映されます"
   else
-    echo "OK: PR を作りました（--no-merge なので auto-merge は付けていません）"
+    echo "OK: PR を作りました（auto-merge は付けていません）。プレビューを確かめ、PR のコメントで Yuto Matsui に本番反映の承諾を依頼してください（docs/contributor-preview-guide.md）"
   fi
   gh pr view --json url --jq .url
 }
