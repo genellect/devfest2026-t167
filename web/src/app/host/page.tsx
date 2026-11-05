@@ -23,6 +23,7 @@ function HostDashboard({ fallbackName }: { fallbackName: string }) {
   return (
     <main className="screen">
       <Header eyebrow={profile?.school} title={`${name}のホーム`}>
+        <Link className="btn btn--small" href="/about">使い方</Link>
         <Link className="btn btn--small" href="/host/profile">設定</Link>
         <button className="btn btn--small" onClick={async () => { await signOutHost(); window.location.assign("/"); }}>ログアウト</button>
       </Header>
