@@ -23,6 +23,12 @@ DevFest Hackathon 2026 チーム167 の開発用リポジトリ（Public）で�
 | 認証情報の引き継ぎ | [docs/credentials.md](credentials.md) | だれが何を持ち、どう渡し、どう止めるか |
 | 開発のルール | [CONTRIBUTING.md](../CONTRIBUTING.md)、[AGENTS.md](../AGENTS.md) | ブランチ、PR、CI、マージ、報告のルール |
 
+### 段階1の構築設定（2026-11-05）
+
+依頼者が指定した新規 Public リポジトリは [genellect/devfest2026-t167](https://github.com/genellect/devfest2026-t167)。`infra/env.sh` は、`PROJECT_ID=devfest2026-t167`（未確保）、`DEV_REPO=genellect/devfest2026-t167`、`GEMINI_MODEL=gemini-3.5-flash` とし、リージョンと提出先は正本どおりとする。
+
+モデルを決めた根拠と未確認事項は [手順書の写しの設定](infra-manual.md#段階1で決めた構築設定2026-11-05) にまとめた。公式資料での東京対応確認と、実プロジェクトでの呼び出し確認は区別する。請求先・クレジットの受領は段階2で行い、その前に課金を伴う構築を進めない。
+
 ## 1. 依頼の範囲
 
 **やること**
