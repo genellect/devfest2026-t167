@@ -87,7 +87,7 @@
 
 ## Gemini の役割
 
-Gemini が担うのは、文章の意味を比べる2つの判定だけ。数える・割合を出す・誰に見せるかを決めるのは API と Rules で、Gemini の出力は司会者の承認を経てから全員に届く。
+Gemini が担うのは、文章の意味を比べる2つの判定だけ。数える・割合を出す・誰に見せるかを決めるのは API と Rules。未検討論点の提案は司会者の承認を経てから全員に届く。合意の分析結果は承認を挟まず、部屋のメンバー全員が結果として読める。
 
 ```
 未検討論点の検出（議論中に司会者が実行）
@@ -99,7 +99,7 @@ Gemini が担うのは、文章の意味を比べる2つの判定だけ。数え
 合意の実態検証（合意フェーズで司会者が実行）
   各自の合意の一文 + 承認済みの提案 + 承認後の発言
   → Gemini：意味が同じ一文をまとめ、承認後に取り上げられた提案を判定
-  → API で検証し、まとまりと4つの指標を保存
+  → API で検証し、まとまりと4つの指標を保存（承認は挟まず、部屋のメンバー全員が読める）
 ```
 
 - 応答は構造化出力（`responseSchema`）で JSON として受け、API が zod で型・件数・長さを検証する。形が崩れた応答は保存せず `503` にする
@@ -115,7 +115,9 @@ Gemini が担うのは、文章の意味を比べる2つの判定だけ。数え
 
 Gemini は Vertex AI の **global エンドポイント**で呼ぶ。`gemini-3.5-flash` の通常の従量課金（Standard PayGo）は global と米国・欧州のマルチリージョンだけで提供され、東京（asia-northeast1）は専用の容量契約（Provisioned Throughput）に限られるため（[モデル情報](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-5-flash)、2026-11-05 に確認）。
 
-global では、リクエストがどのリージョンで処理されるかが決まらない（[データの扱い](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/data-governance)）。そのため Gemini に送るのは判定に要る本文だけにし、意見・発言・結果の保存（Firestore）と API は東京に置く。Google は、利用者の許可なくこのデータをモデルの学習や調整に使わない。キャッシュはメモリ上だけで、24時間以内に消える（同じ資料）。
+global では、リクエストがどのリージョンで処理されるかが決まらない（[データの扱い](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/data-governance)）。そのため Gemini に送るのは判定に要る本文だけにし、意見・発言・結果の保存（Firestore）と API は東京に置く。Google は、利用者の許可なくこのデータをモデルの学習や調整に使わない。
+
+応答を速くするため、Vertex AI は既定でプロンプトをキャッシュする。メモリ上と、暗号化された保存領域（durable。このプロジェクトでも既定のまま有効）の2段で、どちらも書き込みから24時間以内に消え、学習には使われない。global ではキャッシュも、どのリージョンに置かれるかが決まらない。また Google は、不正利用の検出のためにプロンプトを記録することがある（[データの保持](https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/zero-data-retention#implicit_data_caching)、2026-11-05 に確認）。
 
 ## 4つの指標
 
