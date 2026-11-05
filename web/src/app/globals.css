@@ -1,0 +1,51 @@
+/* 画面全体の色と文字。教室の壁（紙の面）・黒板・チョークの3つだけで組む */
+:root {
+  --paper: #f1f4f0;
+  --paper-raised: #fbfcfa;
+  --ink: #1c2a24;
+  --ink-muted: #56665f;
+  --line: #d3dcd6;
+  --board: #23443a;
+  --board-deep: #1a352d;
+  --chalk: #eef2ec;
+  --chalk-dim: #a9bdb3;
+  --chalk-yellow: #f4d35e;
+  --alert-on-board: #ffb4a8;
+  --focus: #f4d35e;
+  --font: "Zen Kaku Gothic New", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", system-ui, sans-serif;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #131b18;
+    --paper-raised: #18221e;
+    --ink: #e2e9e5;
+    --ink-muted: #9fb0a8;
+    --line: #2c3a34;
+    --board: #1f3d34;
+    --board-deep: #163029;
+    color-scheme: dark;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 1rem;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
