@@ -1,0 +1,71 @@
+name: preview
+# 画面（web/）を変えた PR を、プレビュー用の App Hosting バックエンドに出す。フロントエンドの変更を実機とスマホで確かめるため。
+#   - URL は1つ（infra/setup-preview.sh の表示）。最後に push された PR が表示される。PR の「View deployment」から開ける
+#   - API・Firestore・Authentication は本番と共有する（画面だけを差し替える）。試すときは試験用の部屋を作る
+#   - CI とは並行に動く。main と本番には影響しない。フォークからの PR には GCP の認証を渡さない
+on:
+  pull_request:
+    paths: ["web/**", "firebase.json", ".github/workflows/preview.yml", "infra/setup-preview.sh"]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "プレビューに出すブランチかコミット"
+        required: true
+concurrency:
+  group: preview
+  cancel-in-progress: true
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  preview:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: preview
+      url: ${{ steps.setup.outputs.url }}
+    env:
+      PROJECT_ID: ${{ vars.PROJECT_ID }}
+      WIF_PROVIDER: ${{ vars.WIF_PROVIDER }}
+      DEPLOYER_SA: ${{ vars.DEPLOYER_SA }}
+    steps:
+      - name: Check repository Variables
+        run: |
+          missing=""
+          for v in PROJECT_ID WIF_PROVIDER DEPLOYER_SA; do
+            [ -n "$(printf '%s' "${!v}" | tr -d '[:space:]')" ] || missing="${missing} ${v}"
+          done
+          [ -z "$missing" ] || { echo "::error::GitHub の Variables が未登録です:${missing}"; exit 1; }
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: firebase/package-lock.json
+      - run: npm ci --prefix firebase
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Prepare the preview backend
+        id: setup
+        run: echo "url=$(bash infra/setup-preview.sh)" >> "$GITHUB_OUTPUT"
+      - name: Deploy the web to the preview backend
+        run: |
+          source infra/env.sh
+          firebase/node_modules/.bin/firebase deploy --only "apphosting:${PREVIEW_BACKEND}" --project "$PROJECT_ID" --non-interactive
+      - name: Record what is shown
+        run: |
+          {
+            echo "### プレビューを更新しました"
+            echo "| 項目 | 値 |"
+            echo "|---|---|"
+            echo "| URL | ${{ steps.setup.outputs.url }} |"
+            echo "| コミット | $(git rev-parse HEAD) |"
+            echo "| PR | ${{ github.event.pull_request.html_url || '手動実行' }} |"
+            echo "| API・データ | 本番と共有 |"
+          } >> "$GITHUB_STEP_SUMMARY"

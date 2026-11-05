@@ -9,7 +9,11 @@ SA="github-deployer@${P}.iam.gserviceaccount.com"
 gcloud iam service-accounts describe "$SA" --project "$P" >/dev/null 2>&1 \
   || gcloud iam service-accounts create github-deployer --project "$P" --display-name="GitHub Actions deployer"
 # 速度優先：権限の細かい調整で詰まらないよう編集者を付ける
-for ROLE in roles/editor roles/run.admin roles/firebaserules.admin roles/firebaseapphosting.admin roles/iam.serviceAccountUser; do
+# プロジェクト IAM 管理者：App Hosting へのデプロイ（firebase deploy --only apphosting）が、毎回
+# App Hosting の実行用サービスアカウントのロールをプロジェクトの IAM に付け直すため（ないと 403 で止まる）。
+# このアカウントは IAM を変えられるようになるので、ハッカソンの後に外す（docs/credentials.md の「抜けるとき・終わったとき」）
+for ROLE in roles/editor roles/run.admin roles/firebaserules.admin roles/firebaseapphosting.admin roles/iam.serviceAccountUser \
+            roles/resourcemanager.projectIamAdmin; do
   gcloud projects add-iam-policy-binding "$P" --member="serviceAccount:${SA}" --role="$ROLE" --condition=None >/dev/null
 done
 gcloud iam workload-identity-pools describe github --project "$P" --location=global >/dev/null 2>&1 \
