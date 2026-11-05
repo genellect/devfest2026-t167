@@ -1,6 +1,9 @@
 "use client";
 import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
-import { connectAuthEmulator, getAuth, signInAnonymously, type Auth } from "firebase/auth";
+import {
+  browserLocalPersistence, browserSessionPersistence, connectAuthEmulator,
+  getAuth, indexedDBLocalPersistence, initializeAuth, signInAnonymously, type Auth,
+} from "firebase/auth";
 import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
 
 const useEmulators = process.env.NEXT_PUBLIC_USE_EMULATORS === "1";
@@ -14,7 +17,10 @@ export function firebase() {
     app = getApps()[0] ?? (useEmulators
       ? initializeApp({ projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, apiKey: "demo-key" }) // submit-allow: エミュレータ専用のダミー
       : initializeApp());
-    auth = getAuth(app);
+    // 匿名のローカル開発では OAuth iframe を先読みせず、外部通信を待たない。
+    auth = useEmulators
+      ? initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence] })
+      : getAuth(app);
     db = getFirestore(app);
     if (useEmulators) {
       connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });

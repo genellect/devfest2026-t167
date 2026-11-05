@@ -35,8 +35,15 @@ test("参加コードで参加し、非公開の意見を提出できる", async
 });
 
 test("誤った参加コードではエラーが出る", async ({ page }) => {
+  // 匿名のエミュレータ認証は、外部の Google スクリプトなしで完了する。
+  let externalAuthRequests = 0;
+  await page.route("https://apis.google.com/**", route => {
+    externalAuthRequests++;
+    return route.abort();
+  });
   await page.goto("/");
   await page.getByLabel("参加コード").fill("ZZZZZZ");
   await page.getByRole("button", { name: "参加する" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "参加コード" })).toContainText("参加コードが見つかりません");
+  expect(externalAuthRequests, "エミュレータ認証が外部通信に依存していない").toBe(0);
 });
