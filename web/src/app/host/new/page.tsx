@@ -5,7 +5,7 @@ import { useState } from "react";
 import { TabBar } from "@/components/nav";
 import { Header, Loading } from "@/components/ui";
 import { callApi } from "@/lib/api";
-import { useHostUser } from "@/lib/hostAuth";
+import { useHostUser, useIsTeacher } from "@/lib/hostAuth";
 import { useEffect } from "react";
 import { addHistory, getProfile, setRoomLabel } from "@/lib/local";
 
@@ -14,6 +14,7 @@ import { addHistory, getProfile, setRoomLabel } from "@/lib/local";
 export default function NewRoom() {
   const router = useRouter();
   const user = useHostUser();
+  const teacher = useIsTeacher();
   const [title, setTitle] = useState("");
   const [label, setLabel] = useState("");
   useEffect(() => { setLabel(getProfile()?.className ?? ""); }, []);
@@ -33,13 +34,28 @@ export default function NewRoom() {
     } catch (err) { setError((err as Error).message); setBusy(false); }
   }
 
-  if (user === undefined) return <Loading />;
+  if (user === undefined || (user && teacher === undefined)) return <Loading />;
   if (user === null) {
     return (
       <main className="screen"><div className="body body--center">
         <div className="box box--lg card card--narrow"><p className="t-label">ディスカッションを作るには、Googleでログインしてください。</p>
           <Link className="btn btn--yellow" href="/">ログインする</Link></div>
       </div></main>
+    );
+  }
+  if (!teacher) {
+    // 作成は招待された教員だけ。APIでも同じ条件で断る
+    return (
+      <main className="screen screen--tabs">
+        <Header title="新しいディスカッション" nav={<TabBar role="host" />} />
+        <div className="body body--center">
+          <div className="box box--lg card card--narrow stack">
+            <p className="t-label" role="status">ディスカッションを作れるのは、招待された教員のアカウントだけです。</p>
+            <p className="t-note">参加する場合は、教員の画面に出ている6桁の数字を入力してください。</p>
+            <Link className="btn btn--blue" href="/join">参加コードを入力する</Link>
+          </div>
+        </div>
+      </main>
     );
   }
   return (

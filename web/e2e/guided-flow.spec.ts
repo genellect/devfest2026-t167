@@ -5,7 +5,7 @@ import { fakeQrCamera, loginStudent } from "./student";
 test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可情報・結果を通り、次回は声を再利用する", async ({ page, playwright }) => {
   const host = await playwright.request.newContext({ baseURL: test.info().project.use.baseURL });
   try {
-    const user = await emulatorGoogleUser("student", `flow-host-${Date.now()}`), headers = { authorization: `Bearer ${user.idToken}` };
+    const user = await emulatorGoogleUser("teacher", `flow-host-${Date.now()}`), headers = { authorization: `Bearer ${user.idToken}` };
     expect((await host.post("/api/sessions", { headers, data: { deviceLabel: "Host端末", deviceType: "pc" } })).status()).toBe(201);
     async function create() { const r = await host.post("/api/rooms", { headers, data: { title: "新しいMVPフロー", theme: "秘密のテーマ", minutes: 1, groups: 1, recording: false, flowVersion: 1 } }); expect(r.status()).toBe(201); return r.json(); }
     const r = await create();

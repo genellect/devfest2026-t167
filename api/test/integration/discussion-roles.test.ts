@@ -12,8 +12,8 @@ const projectId = process.env.GOOGLE_CLOUD_PROJECT;
 if (!projectId?.startsWith('demo-') || !/^(localhost|127\.0\.0\.1):\d+$/.test(process.env.FIRESTORE_EMULATOR_HOST ?? '')) throw new Error('専用エミュレータが必要です');
 initializeApp({ projectId });
 const db = getFirestore(), auth = getAuth(), app = createApp({ db, auth, gemini: mockGemini() });
-async function client() {
-  const account = await emulatorGoogleUser('student', `roles-${randomUUID()}`);
+async function client(kind: 'teacher' | 'student' = 'student') {
+  const account = await emulatorGoogleUser(kind, `roles-${randomUUID()}`);
   const login = await request(app).post('/sessions').set('authorization', `Bearer ${account.idToken}`).send({ deviceLabel: '架空の端末', deviceType: 'pc' }).expect(201);
   const cookie = login.headers['set-cookie'][0].split(';')[0];
   return { uid: account.localId, loginId: login.body.session.sessionId, post: (path: string, body = {}) => request(app).post(path).set('authorization', `Bearer ${account.idToken}`).set('cookie', cookie).send(body), get: (path: string) => request(app).get(path).set('authorization', `Bearer ${account.idToken}`).set('cookie', cookie), account, cookie };
@@ -22,8 +22,10 @@ async function room(c: Awaited<ReturnType<typeof client>>, patch = {}) {
   return (await c.post('/rooms', { title: '架空のセッション', theme: 'テーマ', minutes: 20, groups: 2, ...patch }).expect(201)).body as { roomId: string; joinCode: string };
 }
 describe('MVPのセッション単位Host/Participant', () => {
-  it('claimもClassroomも不要で、作成とHost付与・グループを一括保存する', async () => {
-    const c = await client(), r = await room(c);
+  it('招待された教員はClassroomなしで作成でき、作成とHost付与・グループを一括保存する。教師claimのない利用者は作成できない', async () => {
+    const student = await client();
+    expect((await student.post('/rooms', { title: '作れないセッション' }).expect(403)).body.error.code).toBe('teacher_required');
+    const c = await client('teacher'), r = await room(c);
     const snap = await db.doc(`sessions/${r.roomId}`).get();
     expect(snap.data()).toMatchObject({ title: '架空のセッション', theme: 'テーマ', minutes: 20, resultsPublished: false });
     expect((await snap.ref.collection('members').doc(c.uid).get()).data()).toMatchObject({ uid: c.uid, role: 'host', groupId: null, status: 'active' });
@@ -33,7 +35,7 @@ describe('MVPのセッション単位Host/Participant', () => {
     expect((await c.get('/discussions').expect(200)).body.sessions).toContainEqual(expect.objectContaining({ sessionId: r.roomId, role: 'host' }));
   });
   it('同じ利用者がAでHost、BでParticipantとなり、ログインセッションを変更しない', async () => {
-    const a = await client(), b = await client(), ra = await room(a), rb = await room(b);
+    const a = await client('teacher'), b = await client('teacher'), ra = await room(a), rb = await room(b);
     await a.post('/rooms/join', { code: rb.joinCode }).expect(200);
     await a.post(`/rooms/${ra.roomId}/settings`, { theme: '変更したテーマ' }).expect(200);
     await a.post(`/rooms/${rb.roomId}/settings`, { title: '不正' }).expect(403);
@@ -45,7 +47,7 @@ describe('MVPのセッション単位Host/Participant', () => {
     expect((await a.get(`/rooms/${ra.roomId}/me`).expect(200)).body.role).toBe('host');
   });
   it('Participant・未参加ユーザーはHost用APIと別セッションの結果へアクセスできない', async () => {
-    const h = await client(), p = await client(), outsider = await client(), r = await room(h);
+    const h = await client('teacher'), p = await client(), outsider = await client(), r = await room(h);
     await p.post('/rooms/join', { code: r.joinCode, role: 'host' }).expect(200);
     for (const c of [p, outsider]) {
       for (const [path, body] of [
@@ -60,7 +62,7 @@ describe('MVPのセッション単位Host/Participant', () => {
     expect((await db.doc(`sessions/${r.roomId}/members/${p.uid}`).get()).get('role')).toBe('participant');
   });
   it('所属グループの結果だけ、公開中のみ閲覧でき、公開停止も即時に反映する', async () => {
-    const h = await client(), p = await client(), r = await room(h);
+    const h = await client('teacher'), p = await client(), r = await room(h);
     await p.post('/rooms/join', { code: r.joinCode }).expect(200);
     await p.post(`/rooms/${r.roomId}/groups/choose`, { group: 1 }).expect(200);
     for (const id of ['group-1', 'flow-g1', 'group-2', 'summary']) await db.doc(`sessions/${r.roomId}/results/${id}`).set({ label: id });
@@ -77,7 +79,7 @@ describe('MVPのセッション単位Host/Participant', () => {
     const other = await room(h); await p.get(`/rooms/${other.roomId}/results/group-1`).expect(403);
   });
   it('Hostが所属・名前・録音担当を管理し、未割当の参加者は自分で昇格・所属変更できない', async () => {
-    const h = await client(), p = await client(), r = await room(h, { groupSelection: 'host' });
+    const h = await client('teacher'), p = await client(), r = await room(h, { groupSelection: 'host' });
     await p.post('/rooms/join', { code: r.joinCode }).expect(200);
     expect((await p.get(`/rooms/${r.roomId}/me`).expect(200)).body.group).toBeNull();
     await p.post(`/rooms/${r.roomId}/groups/choose`, { group: 1 }).expect(403);
@@ -102,7 +104,7 @@ describe('MVPのセッション単位Host/Participant', () => {
     await h.post(`/rooms/${r.roomId}/settings`, { resultsPublished: true }).expect(200);
   });
   it('Hostになっても学校管理者APIは操作できず、新端末のログインで旧端末は失効する', async () => {
-    const c = await client(), r = await room(c);
+    const c = await client('teacher'), r = await room(c);
     await c.get('/schools/school/security-policy').expect(403);
     const replacement = await request(app).post('/sessions').set('authorization', `Bearer ${c.account.idToken}`).send({ deviceLabel: '新端末', deviceType: 'phone' }).expect(201);
     await c.get('/sessions/current').expect(401);
@@ -110,7 +112,7 @@ describe('MVPのセッション単位Host/Participant', () => {
     await request(app).post(`/rooms/${r.roomId}/settings`).set('authorization', `Bearer ${c.account.idToken}`).set('cookie', replacement.headers['set-cookie'][0].split(';')[0]).send({ theme: '同じHost権限を維持' }).expect(200);
   });
   it('事前意見がそろってもHostの開始前に議論は始まらない', async () => {
-    const h = await client(), p = await client(), r = await room(h, { groups: 1 });
+    const h = await client('teacher'), p = await client(), r = await room(h, { groups: 1 });
     await p.post('/rooms/join', { code: r.joinCode }).expect(200);
     await p.post(`/rooms/${r.roomId}/opinion`, { text: '開始前の意見' }).expect(200);
     expect((await db.doc(`sessions/${r.roomId}`).get()).get('groupState.1.status')).toBeUndefined();
@@ -119,7 +121,7 @@ describe('MVPのセッション単位Host/Participant', () => {
     expect((await db.doc(`sessions/${r.roomId}`).get()).get('groupState.1.status')).toBe('discussing');
   });
   it('指定の録音担当以外からの音声アップロードを拒否する', async () => {
-    const h = await client(), p = await client(), q = await client(), r = await room(h, { groups: 1 });
+    const h = await client('teacher'), p = await client(), q = await client(), r = await room(h, { groups: 1 });
     for (const c of [p, q]) await c.post('/rooms/join', { code: r.joinCode }).expect(200);
     await h.post(`/rooms/${r.roomId}/groups/update`, { group: 1, name: '録音班', recorderUid: p.uid }).expect(200);
     await h.post(`/rooms/${r.roomId}/phase`, { to: 'discussing' }).expect(200);

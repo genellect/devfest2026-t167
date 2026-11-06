@@ -15,9 +15,11 @@ export async function loginStudent(page: Page, person = "", { home = true }: { h
   });
   await page.goto("/");
   await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
-  // QRやリンクから来た人は、ホームを経由せずにそのまま参加する
+  // 学生はログインのあと参加コードの入力へ進む。QRやリンクから来た人は、そのまま参加する
   if (home) {
-    await expect(page).toHaveURL(/\/home$/);
+    await expect(page).toHaveURL(/\/join$/);
+    await expect(page.getByRole("heading", { name: "議論に参加する" })).toBeVisible();
+    await page.goto("/home");
     await expect(page.getByRole("heading", { name: "あなたのホーム" })).toBeVisible();
   }
   return subject;

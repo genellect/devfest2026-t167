@@ -90,9 +90,10 @@ describe('認証と所属', () => {
   it('トークンなしは 401', async () => {
     await api().post('/rooms', { title: 'x' }).expect(401);
   });
-  it('匿名は拒否し、教師claimなしを含む全Google利用者がHostになれる', async () => {
+  it('匿名と、招待されていない（教師claimのない）Google利用者は作成できず、教員だけがHostになれる', async () => {
     await api(await anonymous()).post('/rooms', { title: 'x' }).expect(403);
-    await api(await anon()).post('/rooms', { title: 'x' }).expect(201);
+    const denied = await api(await anon()).post('/rooms', { title: 'x' }).expect(403);
+    expect(denied.body.error.code).toBe('teacher_required');
     const r = await api(await named()).post('/rooms', { title: 'x' }).expect(201);
     expect(r.body.joinCode).toMatch(/^\d{6}$/);
   });
@@ -614,7 +615,8 @@ describe('認証・入力攻撃・再送の境界', () => {
     await api(await anonymous()).post('/rooms/join', { code: joinCode }).expect(403);
     const password = await signUp({ email: `password-${Date.now()}@example.com`, password: 'password' }); // submit-allow: エミュレータ専用のダミー
     await api(password).post('/rooms/join', { code: joinCode }).expect(403);
-    await api(p1).post('/rooms', { title: '新しいセッション', teacher: true, role: 'host' }).expect(201);
+    // 本文で教員やHostを名乗っても、作成の権限にも既存の所属にも使わない
+    expect((await api(p1).post('/rooms', { title: '新しいセッション', teacher: true, role: 'host' }).expect(403)).body.error.code).toBe('teacher_required');
     expect((await db.doc(`sessions/${roomId}/members/${uidOf(p1)}`).get()).get('role')).toBe('participant');
     await api(p1).post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(403);
     await api(p1).post(`/rooms/${roomId}/analyze`, { role: 'host' }).expect(403);
@@ -651,7 +653,7 @@ describe('認証・入力攻撃・再送の境界', () => {
   it('計測には固定された操作名・応答・所要時間だけを含み、入力本文を出さない', async () => {
     const events: unknown[] = [];
     const target = createApp({ db, auth: getAuth(), gemini: mockGemini(), observe: (event) => events.push(event) });
-    const token = await anon();
+    const token = await named();
     const response = await request(target).post('/rooms').set('authorization', `Bearer ${token}`).set('cookie', cookies.get(token) ?? '').send({ title: 'PRIVATE-TEXT' }).expect(201);
     expect(response.headers['x-request-id']).toMatch(/^[\da-f-]{36}$/);
     expect(events).toHaveLength(1); expect(events[0]).toMatchObject({ route: '/rooms', status: 201 });

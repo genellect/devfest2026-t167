@@ -26,8 +26,8 @@ const voice: VoiceProvider = { version: 'speaker-test-v1', source: 'mock', extra
 } };
 const deps = { db, auth, gemini: mockGemini(), voice, now: () => now }, app = createApp(deps);
 beforeEach(() => { now = Date.now(); slot = 0; silent = false; ambiguity = false; failure = false; during = undefined; barrier = undefined; entered = 0; });
-async function client(target = app) {
-  const u = await emulatorGoogleUser('student', `speaker-${randomUUID()}`);
+async function client(target = app, kind: 'teacher' | 'student' = 'student') {
+  const u = await emulatorGoogleUser(kind, `speaker-${randomUUID()}`);
   const session = await request(target).post('/sessions').set('authorization', `Bearer ${u.idToken}`).send({ deviceLabel: '架空の端末', deviceType: 'tablet' }).expect(201);
   const headers = { authorization: `Bearer ${u.idToken}`, cookie: session.headers['set-cookie'][0].split(';')[0] };
   return { uid: u.localId, headers, target, post: (path: string, body = {}) => request(target).post(path).set(headers).send(body), get: (path: string) => request(target).get(path).set(headers) };
@@ -43,7 +43,7 @@ async function register(c: Client, roomId: string, names: string[], audio?: Buff
   slot = 0; return attendees.map((a) => a.id);
 }
 async function setup(target = app, audio?: Buffer[]) {
-  const h = await client(target), p = await client(target), q = await client(target);
+  const h = await client(target, 'teacher'), p = await client(target), q = await client(target);
   const r = (await h.post('/rooms', { title: '声の接続', flowVersion: 1, groups: 2, minutes: 2 }).expect(201)).body;
   for (const c of [p, q]) await c.post('/rooms/join', { code: r.joinCode }).expect(200);
   await h.post(`/rooms/${r.roomId}/groups/assign`, { uid: p.uid, group: 1 }).expect(200);
@@ -143,7 +143,7 @@ it('再利用した個人プロフィールが処理中に削除された場合�
   expect((await db.doc(`sessions/${roomId}/speaking/2`).get()).get('processedMs')).toBe(0);
 });
 it('6グループが同時に音声を送っても、それぞれの登録済みの声で独立して集計する', async () => {
-  const h = await client(), roomId = (await h.post('/rooms', { title: '6班同時', flowVersion: 1, groups: 6 }).expect(201)).body.roomId;
+  const h = await client(app, 'teacher'), roomId = (await h.post('/rooms', { title: '6班同時', flowVersion: 1, groups: 6 }).expect(201)).body.roomId;
   const code = (await db.doc(`sessions/${roomId}`).get()).get('joinCode'), people = [];
   for (let group = 1; group <= 6; group++) {
     const c = await client(); await c.post('/rooms/join', { code }).expect(200);

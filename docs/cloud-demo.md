@@ -1,6 +1,6 @@
 # クラウドでのデモ準備と確認
 
-> 2026-11-06 MVP仕様変更：全員Googleログイン・共通ホーム。固定の教師/生徒ロールとteacher claimによるHost制限を廃止し、議論のmembers.roleでHost/Participantを判定します。ログイン上限は全員1台です。新仕様・API・移行条件は [MVPロール設計](mvp-roles.md) を参照。以下の旧仕様と相違する場合は新仕様を適用します。
+> 2026-11-06 MVP仕様変更：全員Googleログイン。ディスカッションを作れるのは、管理者が招待した教員（teacher claim）だけです（Docs「サーバーフィードバック」）。作成後のHost/Participantは議論のmembers.roleで判定します。ログイン後、教員は教員のホーム（/teacher）、学生は参加コードの入力（/join）へ進みます。ログイン上限は全員1台です。新仕様・API・移行条件は [MVPロール設計](mvp-roles.md) を参照。以下の旧仕様と相違する場合は新仕様を適用します。
 
 
 デモ本体は既存のFirebase App Hosting → 同一オリジンの/api → Cloud Run → Vertex AI/Firestoreで動かす。利用者の端末にMac・ローカルサーバー・検証用証明書は不要。クラウドサービスや別プロジェクトは追加しない。

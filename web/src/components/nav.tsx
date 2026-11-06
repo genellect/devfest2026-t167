@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useHostUser } from "@/lib/hostAuth";
+import { useHostUser, useIsTeacher } from "@/lib/hostAuth";
 
 
 export type NavRole = "host" | "student";
@@ -29,10 +29,13 @@ const TABS: Record<NavRole, { href: string; label: string; icon: IconName }[]> =
 export function TabBar(_props: { role: NavRole }) {
   void _props;
   const pathname = usePathname();
+  // 教員のホームは学生のホームと分ける（教員は /teacher、学生は /home）
+  const teacher = useIsTeacher();
+  const tabs = TABS.host.map((t) => (teacher && t.href === "/home" ? { ...t, href: "/teacher" } : t));
   return (
     <nav className="tabbar" aria-label="メニュー">
       <ul className="tabbar__list">
-        {TABS.host.map((t) => (
+        {tabs.map((t) => (
           <li key={t.href}>
             <Link className="tabbar__item" href={t.href} aria-current={pathname === t.href ? "page" : undefined}>
               <Icon name={t.icon} />

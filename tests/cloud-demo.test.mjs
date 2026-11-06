@@ -9,7 +9,8 @@ import { teacherOptions, teacherAccess } from '../scripts/teacher-access.mjs';
 const fixture = (patch = {}) => {
   const calls = [];
   const auth = {
-    getUser: async () => ({ disabled: false, providerData: [{ providerId: 'google.com' }], customClaims: { retained: 'yes', teacher: true }, ...patch }),
+    getUser: async (uid) => ({ uid, disabled: false, providerData: [{ providerId: 'google.com' }], customClaims: { retained: 'yes', teacher: true }, ...patch }),
+    getUserByEmail: async (email) => { calls.push(['lookup']); if (email !== 'teacher@example.com') throw new Error('synthetic not found'); return { uid: 'by-email', disabled: false, providerData: [{ providerId: 'google.com' }], customClaims: {}, ...patch }; },
     setCustomUserClaims: async (uid, claims) => calls.push(['claims', uid, claims]),
     revokeRefreshTokens: async (uid) => calls.push(['revoke', uid]),
   };
@@ -19,6 +20,17 @@ const fixture = (patch = {}) => {
 test('プロジェクト・UID・操作を明示しない場合は拒否する', () => {
   for (const args of [[], ['--project', 'devfest2026-t167'], ['--project', 'devfest2026-t167', '--uid', 'synthetic', '--action', 'other']]) assert.throws(() => teacherOptions(args));
   assert.deepEqual({ ...teacherOptions(['--project', 'devfest2026-t167', '--uid', 'synthetic', '--action', 'inspect']) }, { project: 'devfest2026-t167', uid: 'synthetic', action: 'inspect' });
+  assert.deepEqual({ ...teacherOptions(['--project', 'devfest2026-t167', '--email', 'teacher@example.com', '--action', 'grant']) }, { project: 'devfest2026-t167', email: 'teacher@example.com', action: 'grant' });
+  // UIDとメールの両方、または不正なメールは拒否する
+  for (const args of [['--project', 'devfest2026-t167', '--uid', 'synthetic', '--email', 'teacher@example.com', '--action', 'grant'], ['--project', 'devfest2026-t167', '--email', 'not-an-email', '--action', 'grant']]) assert.throws(() => teacherOptions(args));
+});
+test('メールアドレスで指定した教員にも、同じ条件で教師権限を付与する', async () => {
+  const { auth, calls } = fixture();
+  assert.deepEqual(await teacherAccess(auth, { email: 'teacher@example.com', action: 'grant' }), { teacher: true, changed: true, signInAgain: true });
+  assert.deepEqual(calls, [['lookup'], ['claims', 'by-email', { teacher: true }], ['revoke', 'by-email']]);
+  const missing = fixture();
+  await assert.rejects(teacherAccess(missing.auth, { email: 'nobody@example.com', action: 'grant' }));
+  assert.deepEqual(missing.calls, [['lookup']]);
 });
 test('inspectは認証情報と権限を変更しない', async () => {
   const { auth, calls } = fixture();

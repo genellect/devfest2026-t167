@@ -1,6 +1,6 @@
 # 開発への参加
 
-> 2026-11-06 MVP仕様変更：全員Googleログイン・共通ホーム。固定の教師/生徒ロールとteacher claimによるHost制限を廃止し、議論のmembers.roleでHost/Participantを判定します。ログイン上限は全員1台です。新仕様・API・移行条件は [MVPロール設計](docs/mvp-roles.md) を参照。以下の旧仕様と相違する場合は新仕様を適用します。
+> 2026-11-06 MVP仕様変更：全員Googleログイン。ディスカッションを作れるのは、管理者が招待した教員（teacher claim）だけです（Docs「サーバーフィードバック」）。作成後のHost/Participantは議論のmembers.roleで判定します。ログイン後、教員は教員のホーム（/teacher）、学生は参加コードの入力（/join）へ進みます。ログイン上限は全員1台です。新仕様・API・移行条件は [MVPロール設計](docs/mvp-roles.md) を参照。以下の旧仕様と相違する場合は新仕様を適用します。
 
 
 開発環境の起動から本番反映までの進め方。PR の確認と本番反映の依頼の手順は、[PR の確認から本番反映までの手順](docs/contributor-preview-guide.md) にある。人も AI エージェントも同じルールに従い、エージェント向けの手順は [AGENTS.md](AGENTS.md) にある。GCP の構築手順はチームドキュメントの「インフラ構築手順書」にある。

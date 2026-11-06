@@ -21,7 +21,7 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
   page.on("pageerror", (e) => pageErrors.push(e.message));
   await page.goto("/");
   await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
-  await page.waitForURL(/\/home$/); await page.goto("/host/new");
+  await page.waitForURL(/\/teacher$/); await page.goto("/host/new");
   await page.getByLabel("テーマ", { exact: true }).fill("架空の授業でAIを使うときのルール");
   await page.getByLabel("クラス名（任意）").fill("架空の2年3組");
   await page.screenshot({ path: "../docs/screenshots/unified-host-new-mobile.png", fullPage: true });

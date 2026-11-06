@@ -1,6 +1,8 @@
 # Google Discuss MVP：セッション内ロールと認証
 
-2026-11-06の変更指示を適用する。学校でのTeacher/Studentと議論のHost/Participantを分離し、MVPでは全員がGoogleでログインして `/home` を使う。教師claim、役割選択、Classroom接続を利用条件にしない。
+2026-11-06の変更指示を適用する。学校でのTeacher/Studentと議論のHost/Participantを分離し、MVPでは全員がGoogleでログインする。役割選択とClassroom接続は利用条件にしない。
+
+> 追記（Docs「サーバーフィードバック」）：ディスカッションを作れるのは、管理者が招待した教員（Google アカウントの teacher claim）だけにする。教員はログイン後に教員のホーム（`/teacher`）、それ以外の学生は参加コードの入力（`/join`）へ進む。作成後の Host/Participant は、これまでどおりセッションごとの members.role で決める。下の「教員の招待」を参照。
 
 ## ユーザー体験
 
@@ -147,3 +149,11 @@ GitHubのmain（017b78f）と公開済みPRを確認し、認証セッションP
 ブラウザ通し試験は、画面のファイル選択から2人の登録音声を送り、別録音を擬似マイクからAudioWorklet→API→実モデルへ流した。Host/Guestの実モデル表示、両者の発話時間、録音停止・端末保管、終了、ホームの終了表示まで検査する。共有端末の人数表示はアカウント数ではなく参加者名簿を数える。400msなどの短い発話時間は小数1桁の秒数で示す。
 
 専用試験では、直前のcheckでビルドしたNEXT_PUBLIC_FIREBASE_PROJECT_ID・エミュレータのポートに実行環境を合わせ、API_ORIGINも明示する（今回のオフセット30000ではhttp://127.0.0.1:38081）。Firestore/Authは専用エミュレータ、Gemini分析はモック、話者モデルと入力人声は実データ。クラウドpreviewは旧本番APIと共有するため、この通し結果とは分ける。
+
+## 教員の招待（作成の権限）
+
+- `POST /rooms` は、IDトークンの `teacher: true`（管理者が付けた custom claim）を確かめる。ない場合は `403 teacher_required`。本文の `teacher`・`role` は使わない。
+- 作成者はそのセッションの Host になる。Host 用の操作は members.role=host で判定し、teacher claim では判定しない。教員が他の教員のセッションに参加すれば、そこでは Participant になる。
+- 画面の振り分け（ログイン後の行き先、作成ボタンの表示）は IDトークンの claim を読むだけで、権限はAPIが確かめる。
+- 付与は管理者が `node scripts/teacher-access.mjs --project <プロジェクト> --email <メール> --action grant` で行う（`--uid` でもよい）。相手が一度 Google でログインしてから実行する。付与・解除のあとは以前のトークンを失効させるので、相手はログインし直す。メールアドレスと UID は出力しない。
+- 対象は、チームの教員3人と審査員用のテストアカウント（Docs「サーバーフィードバック」）。メールアドレスはリポジトリに書かない。

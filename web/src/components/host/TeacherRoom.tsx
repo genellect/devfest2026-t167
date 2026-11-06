@@ -45,7 +45,7 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
         <button type="button" className="icon-btn" aria-label="設定" title="設定" onClick={() => settings.current?.showModal()}>
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></svg>
         </button>
-        <Link className="btn btn--small" href="/home">ホーム</Link>
+        <Link className="btn btn--small" href="/teacher">ホーム</Link>
       </header>
 
       {room.phase === "collecting" && <Lobby roomId={roomId} room={room} seats={seats} opinions={opinions} />}
@@ -161,7 +161,7 @@ function RecordingReview({ roomId, room }: { roomId: string; room: Room }) {
       <div className="heading-row"><h2 id="review-title" className="t-sm">録音の振り返り</h2>{summary?.source === "mock" && <span className="pill">デモデータ</span>}</div>
       <p className="t-note">分析済み {summary?.analyzedGroups ?? 0}/{room.groups ?? 1}グループ</p>
       {groups.map((g) => <ReviewGroup key={g} roomId={roomId} group={g} />)}
-      <Link className="btn btn--blue" href="/home" style={{ alignSelf: "flex-start" }}>ホームに戻る</Link>
+      <Link className="btn btn--blue" href="/teacher" style={{ alignSelf: "flex-start" }}>ホームに戻る</Link>
     </section>
   );
 }

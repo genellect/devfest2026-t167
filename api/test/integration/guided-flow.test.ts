@@ -16,14 +16,14 @@ let now = Date.now(), silent = false;
 const voice = { version: 'test-v1', source: 'mock' as const, extract: async () => ({ embedding: silent ? null : Array(16).fill(0.25), speechMs: silent ? 0 : 8000 }) };
 const deps = { db, auth, gemini: mockGemini(), voice, now: () => now }, app = createApp(deps);
 beforeEach(() => { now = Date.now(); silent = false; });
-async function client() {
-  const u = await emulatorGoogleUser('student', `guided-${randomUUID()}`);
+async function client(kind: 'teacher' | 'student' = 'student') {
+  const u = await emulatorGoogleUser(kind, `guided-${randomUUID()}`);
   const session = await request(app).post('/sessions').set('authorization', `Bearer ${u.idToken}`).send({ deviceLabel: 'テスト端末', deviceType: 'tablet' }).expect(201);
   const cookie = session.headers['set-cookie'][0].split(';')[0], headers = { authorization: `Bearer ${u.idToken}`, cookie };
   return { uid: u.localId, headers, post: (path: string, body = {}) => request(app).post(path).set(headers).send(body), get: (path: string) => request(app).get(path).set(headers) };
 }
 async function setup() {
-  const h = await client(), p = await client();
+  const h = await client('teacher'), p = await client();
   const r = (await h.post('/rooms', { title: 'MVP', theme: 'テーマ', minutes: 1, groups: 1, flowVersion: 1, participantView: { theme: true, timer: true, members: true } }).expect(201)).body;
   await p.post('/rooms/join', { code: r.joinCode }).expect(200);
   return { h, p, ...r } as { h: Awaited<ReturnType<typeof client>>; p: Awaited<ReturnType<typeof client>>; roomId: string; joinCode: string };
@@ -102,7 +102,7 @@ it('参加済みのGuestは、開始後も終了後も同じコードで部屋�
   expect((await member(roomId, p.uid).get()).get('status')).toBe('active');
 });
 it('1本の流れ：開始前の事前意見、音声登録なしでの開始、終了後の合意の一文から、グループの結果と指標が出る', async () => {
-  const h = await client(), a = await client(), b = await client();
+  const h = await client('teacher'), a = await client(), b = await client();
   const r = (await h.post('/rooms', { title: '大学のAI利用', theme: '大学のAI利用', className: '2年3組', flowVersion: 1 }).expect(201)).body;
   const room = db.doc(`sessions/${r.roomId}`);
   expect((await room.get()).get('className')).toBe('2年3組');
@@ -126,7 +126,7 @@ it('1本の流れ：開始前の事前意見、音声登録なしでの開始、
   expect(JSON.stringify(summary)).not.toContain('非公開の意見');
 });
 it('グループはサーバーが決め、1グループが100人になると次のグループに入る', async () => {
-  const h = await client();
+  const h = await client('teacher');
   const r = (await h.post('/rooms', { title: '大人数', theme: '大人数', flowVersion: 1 }).expect(201)).body;
   const batch = db.batch();
   for (let i = 0; i < 100; i++) batch.set(db.doc(`sessions/${r.roomId}/members/seed-${i}`), { uid: `seed-${i}`, role: 'participant', group: 1, groupId: '1', status: 'active' });

@@ -3,18 +3,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Loading } from "@/components/ui";
-import { canUseTestHost, signInAsHost, signInAsTestHost, signInAsTestStudent, useHostUser, type LoginOptions } from "@/lib/hostAuth";
+import { canUseTestHost, homePath, signInAsHost, signInAsTestHost, signInAsTestStudent, useHostUser, useIsTeacher, type LoginOptions } from "@/lib/hostAuth";
 import { logoutMessage, useAppSession } from "@/lib/session";
 import { pendingJoinCode } from "@/lib/join-code";
 
 
 /**
- * ログイン（入口はここだけ）。Google でログインし、共通ホームへ進む。
- * QRやリンクから来た人は、ログインのあとにそのまま参加する。それ以外はホームへ進む。
+ * ログイン（入口はここだけ）。Google でログインし、教員は教員のホーム、学生は参加コードの入力へ進む。
+ * QRやリンクから来た人は、ログインのあとにそのまま参加する。
  */
 export default function Login() {
   const router = useRouter();
   const user = useHostUser();
+  const teacher = useIsTeacher();
   const session = useAppSession();
   const [shared, setShared] = useState(false);
   const [end, setEnd] = useState("");
@@ -22,10 +23,10 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
-    // QRやリンクから来た人は、ログインのあとにそのまま参加する
-    router.replace(pendingJoinCode() ? "/join" : "/home");
-  }, [user, router]);
+    if (!user || teacher === undefined) return;
+    // QRやリンクから来た人は、ログインのあとにそのまま参加する。教員は教員のホーム、学生は参加コードの入力へ
+    router.replace(pendingJoinCode() ? "/join" : homePath(teacher));
+  }, [user, teacher, router]);
 
   async function login(how: (options: LoginOptions) => Promise<void>) {
     setBusy(true); setError("");

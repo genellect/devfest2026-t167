@@ -18,7 +18,7 @@ async function login(app: ReturnType<typeof createApp>, token: string) {
   return { authorization: `Bearer ${token}`, cookie: r.headers['set-cookie'][0].split(';')[0] };
 }
 it('同じGoogle利用者でも本番領域と別デモのログイン・議論・一覧を混ぜない', async () => {
-  const u = await emulatorGoogleUser('student', `isolation-${randomUUID()}`), h1 = await login(first, u.idToken), h2 = await login(second, u.idToken);
+  const u = await emulatorGoogleUser('teacher', `isolation-${randomUUID()}`), h1 = await login(first, u.idToken), h2 = await login(second, u.idToken);
   const create = await request(first).post('/rooms').set(h1).send({ title: 'デモAだけのセッション' }).expect(201);
   const { roomId } = create.body;
   const list = await request(first).get('/discussions').set(h1).expect(200);
@@ -31,7 +31,7 @@ it('同じGoogle利用者でも本番領域と別デモのログイン・議論�
   expect((await db.doc(`users/${u.localId}`).get()).exists).toBe(false);
 });
 it('デモのライブ結果を論理パスで配信し、Firestoreの保存ルートを画面へ混ぜない', async () => {
-  const host = await emulatorGoogleUser('student', `demo-host-${randomUUID()}`), guest = await emulatorGoogleUser('student', `demo-guest-${randomUUID()}`);
+  const host = await emulatorGoogleUser('teacher', `demo-host-${randomUUID()}`), guest = await emulatorGoogleUser('student', `demo-guest-${randomUUID()}`);
   const h = await login(first, host.idToken), g = await login(first, guest.idToken);
   const room = (await request(first).post('/rooms').set(h).send({ title: '配信確認', groups: 1 }).expect(201)).body;
   await request(first).post('/rooms/join').set(g).send({ code: room.joinCode }).expect(200);

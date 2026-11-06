@@ -1,2 +1,2 @@
 import { redirect } from "next/navigation";
-export default function HostHome() { redirect("/home"); }
+export default function HostHome() { redirect("/teacher"); }

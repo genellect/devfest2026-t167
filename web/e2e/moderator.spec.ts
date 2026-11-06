@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { loginStudent } from "./student";
 
-test("共通ホームからホストを選択し、管理画面で設定して開始・強制終了・結果・ホームへ進む", async ({ page }) => {
-  await loginStudent(page);
-  await page.getByRole("link", { name: "ディスカッションを作る（教員）", exact: true }).click();
+test("教員のホームから作成し、開始・強制終了・結果・教員のホームへ進む", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
+  await expect(page).toHaveURL(/\/teacher$/);
+  await page.getByRole("link", { name: "ディスカッションを作る", exact: true }).click();
   await page.getByLabel("テーマ", { exact: true }).fill("チームで何を作るか");
   await page.getByRole("button", { name: "作成する", exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);
@@ -17,5 +18,6 @@ test("共通ホームからホストを選択し、管理画面で設定して�
   await page.getByRole("button", { name: "終えて結果を見る", exact: true }).click();
   await expect(page.getByRole("heading", { name: "録音の振り返り", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "ホームに戻る", exact: true }).click();
-  await expect(page).toHaveURL(/\/home$/);
+  await expect(page).toHaveURL(/\/teacher$/);
+  await expect(page.getByRole("region", { name: "作ったディスカッション" }).getByRole("link", { name: /チームで何を作るか/ }).first()).toContainText("終了");
 });

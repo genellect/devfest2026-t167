@@ -2,7 +2,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { randomInt, randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
-import { HttpError, wrap, run, parse, requireOpenRoom, requireModerator } from './http.js';
+import { HttpError, wrap, run, parse, requireOpenRoom, requireModerator, requireTeacher } from './http.js';
 import { participantGroup } from './membership.js';
 import { Timestamp } from 'firebase-admin/firestore';
 import { enforceDiscussionTime, requireDiscussionActive } from './discussion-lifecycle.js';
@@ -72,8 +72,10 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
   // /healthz は手元と古い手順のために残す
   app.get(['/health', '/healthz'], (_req, res) => { res.json({ ok: true, gemini: gemini.source }); });
 
-  // 全Google利用者が作成可能。セッションとHostの所属を同じトランザクションで保存する。
+  // 作成は招待された教員だけ（teacher claim）。セッションとHostの所属を同じトランザクションで保存する。
+  // 作成後の操作の権限は、これまでどおりセッションごとの members.role で決める
   app.post('/rooms', ...chain(authenticate, wrap(async (req, res) => {
+    requireTeacher(req.ctx);
     await limit(req.ctx.uid, 'create', 10, 60 * 60_000);
     // recording：グループの議論を録音して分析するか（録音の権限は先生が持つ。既定は録音する）
     const { title, theme, className, minutes, groups, recording, groupSelection, flowVersion, publishOnEnd, participantView } = parse(z.object({

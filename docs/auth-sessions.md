@@ -1,11 +1,11 @@
 # 認証とアプリセッション
 
-> 2026-11-06 MVP仕様変更：全員Googleログイン・共通ホーム。固定の教師/生徒ロールとteacher claimによるHost制限を廃止し、議論のmembers.roleでHost/Participantを判定します。ログイン上限は全員1台です。新仕様・API・移行条件は [MVPロール設計](mvp-roles.md) を参照。以下の旧仕様と相違する場合は新仕様を適用します。
+> 2026-11-06 MVP仕様変更：全員Googleログイン。ディスカッションを作れるのは、管理者が招待した教員（teacher claim）だけです（Docs「サーバーフィードバック」）。作成後のHost/Participantは議論のmembers.roleで判定します。ログイン後、教員は教員のホーム（/teacher）、学生は参加コードの入力（/join）へ進みます。ログイン上限は全員1台です。新仕様・API・移行条件は [MVPロール設計](mvp-roles.md) を参照。以下の旧仕様と相違する場合は新仕様を適用します。
 
 
 ## 設計と既存構成
 
-Next.js → 同一オリジン `/api` の転送 → Express/TypeScript (Cloud Run) → Firebase Admin SDKを維持する。FastAPIは導入しない。FirebaseのGoogle本人認証を置換せず、全保護APIで失効確認付きIDトークンと独自Cookieの両方を検査する。学校ポリシー操作は管理者設定のschoolId/schoolAdminだけを信頼する。議論の権限は各セッションのmembers.roleを参照する。teacher claimとUIの役割選択は使わない。
+Next.js → 同一オリジン `/api` の転送 → Express/TypeScript (Cloud Run) → Firebase Admin SDKを維持する。FastAPIは導入しない。FirebaseのGoogle本人認証を置換せず、全保護APIで失効確認付きIDトークンと独自Cookieの両方を検査する。学校ポリシー操作は管理者設定のschoolId/schoolAdminだけを信頼する。議論の権限は各セッションのmembers.roleを参照する。teacher claim はディスカッションの作成（`POST /rooms`）だけに使い、作成後の権限は members.role で決める。UIの役割選択は使わない。
 
 Docs正本の匿名参加記述と現在のGoogle必須方針は異なる。依頼者の全員Googleログイン必須の指示を優先する。既存未マージの依存更新・品質・クラウド準備・ログイン必須化 (#26/27/28/30/31) を前提とする。依頼者の確認後にPRを公開する。マージ・auto-merge・本番反映は別途承諾まで行わない。
 

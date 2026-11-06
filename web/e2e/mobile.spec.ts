@@ -1,15 +1,19 @@
 import { expect, test } from "@playwright/test";
 import { loginStudent } from "./student";
-for (const account of ["生徒", "先生"]) {
-  test(`${account}の模擬アカウントも役割登録せず共通ホームを利用する`, async ({ page }) => {
+for (const [account, landing, home] of [["生徒", /\/join$/, "/home"], ["先生", /\/teacher$/, "/teacher"]] as const) {
+  test(`${account}の模擬アカウントは役割登録せず、ログイン後に${account === "生徒" ? "参加コードの入力" : "教員のホーム"}へ進む`, async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: `テスト用の${account}でログイン（エミュレータ）` }).click();
-    await expect(page).toHaveURL(/\/home$/);
-    await expect(page.getByRole("heading", { name: "あなたのホーム" })).toBeVisible();
-    await expect(page.locator(".mvp-actions").getByRole("link")).toHaveText(["参加する"]);
+    await expect(page).toHaveURL(landing);
+    // 学生には作成の入口を出さない。教員のホームの主役は作成
+    if (account === "生徒") await expect(page.getByRole("link", { name: /ディスカッションを作る/ })).toHaveCount(0);
+    else await expect(page.getByRole("link", { name: "ディスカッションを作る", exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     for (const path of ["/home", "/host/new", "/join", "/host/profile", "/about"]) {
       await page.goto(path);
-      await expect(page.getByRole("navigation", { name: "メニュー" }).getByRole("link")).toHaveText(["ホーム", "参加", "アカウント"]);
+      const tabs = page.getByRole("navigation", { name: "メニュー" }).getByRole("link");
+      await expect(tabs).toHaveText(["ホーム", "参加", "アカウント"]);
+      await expect(tabs.first()).toHaveAttribute("href", home);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path).toBe(true);
     }
   });

@@ -3,11 +3,12 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Header, Loading } from "@/components/ui";
 import { TabBar } from "@/components/nav";
-import { useHostUser, signOutHost } from "@/lib/hostAuth";
+import { useHostUser, useIsTeacher, signOutHost } from "@/lib/hostAuth";
 import { sessionRequest } from "@/lib/session";
 interface Discussion { sessionId: string; title: string; theme: string; phase: string; ended?: boolean; role: "host" | "participant"; groupId: string | null }
 export default function Home() {
   const user = useHostUser();
+  const teacher = useIsTeacher();
   const [sessions, setSessions] = useState<Discussion[]>([]), [error, setError] = useState("");
   useEffect(() => {
     let active = true;
@@ -28,7 +29,7 @@ export default function Home() {
         {!sessions.length && !error && <p className="t-note">まだありません。</p>}
         {sessions.map((s) => <Link key={s.sessionId} href={`/rooms/${s.sessionId}`} className="flow-card mvp-session-link"><span><strong>{s.title}</strong>{s.theme && s.theme !== s.title && <><br /><span className="t-note">{s.theme}</span></>}</span><span className="t-note">{s.role === "host" ? "教員" : "参加者"}{s.ended ? "・終了" : ""}</span></Link>)}
       </section>
-      <Link className="text-btn" href="/host/new">ディスカッションを作る（教員）</Link>
+      {teacher && <Link className="text-btn" href="/teacher">教員のホームへ</Link>}
     </div>
   </main>;
 }

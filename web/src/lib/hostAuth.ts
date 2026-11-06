@@ -3,6 +3,7 @@
 import {
   browserPopupRedirectResolver, GoogleAuthProvider, signInWithCredential, signInWithPopup, reauthenticateWithPopup,
 } from "firebase/auth";
+import { useEffect, useState } from "react";
 import { firebase } from "./firebase";
 import { beginSignIn, endSignIn, establishSession, logoutSession, unlockSession, useAppSession } from "./session";
 import { clearJoinCode } from "./join-code";
@@ -11,6 +12,26 @@ import { clearJoinCode } from "./join-code";
 export function useHostUser() {
   return useAppSession().user;
 }
+/**
+ * 招待された教員か（管理者が付けた teacher claim）。画面の振り分けにだけ使い、権限はAPIが確かめる。
+ * 読み込み中は undefined、ログインしていなければ false。
+ */
+export function useIsTeacher(): boolean | undefined {
+  const user = useHostUser();
+  const [teacher, setTeacher] = useState<{ uid: string; value: boolean }>();
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    user.getIdTokenResult().then((r) => { if (active) setTeacher({ uid: user.uid, value: r.claims.teacher === true }); })
+      .catch(() => { if (active) setTeacher({ uid: user.uid, value: false }); });
+    return () => { active = false; };
+  }, [user]);
+  if (user === null) return false;
+  if (!user || teacher?.uid !== user.uid) return undefined;
+  return teacher.value;
+}
+/** ログインのあとに開く画面：QRやリンクから来た人は参加、教員は教員のホーム、それ以外は参加コードの入力 */
+export function homePath(teacher: boolean) { return teacher ? "/teacher" : "/join"; }
 export interface LoginOptions { isSharedDevice: boolean; classEndsAt: number | null }
 async function login(how: () => Promise<unknown>, options: LoginOptions) {
   beginSignIn();

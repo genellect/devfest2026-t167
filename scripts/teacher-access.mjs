@@ -7,17 +7,22 @@ import { pathToFileURL } from 'node:url';
 export function teacherOptions(args) {
   try {
     const { values } = parseArgs({ args, options: {
-      project: { type: 'string' }, uid: { type: 'string' }, action: { type: 'string' },
+      project: { type: 'string' }, uid: { type: 'string' }, email: { type: 'string' }, action: { type: 'string' },
     }, allowPositionals: false });
+    // 対象は UID かメールアドレスのどちらか1つ。招待する教員は、一度ログインしてから付与する
+    const byUid = values.uid !== undefined, byEmail = values.email !== undefined;
     if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(values.project ?? '')
-      || !/^[A-Za-z0-9:_-]{1,128}$/.test(values.uid ?? '')
+      || byUid === byEmail
+      || (byUid && !/^[A-Za-z0-9:_-]{1,128}$/.test(values.uid))
+      || (byEmail && !/^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,63}$/.test(values.email))
       || !['inspect', 'grant', 'revoke'].includes(values.action)) throw new Error();
     return values;
-  } catch { throw new Error('--project・--uid・--action inspect|grant|revokeを明示してください'); }
+  } catch { throw new Error('--project・--uid か --email のどちらか1つ・--action inspect|grant|revokeを明示してください'); }
 }
 
-export async function teacherAccess(auth, { uid, action }) {
-  const user = await auth.getUser(uid);
+export async function teacherAccess(auth, { uid, email, action }) {
+  const user = email ? await auth.getUserByEmail(email) : await auth.getUser(uid);
+  uid = user.uid;
   const googleLogin = user.providerData.some(provider => provider.providerId === 'google.com');
   if (action === 'inspect') return { teacher: user.customClaims?.teacher === true, googleLogin, disabled: user.disabled, changed: false };
   if (action === 'grant' && (!googleLogin || user.disabled)) throw new Error('有効なGoogleログインの利用者だけを教師に設定できます');
