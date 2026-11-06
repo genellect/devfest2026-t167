@@ -8,7 +8,8 @@ import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { createApp } from '../../src/app.js';
 import { mockGemini } from '../../src/gemini.js';
 
-const PROJECT = 'demo-t167';
+const PROJECT = process.env.GOOGLE_CLOUD_PROJECT ?? 'demo-t167';
+if (!PROJECT.startsWith('demo-')) throw new Error('試験はデモ用プロジェクトだけで実行できます');
 process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
 process.env.FIREBASE_AUTH_EMULATOR_HOST ??= '127.0.0.1:9099';
 initializeApp({ projectId: PROJECT });

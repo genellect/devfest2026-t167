@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 // 司会者が部屋を作り、参加者がスマホで参加コードを入れて参加し、非公開の意見を出せるところまで
 async function moderatorToken(): Promise<string> {
-  const r = await fetch("http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake", {
+  const r = await fetch(`http://${process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "127.0.0.1:9099"}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake`, {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ email: `mod${Date.now()}@example.com`, password: "password", returnSecureToken: true }), // submit-allow: エミュレータ専用のダミー
   });

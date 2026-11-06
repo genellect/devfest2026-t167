@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 /** テスト用ログインのボタン（firebase/seed.mjs と同じアカウント）を、エミュレータに用意する。すでにあれば何もしない */
 async function ensureTestAccount(email: string) {
-  await fetch("http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake", {
+  await fetch(`http://${process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "127.0.0.1:9099"}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake`, {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ email, password: "password", returnSecureToken: true }), // submit-allow: エミュレータ専用のダミー
   });

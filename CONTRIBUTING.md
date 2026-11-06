@@ -35,6 +35,10 @@ http://localhost:3000 を開き、参加コード `DEMO01` で参加する。Aut
 
 依存の修正版を選び、package.jsonとlockfileを同じ変更で更新する。メジャー更新では型・入力検証・既定値が維持されるかを確認する。`npm ci`、開発依存を含む`npm audit`、`bash scripts/dev.sh check`を実行し、実APIを使わない検査と実接続の確認を区別して報告する。依存更新に認証・画面・データ構造等の機能変更を混ぜない。固定版とoverridesの用途はREADMEの「依存ライブラリの管理」を参照。
 
+## 同じ端末で複数の作業を動かす
+
+`T167_TEST_PORT_OFFSET=20000 bash scripts/dev.sh check` で画面・API・Auth/Firestore等のポートをまとめてずらす。検査用DBは `demo-t167-test-20000` になり、通常のプレビューから分離する。0〜40000の整数を指定でき、既存ポートが使用中なら起動前に停止する。既存のサーバーを検査に流用しない。通常の起動にも `T167_TEST_PORT_OFFSET=10000 bash scripts/dev.sh serve` を使える。並行する作業では異なる値を指定する。検査用コピーを作らず、対象ブランチのまま全検査を実行できる。macOSのBash・awkでもPR本文の生成と構成検査が動くようにしている。
+
 ## 開発の流れ
 
 1. **ブランチを作る。** `git fetch origin main` のあと、最新の `origin/main` から作る。

@@ -23,8 +23,8 @@ export function firebase() {
       : getAuth(app);
     db = getFirestore(app);
     if (useEmulators) {
-      connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
-      connectFirestoreEmulator(db, "127.0.0.1", 8080);
+      connectAuthEmulator(auth, `http://127.0.0.1:${process.env.NEXT_PUBLIC_AUTH_EMULATOR_PORT ?? 9099}`, { disableWarnings: true });
+      connectFirestoreEmulator(db, "127.0.0.1", Number(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT ?? 8080));
     }
   }
   return { app: app!, auth: auth!, db: db! };

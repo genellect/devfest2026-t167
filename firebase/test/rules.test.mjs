@@ -6,8 +6,8 @@ import { doc, getDoc, setDoc, collection, getDocs, query, where, serverTimestamp
 let env;
 before(async () => {
   env = await initializeTestEnvironment({
-    projectId: 'demo-t167',
-    firestore: { rules: readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8'), host: '127.0.0.1', port: 8080 },
+    projectId: process.env.GOOGLE_CLOUD_PROJECT ?? 'demo-t167',
+    firestore: { rules: readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8'), host: (process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080').split(':')[0], port: Number((process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080').split(':')[1]) },
   });
 });
 after(async () => { await env.cleanup(); });

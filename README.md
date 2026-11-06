@@ -178,6 +178,10 @@ Node.jsは22.12以上の22系を使う（`.nvmrc`は22）。Vitest 5の実行要
 
 この依存更新には、新しい音声解析ライブラリ、認証方針・API仕様・Rules・モデル・画面の変更を含めない。実Google Cloudへの接続、CLIのデプロイ操作、iPad実機は別途確認する。
 
+## 同じ端末で複数の作業を動かす
+
+`T167_TEST_PORT_OFFSET=20000 bash scripts/dev.sh check` で画面・API・Auth/Firestore等のポートをまとめてずらす。検査用DBは `demo-t167-test-20000` になり、通常のプレビューから分離する。0〜40000の整数を指定でき、既存ポートが使用中なら起動前に停止する。既存のサーバーを検査に流用しない。通常の起動にも `T167_TEST_PORT_OFFSET=10000 bash scripts/dev.sh serve` を使える。並行する作業では異なる値を指定する。検査用コピーを作らず、対象ブランチのまま全検査を実行できる。macOSのBash・awkでもPR本文の生成と構成検査が動くようにしている。
+
 ## テスト
 
 `bash scripts/dev.sh check` が、CI と同じ次の検査を実行する。PR と `main` への push のたびに GitHub Actions が実行し、手元で通れば CI でも通る。

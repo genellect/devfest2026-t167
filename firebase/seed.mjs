@@ -6,7 +6,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
 process.env.FIREBASE_AUTH_EMULATOR_HOST ??= '127.0.0.1:9099';
-initializeApp({ projectId: 'demo-t167' });
+initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT ?? 'demo-t167' });
 const auth = getAuth();
 const db = getFirestore();
 

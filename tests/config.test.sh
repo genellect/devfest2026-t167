@@ -13,7 +13,7 @@ sorted() { tr ' ,・' '\n' | sed '/^$/d' | sort -u | tr '\n' ' ' | sed 's/ $//';
 DEPLOY="$ROOT/.github/workflows/deploy.yml"
 # GitHub の Variables：deploy.yml が読む名前を基準に、ほかの場所と一致するか
 VARS=$(grep -oE 'vars\.[A-Z_]+' "$DEPLOY" | sed 's/vars\.//' | sorted)
-[ -n "$VARS" ] && ok "deploy.yml から Variables を読めた（$VARS）" || ng "deploy.yml から Variables を読めない"
+[ -n "$VARS" ] && ok "deploy.yml から Variables を読めた（${VARS}）" || ng "deploy.yml から Variables を読めない"
 same "deploy.yml の事前検査が全部の Variables を確かめる" "$VARS" \
   "$(grep -oE 'for v in [A-Z_ ]+; do' "$DEPLOY" | head -1 | sed -E 's/for v in (.*); do/\1/' | sorted)"
 same "setup-deployer.sh が全部の Variables を表示する" "$VARS" \

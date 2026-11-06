@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 
 /** テスト用の先生（firebase/seed.mjs と同じアカウント）をエミュレータに用意する。すでにあれば何もしない */
 async function ensureTestTeacher() {
-  await fetch("http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake", {
+  await fetch(`http://${process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "127.0.0.1:9099"}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake`, {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ email: "mod@example.com", password: "password", returnSecureToken: true }), // submit-allow: エミュレータ専用のダミー
   });
@@ -101,7 +101,7 @@ test("分析が 503 になっても、一時停止を表示して、もう一度
 test("途中で止まった分析が残っても、60秒たつと再読み込みせずにもう一度探せる", async ({ page, request }) => {
   await teacherDashboard(page, "架空の分析ロック確認");
   const roomId = new URL(page.url()).pathname.split("/").pop();
-  const url = `http://127.0.0.1:8080/v1/projects/demo-t167/databases/(default)/documents/rooms/${roomId}?updateMask.fieldPaths=analysis`;
+  const url = `http://${process.env.FIRESTORE_EMULATOR_HOST ?? "127.0.0.1:8080"}/v1/projects/${process.env.GOOGLE_CLOUD_PROJECT ?? "demo-t167"}/databases/(default)/documents/rooms/${roomId}?updateMask.fieldPaths=analysis`;
   async function runningSince(timestamp: number) {
     const res = await request.patch(url, {
       headers: { authorization: "Bearer owner" }, // submit-allow: Firestore エミュレータ専用の管理者のダミー
