@@ -2,11 +2,10 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useRef, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
 import { TabBar } from "@/components/nav";
 import { Header } from "@/components/ui";
 import { callApi } from "@/lib/api";
-import { ensureSignedIn, firebase } from "@/lib/firebase";
+import { sessionRequest } from "@/lib/session";
 import { signOutHost } from "@/lib/hostAuth";
 import { normalizeJoinCode, pendingJoinCode, clearJoinCode } from "@/lib/join-code";
 
@@ -32,9 +31,8 @@ function JoinForm() {
     try {
       const { roomId } = await callApi<{ roomId: string }>("/rooms/join", { code });
       clearJoinCode();
-      const me = await ensureSignedIn();
-      const member = await getDoc(doc(firebase().db, `rooms/${roomId}/members/${me.uid}`));
-      if (member.get("role") === "moderator") { setOwnRoom(roomId); setBusy(false); return; }
+      const member = await sessionRequest<{ role: string }>(`/rooms/${roomId}/me`);
+      if (member.role === "moderator") { setOwnRoom(roomId); setBusy(false); return; }
       router.push(`/rooms/${roomId}`);
     } catch (err) {
       setError((err as Error).message);

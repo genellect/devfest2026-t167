@@ -1,5 +1,6 @@
 "use client";
 import { ensureSignedIn } from "./firebase";
+import { authenticatedFetch } from "./session";
 
 export class ApiError extends Error {
   constructor(readonly status: number, readonly code: string, message: string, readonly retryAfterSec?: number, readonly requestId?: string) { super(message); }
@@ -10,13 +11,7 @@ async function send<T>(path: string, contentType: string, body: BodyInit, timeou
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const post = async (refresh = false) => fetch(`/api${path}`, {
-      method: "POST", headers: { "content-type": contentType, authorization: `Bearer ${await user.getIdToken(refresh)}` },
-      body, signal: controller.signal,
-    });
-    let res = await post();
-    // 401はAPIの認証段階で拒否された場合だけ。内容の再送は1回に限定する。
-    if (res.status === 401) res = await post(true);
+    const res = await authenticatedFetch(path, { method: "POST", headers: { "content-type": contentType }, body, signal: controller.signal }, user);
     const requestId = res.headers.get("x-request-id") ?? undefined;
     const data = await res.json().catch(() => undefined);
     if (!res.ok) {

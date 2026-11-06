@@ -13,6 +13,7 @@ export default defineConfig({
   testDir: "e2e",
   globalSetup: "./e2e/setup.ts",
   timeout: 60_000,
+  workers: 1, // 固定の模擬Googleユーザーを使うため、セッション上限が別テストを失効させないよう直列化する。
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {

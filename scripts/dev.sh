@@ -17,6 +17,7 @@ OFFSET=$((10#$OFFSET))
 export T167_WEB_PORT=$((3000 + OFFSET)) T167_API_PORT=$((8081 + OFFSET))
 export FIRESTORE_EMULATOR_HOST=127.0.0.1:$((8080 + OFFSET)) FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:$((9099 + OFFSET))
 export NEXT_PUBLIC_AUTH_EMULATOR_PORT=$((9099 + OFFSET)) NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT=$((8080 + OFFSET))
+export FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:$((9199 + OFFSET))
 # Firebase CLI は設定ファイル基準で Rules のパスを解決するため、絶対パスにする。
 emulator_config() {
   local config; config=$(mktemp /tmp/t167-emulators.XXXXXX)
@@ -25,6 +26,7 @@ const fs = require('node:fs');
 const [root, offset] = process.argv.slice(2), n = Number(offset);
 const config = JSON.parse(fs.readFileSync(root + '/firebase.json'));
 for (const key of ['rules', 'indexes']) config.firestore[key] = root + '/' + config.firestore[key];
+config.storage.rules = root + '/' + config.storage.rules;
 for (const item of Object.values(config.emulators)) if (item && typeof item === 'object' && 'port' in item) item.port += n;
 config.emulators.hub = { host: '127.0.0.1', port: 4400 + n };
 config.emulators.logging = { host: '127.0.0.1', port: 4500 + n };
@@ -37,7 +39,7 @@ JS
 assert_free_ports() {
   node - "$OFFSET" <<'JS'
 const net = require('node:net'), offset = Number(process.argv[2]);
-Promise.all([3000, 8080, 8081, 9099, 4000, 4400, 4500, 9150].map(port => new Promise((resolve, reject) => {
+Promise.all([3000, 8080, 8081, 9099, 4000, 4400, 4500, 9150, 9199].map(port => new Promise((resolve, reject) => {
   const server = net.createServer();
   server.once('error', () => reject(new Error(`ポート ${port + offset} は使用中です。T167_TEST_PORT_OFFSET を変えてください。`)));
   server.listen(port + offset, '127.0.0.1', () => server.close(resolve));
@@ -101,7 +103,7 @@ serve() {
   trap 'trap - INT TERM EXIT; rm -f "${config:-}"; kill 0' INT TERM EXIT
   local config; config=$(emulator_config)
   local emulator_log; emulator_log=$(mktemp /tmp/t167-emulators-log.XXXXXX)
-  "$FB" emulators:start --config "$config" --project "$EMU_PROJECT" --only auth,firestore >"$emulator_log" 2>&1 &
+  "$FB" emulators:start --config "$config" --project "$EMU_PROJECT" --only auth,firestore,storage >"$emulator_log" 2>&1 &
   wait_port "$NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT" && wait_port "$NEXT_PUBLIC_AUTH_EMULATOR_PORT"
   npm --prefix firebase run seed
   env GOOGLE_CLOUD_PROJECT=$EMU_PROJECT GEMINI_MOCK="$mock" PORT="$T167_API_PORT" ${extra[@]+"${extra[@]}"} npm --prefix api run dev &
@@ -133,6 +135,7 @@ check() {
   node --test tests/dev-isolation.test.mjs
   node --test tests/cloud-demo.test.mjs
   bash tests/config.test.sh
+  bash tests/session-security.test.sh
   step "ビルド"
   npm --prefix api run build
   npm --prefix web run build
@@ -140,7 +143,7 @@ check() {
   step "エミュレータ上で Rules・API の結合・E2E"
   local config; config=$(emulator_config)
   trap 'rm -f "${config:-}"' EXIT
-  "$FB" emulators:exec --config "$config" --project "$EMU_PROJECT" --only auth,firestore \
+  "$FB" emulators:exec --config "$config" --project "$EMU_PROJECT" --only auth,firestore,storage \
     "npm --prefix firebase test && npm --prefix api run test:coverage && npm --prefix api run test:performance && npm --prefix web run e2e"
   rm -f "$config"; trap - EXIT
   echo; echo "OK: CI と同じ検査がすべて通りました"

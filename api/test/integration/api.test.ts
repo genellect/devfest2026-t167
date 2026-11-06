@@ -29,14 +29,19 @@ async function signUp(body: object): Promise<string> {
   return (await r.json()).idToken;
 }
 const anonymous = () => signUp({});
-const anon = async () => (await emulatorGoogleUser('student', `s-${Date.now()}-${n++}`)).idToken;
+const cookies = new Map<string, string>();
+async function withSession(token: string) {
+  const response = await request(app).post('/sessions').set('authorization', `Bearer ${token}`).send({ deviceLabel: 'test', deviceType: 'pc' }).expect(201);
+  cookies.set(token, response.headers['set-cookie'][0].split(';')[0]); return token;
+}
+const anon = async () => withSession((await emulatorGoogleUser('student', `s-${Date.now()}-${n++}`)).idToken);
 let n = 0;
-const named = async () => (await emulatorGoogleUser('teacher', `t-${Date.now()}-${n++}`)).idToken;
+const named = async () => withSession((await emulatorGoogleUser('teacher', `t-${Date.now()}-${n++}`)).idToken);
 const uidOf = (t: string) => JSON.parse(Buffer.from(t.split('.')[1], 'base64url').toString()).user_id as string;
 const api = (token?: string) => ({
   post: (path: string, body: object = {}) => {
     const r = request(app).post(path).send(body);
-    return token ? r.set('authorization', `Bearer ${token}`) : r;
+    return token ? r.set('authorization', `Bearer ${token}`).set('cookie', cookies.get(token) ?? '') : r;
   },
 });
 
@@ -51,7 +56,7 @@ function blocked(method: 'findPoints' | 'compare') {
   if (method === 'findPoints') gemini.findPoints = async (...args) => { entered.resolve(); await release.promise; return base.findPoints(...args); };
   else gemini.compare = async (...args) => { entered.resolve(); await release.promise; return base.compare(...args); };
   const target = createApp({ db, auth: getAuth(), gemini, now: () => clock });
-  const post = (token: string, path: string, body: object = {}) => request(target).post(path).set('authorization', `Bearer ${token}`).send(body);
+  const post = (token: string, path: string, body: object = {}) => request(target).post(path).set('authorization', `Bearer ${token}`).set('cookie', cookies.get(token) ?? '').send(body);
   return { entered, release, post };
 }
 
@@ -322,7 +327,7 @@ describe('グループごとの進行', () => {
 
 describe('録音の分析', () => {
   const upload = (token: string, roomId: string, q = 'consent=1&durationSec=600', type = 'audio/wav', bytes = 4000) =>
-    request(app).post(`/rooms/${roomId}/groups/recording?${q}`).set('authorization', `Bearer ${token}`).set('content-type', type).send(bytes === 4000 ? wave() : Buffer.alloc(bytes, 1));
+    request(app).post(`/rooms/${roomId}/groups/recording?${q}`).set('authorization', `Bearer ${token}`).set('cookie', cookies.get(token) ?? '').set('content-type', type).send(bytes === 4000 ? wave() : Buffer.alloc(bytes, 1));
   async function discussingRoom() {
     const r = await setupRoom();
     for (const p of [r.p1, r.p2]) await api(p).post(`/rooms/${r.roomId}/opinion`, { text: '意見' }).expect(200);
@@ -421,7 +426,7 @@ describe('承認と合意の検証', () => {
 
 describe('P1: 非公開情報と状態変更の回帰', () => {
   const postTo = (target: ReturnType<typeof createApp>, token: string, path: string, body: object = {}) =>
-    request(target).post(path).set('authorization', `Bearer ${token}`).send(body);
+    request(target).post(path).set('authorization', `Bearer ${token}`).set('cookie', cookies.get(token) ?? '').send(body);
   const deferred = () => {
     let resolve!: () => void;
     const promise = new Promise<void>((done) => { resolve = done; });
@@ -506,7 +511,7 @@ describe('P1: 非公開情報と状態変更の回帰', () => {
       [p1, 'groups/analyze', {}], [mod, 'consensus/analyze', {}],
     ] as [string, string, object][]) await api(token).post(`/rooms/${roomId}/${suffix}`, body).expect(409);
     await request(app).post(`/rooms/${roomId}/groups/recording?consent=1&durationSec=10`)
-      .set('authorization', `Bearer ${p1}`).set('content-type', 'audio/wav').send(wave(10, 8000)).expect(409);
+      .set('authorization', `Bearer ${p1}`).set('cookie', cookies.get(p1) ?? '').set('content-type', 'audio/wav').send(wave(10, 8000)).expect(409);
     expect((await ref.get()).data()).toEqual(before);
     expect((await db.doc(`rooms/${roomId}/consensusStatements/${uidOf(p1)}`).get()).exists).toBe(false);
   });
@@ -564,7 +569,7 @@ describe('P1: 非公開情報と状態変更の回帰', () => {
     } });
     const recording = suffix === 'groups/recording';
     const pending = recording
-      ? request(target).post(`/rooms/${roomId}/${suffix}?consent=1&durationSec=10`).set('authorization', `Bearer ${p1}`).set('content-type', 'audio/wav').send(wave(10, 8000)).then((r) => r)
+      ? request(target).post(`/rooms/${roomId}/${suffix}?consent=1&durationSec=10`).set('authorization', `Bearer ${p1}`).set('cookie', cookies.get(p1) ?? '').set('content-type', 'audio/wav').send(wave(10, 8000)).then((r) => r)
       : postTo(target, mod, `/rooms/${roomId}/${suffix}`, { group: 1 }).then((r) => r);
     await entered.promise;
     try { await api(mod).post(`/rooms/${roomId}/phase`, { to: 'closed' }).expect(200); }
@@ -605,7 +610,7 @@ describe('認証・入力攻撃・再送の境界', () => {
     const { roomId, mod, p1 } = await setupRoom();
     await api(mod).post(`/rooms/${roomId}/groups/start`, { group: 1 }).expect(200);
     const send = () => request(app).post(`/rooms/${roomId}/groups/recording?consent=1&durationSec=2`)
-      .set('authorization', `Bearer ${p1}`).set('content-type', 'audio/wav').send(wave(2, 8000));
+      .set('authorization', `Bearer ${p1}`).set('cookie', cookies.get(p1) ?? '').set('content-type', 'audio/wav').send(wave(2, 8000));
     const first = await send().expect(200); const second = await send().expect(200);
     expect(second.body).toEqual(first.body);
     expect((await db.doc(`rooms/${roomId}`).get()).get('groupState.1.recording.attempts')).toBe(1);
@@ -614,7 +619,7 @@ describe('認証・入力攻撃・再送の境界', () => {
     const { roomId, mod, p1 } = await setupRoom();
     await api(mod).post(`/rooms/${roomId}/groups/start`, { group: 1 }).expect(200);
     await request(app).post(`/rooms/${roomId}/groups/recording?consent=1&durationSec=2`)
-      .set('authorization', `Bearer ${p1}`).set('content-type', 'audio/webm').send(wave(2)).expect(400);
+      .set('authorization', `Bearer ${p1}`).set('cookie', cookies.get(p1) ?? '').set('content-type', 'audio/webm').send(wave(2)).expect(400);
     expect((await db.doc(`rooms/${roomId}`).get()).get('groupState.1.recording')).toBeUndefined();
     await api(p1).post(`/rooms/${roomId}/opinion`, { text: 'x'.repeat(40_000) }).expect(413);
   });
@@ -622,7 +627,7 @@ describe('認証・入力攻撃・再送の境界', () => {
     const events: unknown[] = [];
     const target = createApp({ db, auth: getAuth(), gemini: mockGemini(), observe: (event) => events.push(event) });
     const token = await anon();
-    const response = await request(target).post('/rooms').set('authorization', `Bearer ${token}`).send({ title: 'PRIVATE-TEXT' }).expect(403);
+    const response = await request(target).post('/rooms').set('authorization', `Bearer ${token}`).set('cookie', cookies.get(token) ?? '').send({ title: 'PRIVATE-TEXT' }).expect(403);
     expect(response.headers['x-request-id']).toMatch(/^[\da-f-]{36}$/);
     expect(events).toHaveLength(1); expect(events[0]).toMatchObject({ route: '/rooms', status: 403, code: 'teacher_required' });
     expect(JSON.stringify(events)).not.toContain(token); expect(JSON.stringify(events)).not.toContain('PRIVATE-TEXT');

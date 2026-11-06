@@ -21,10 +21,11 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   }, [room.data?.title, role, roomId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const back = <Link className="btn btn--blue" href="/join">参加コードを入力する</Link>;
-  if (member.error || room.error) return <ErrorScreen message={member.error ?? room.error ?? ""} action={back} />;
+  if (!room.data && (member.error || room.error)) return <ErrorScreen message={member.error ?? room.error ?? ""} action={back} />;
   if (member.data === null) return <ErrorScreen message="この部屋のメンバーではありません。参加コードを入力して参加してください。" action={back} />;
   if (!room.data || !role) return <Loading />;
-  return role === "moderator"
+  const warning = member.error || room.error;
+  return <>{warning && <p className="notice notice--warn" role="status">{warning}</p>}{role === "moderator"
     ? <HostRoom roomId={roomId} room={room.data} />
-    : <ParticipantRoom roomId={roomId} room={room.data} uid={uid!} group={member.data?.group ?? ((room.data.groups ?? 1) <= 1 ? 1 : undefined)} />;
+    : <ParticipantRoom roomId={roomId} room={room.data} uid={uid!} group={member.data?.group ?? ((room.data.groups ?? 1) <= 1 ? 1 : undefined)} />}</>;
 }

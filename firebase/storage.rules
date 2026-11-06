@@ -1,0 +1,7 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // MVPはStorageも署名URLも使用しない。録音は端末内保存後、認可済みAPIへ直接送る。
+    match /{object=**} { allow read, write: if false; }
+  }
+}

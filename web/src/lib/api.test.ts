@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 const { getIdToken } = vi.hoisted(() => ({ getIdToken: vi.fn(async (refresh: boolean) => refresh ? "fresh-token" : "old-token") }));
+vi.mock("./session", () => ({ authenticatedFetch: async (path: string, init: RequestInit) => {
+  const post = (refresh = false) => getIdToken(refresh).then(token => fetch(`/api${path}`, { ...init, headers: { ...init.headers, authorization: `Bearer ${token}` } }));
+  const r = await post(); if (r.status === 401 && (await r.clone().json()).error.code === "unauthenticated") return post(true); return r;
+} }));
 vi.mock("./firebase", () => ({ ensureSignedIn: async () => ({ getIdToken }) }));
 import { callApi, uploadRecording } from "./api";
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); getIdToken.mockClear(); });

@@ -1,15 +1,27 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { DocumentSnapshot } from 'firebase-admin/firestore';
 import { z } from 'zod';
+import type { DecodedIdToken } from 'firebase-admin/auth';
+import type { Session } from './sessions.js';
 
-export interface Context { uid: string; provider: string; teacher: boolean; role?: 'moderator' | 'participant' }
+export interface Context { uid: string; provider: string; teacher: boolean; role?: 'moderator' | 'participant'; token?: DecodedIdToken; session?: Session }
 export type AuthRequest = Request & { ctx: Context };
 export type Handler = (req: Request, res: Response, next: NextFunction) => void;
 export class HttpError extends Error {
   constructor(readonly status: number, readonly code: string, message: string, readonly extra: object = {}) { super(message); }
 }
 export const wrap = (fn: (req: AuthRequest, res: Response) => Promise<unknown>): Handler =>
-  (req, res, next) => { fn(req as AuthRequest, res).catch(next); };
+  (req, res, next) => {
+    if (!res.locals?.recordActivity) { fn(req as AuthRequest, res).catch(next); return; }
+    // 成功した業務操作だけをサーバー時刻で記録してからJSONを返す。
+    const send = res.json.bind(res);
+    let body: unknown, pending = false;
+    res.json = (value: unknown) => { body = value; pending = true; return res; };
+    fn(req as AuthRequest, res).then(async () => {
+      res.json = send;
+      if (pending) { await res.locals.recordActivity?.(); send(body); }
+    }).catch((error: unknown) => { res.json = send; next(error); });
+  };
 export const run = (fn: (req: AuthRequest, res: Response) => Promise<void>): Handler =>
   (req, res, next) => { fn(req as AuthRequest, res).then(() => { if (!res.headersSent) next(); }).catch(next); };
 export function parse<T>(schema: z.ZodType<T>, body: unknown): T {

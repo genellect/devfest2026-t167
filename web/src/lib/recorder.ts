@@ -1,4 +1,6 @@
 "use client";
+import { firebase } from "./firebase";
+import { registerRecordingGuard, saveChunk, saveRecording, retainUnsavedAudio, releaseUnsavedAudio, type RecoveryRecording } from "./recording-recovery";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
@@ -7,8 +9,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
  */
 export type RecorderState = "idle" | "asking" | "recording" | "paused" | "stopped" | "denied" | "unsupported";
 
-export function useRecorder() {
+export function useRecorder(roomId?: string) {
   const [state, setState] = useState<RecorderState>("idle");
+  const [saveError, setSaveError] = useState<string>();
+  const manifest = useRef<RecoveryRecording | null>(null);
+  const saving = useRef(Promise.resolve());
+  const savedFailure = useRef(false);
+  const stopped = useRef<{ blob: Blob; durationMs: number } | null>(null);
+  const stopping = useRef<Promise<{ blob: Blob; durationMs: number } | null> | null>(null);
+  const stopRef = useRef<() => Promise<unknown>>(() => Promise.resolve());
   const [level, setLevel] = useState(0); // 0〜1 の音量。円形の音の表示に使う
   const [elapsedMs, setElapsedMs] = useState(0);
   const rec = useRef<MediaRecorder | null>(null);
@@ -39,12 +48,31 @@ export function useRecorder() {
     }
     setState("asking");
     try {
+      setSaveError(undefined); savedFailure.current = false; stopped.current = null;
+      const uid = firebase().auth.currentUser?.uid;
+      if (!uid) throw new Error("録音にはログインが必要です");
+      const capacity = await navigator.storage?.estimate?.();
+      if (capacity?.quota && capacity.usage !== undefined && capacity.quota - capacity.usage < 15 * 1024 * 1024) throw new Error("保存容量が不足しています");
       const s = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
       stream.current = s;
       const r = new MediaRecorder(s, { audioBitsPerSecond: 32_000 });
       chunks.current = [];
-      r.ondataavailable = (e) => { if (e.data.size) chunks.current.push(e.data); };
-      r.start(1000);
+      manifest.current = { id: crypto.randomUUID(), uid, roomId, createdAt: Date.now(), mimeType: r.mimeType || "audio/webm", complete: false, chunks: 0 };
+      await saveRecording(manifest.current);
+      saving.current = Promise.resolve();
+      r.ondataavailable = (e) => {
+        if (!e.data.size) return;
+        const sequence = chunks.current.length;
+        chunks.current.push(e.data);
+        const m = { ...manifest.current!, chunks: chunks.current.length };
+        manifest.current = m;
+        saving.current = saving.current.then(async () => { await saveChunk(m.id, sequence, e.data); await saveRecording(m); }).catch(() => {
+          savedFailure.current = true;
+          setSaveError("端末の保存容量を確認してください。録音を停止して、この画面に保持しています。");
+          void stopRef.current();
+        });
+      };
+      r.start(15_000);
       rec.current = r;
       // 音量を測って、円の大きさに反映する
       const ctx = new AudioContext();
@@ -66,9 +94,10 @@ export function useRecorder() {
       setState("recording");
     } catch (e) {
       cleanup();
+      setSaveError(e instanceof Error ? e.message : "録音を開始できません");
       setState((e as DOMException)?.name === "NotAllowedError" ? "denied" : "unsupported");
     }
-  }, [cleanup]);
+  }, [cleanup, roomId]);
 
   const pause = useCallback(() => {
     if (rec.current?.state !== "recording") return;
@@ -88,19 +117,35 @@ export function useRecorder() {
 
   /** 録音を終える。録った音声と、一時停止を除いた長さを返す */
   const stop = useCallback(async (): Promise<{ blob: Blob; durationMs: number } | null> => {
+    if (stopping.current) return stopping.current;
     const r = rec.current;
-    if (!r || r.state === "inactive") return null;
-    const durationMs = clock.current.carried + (r.state === "recording" ? Date.now() - clock.current.startedAt : 0);
-    const done = new Promise<void>((ok) => { r.onstop = () => ok(); });
-    r.stop();
-    await done;
-    cleanup();
-    setLevel(0);
-    setState("stopped");
-    return { blob: new Blob(chunks.current, { type: r.mimeType || "audio/webm" }), durationMs };
+    if (!r || r.state === "inactive") return stopped.current;
+    const task = (async () => {
+      const durationMs = clock.current.carried + (r.state === "recording" ? Date.now() - clock.current.startedAt : 0);
+      const done = new Promise<void>((ok) => { r.onstop = () => ok(); });
+      r.stop(); await done;
+      cleanup(); setLevel(0); setState("stopped");
+      const result = { blob: new Blob(chunks.current, { type: r.mimeType || "audio/webm" }), durationMs };
+      stopped.current = result;
+      if (manifest.current) {
+        const m = { ...manifest.current, complete: true, chunks: chunks.current.length, durationMs };
+        // IndexedDBの失敗時もモジュール内メモリに保持し、再認証後にダウンロードできる。
+        retainUnsavedAudio(m, result.blob);
+        await saving.current;
+        if (!savedFailure.current) {
+          try { await saveRecording(m); releaseUnsavedAudio(m.id); }
+          catch { savedFailure.current = true; setSaveError("端末内の保存に失敗しました。画面を閉じずに音声をダウンロードしてください。"); }
+        }
+      }
+      return result;
+    })();
+    stopping.current = task;
+    try { return await task; } finally { stopping.current = null; }
   }, [cleanup]);
+  stopRef.current = stop;
+  useEffect(() => registerRecordingGuard(async () => { await stop(); }), [stop]);
 
-  return { state, level, elapsedMs, start, pause, resume, stop };
+  return { state, saveError, level, elapsedMs, start, pause, resume, stop };
 }
 
 export const mmss = (ms: number) => {

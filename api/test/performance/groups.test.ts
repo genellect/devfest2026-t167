@@ -20,6 +20,11 @@ it('30人・6グループが同時に事前意見を提出しても欠落や5xx�
   const app = createApp({ db, auth: getAuth(), gemini: mockGemini() });
   const students = [];
   for (let i = 0; i < 30; i++) students.push(await emulatorGoogleUser('student', `load-${randomUUID()}`));
+  const cookies = new Map<string, string>();
+  for (const student of students) {
+    const login = await request(app).post('/sessions').set('authorization', `Bearer ${student.idToken}`).send({ deviceLabel: 'load-test', deviceType: 'pc' }).expect(201);
+    cookies.set(student.idToken, login.headers['set-cookie'][0].split(';')[0]);
+  }
   const timings: number[] = [];
   for (let round = 0; round < 3; round++) {
     const room = db.collection('rooms').doc();
@@ -29,7 +34,7 @@ it('30人・6グループが同時に事前意見を提出しても欠落や5xx�
     await batch.commit();
     const responses = await Promise.all(students.map(async (student, index) => {
       const started = performance.now();
-      const response = await request(app).post(`/rooms/${room.id}/opinion`).set('authorization', `Bearer ${student.idToken}`).send({ text: `架空の意見${index}` });
+      const response = await request(app).post(`/rooms/${room.id}/opinion`).set('authorization', `Bearer ${student.idToken}`).set('cookie', cookies.get(student.idToken)!).send({ text: `架空の意見${index}` });
       timings.push(performance.now() - started); return response;
     }));
     expect(responses.map((r) => r.status)).toEqual(Array(30).fill(200));

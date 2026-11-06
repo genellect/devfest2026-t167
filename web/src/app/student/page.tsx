@@ -18,6 +18,7 @@ export default function StudentHome() {
 
   return (
     <main className="screen screen--tabs">
+      <Link href="/sessions" className="btn btn--small" style={{ margin: 12 }}>端末とセッション</Link>
       <Header title="あなたのホーム" nav={<TabBar role="student" />}>
         {account && teacher && <button className="btn btn--small" onClick={() => { setRole(account.uid, "host"); router.push("/host"); }}>先生として使う</button>}
         {account

@@ -19,7 +19,7 @@ export type ServerRecordingStatus = "analyzing" | "done" | "failed" | undefined;
  * - 録音中にページを離れようとしたら、ブラウザに確かめさせる
  */
 export function useGroupRecording(roomId: string, discussing: boolean, serverStatus: ServerRecordingStatus) {
-  const rec = useRecorder();
+  const rec = useRecorder(roomId);
   const { stop, state, elapsedMs } = rec;
   const [upload, setUpload] = useState<{ state: UploadState; message?: string }>({ state: "none" });
   const pending = useRef<{ blob: Blob; durationMs: number } | null>(null);
@@ -60,7 +60,7 @@ export function useGroupRecording(roomId: string, discussing: boolean, serverSta
   }, [stop, retry]);
 
   const active = state === "recording" || state === "paused";
-  useEffect(() => { if (!discussing && active) void finish(); }, [discussing, active, finish]);
+  useEffect(() => { if (!discussing && (active || (state === "stopped" && upload.state === "none"))) void finish(); }, [discussing, active, state, upload.state, finish]);
   useEffect(() => { if (state === "recording" && elapsedMs >= MAX_RECORDING_MS) void finish(); }, [state, elapsedMs, finish]);
   // 録音中・未送信の録音があるときにページを離れると、録音が消える
   const unsaved = active || upload.state === "uploading" || upload.state === "failed" || upload.state === "waiting";

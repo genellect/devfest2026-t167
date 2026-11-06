@@ -1,10 +1,13 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
 import { loginStudent } from "./student";
 
 // 司会者が部屋を作り、参加者がスマホで参加コードを入れて参加し、非公開の意見を出せるところまで
 import { emulatorGoogleUser } from "../../firebase/emulator-auth.mjs";
-async function moderatorToken(): Promise<string> {
-  return (await emulatorGoogleUser("teacher", `e2e-${Date.now()}`)).idToken;
+async function moderatorToken(request: APIRequestContext): Promise<string> {
+  const token = (await emulatorGoogleUser("teacher", `e2e-${Date.now()}`)).idToken;
+  const login = await request.post("/api/sessions", { headers: { authorization: `Bearer ${token}` }, data: { deviceLabel: "架空の先生の端末", deviceType: "pc" } });
+  expect(login.status()).toBe(201); // APIRequestContextのCookie jarに保存し、部屋作成も同じセッションを使う。
+  return token;
 }
 
 test("/api は Cloud Run 役の API に転送される", async ({ request }) => {
@@ -17,7 +20,7 @@ test("/api は Cloud Run 役の API に転送される", async ({ request }) => 
 
 test("参加コードで参加し、非公開の意見を出すと、グループがそろって議論が始まる", async ({ page, request }) => {
   const created = await request.post("/api/rooms", {
-    headers: { authorization: `Bearer ${await moderatorToken()}` },
+    headers: { authorization: `Bearer ${await moderatorToken(request)}` },
     data: { title: "大学における生成AI利用の是非" },
   });
   expect(created.status()).toBe(201);
@@ -38,7 +41,7 @@ test("参加コードで参加し、非公開の意見を出すと、グルー�
 
 test("全員の同意を確かめて録音し、議論を終えると録音が分析され、結果に議論の流れが出る", async ({ page, request }) => {
   const created = await request.post("/api/rooms", {
-    headers: { authorization: `Bearer ${await moderatorToken()}` },
+    headers: { authorization: `Bearer ${await moderatorToken(request)}` },
     data: { title: "部活動の時間を短くするべきか" },
   });
   const { joinCode } = await created.json();

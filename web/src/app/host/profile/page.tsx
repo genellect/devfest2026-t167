@@ -16,7 +16,8 @@ export default function ProfilePage() {
   if (user === undefined) return <Loading />;
   if (user === null) {
     return (
-      <main className="screen"><div className="body body--center">
+      <main className="screen">
+      <Link href="/sessions" className="btn btn--small" style={{ margin: 12 }}>端末とセッション</Link><div className="body body--center">
         <div className="box box--lg card card--narrow"><p className="t-label">設定を変えるには、先生としてログインしてください。</p>
           <Link className="btn btn--yellow" href="/">ログインする</Link></div>
       </div></main>

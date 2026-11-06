@@ -3,7 +3,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Loading } from "@/components/ui";
-import { canUseTestHost, signInAsHost, signInAsTestHost, signInAsTestStudent, useHostUser } from "@/lib/hostAuth";
+import { canUseTestHost, signInAsHost, signInAsTestHost, signInAsTestStudent, useHostUser, type LoginOptions } from "@/lib/hostAuth";
+import { logoutMessage, useAppSession } from "@/lib/session";
 import { getRole, homeOf } from "@/lib/local";
 
 /**
@@ -13,6 +14,9 @@ import { getRole, homeOf } from "@/lib/local";
 export default function Login() {
   const router = useRouter();
   const user = useHostUser();
+  const session = useAppSession();
+  const [shared, setShared] = useState(false);
+  const [end, setEnd] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -22,9 +26,13 @@ export default function Login() {
     router.replace(role ? homeOf(role) : "/signup");
   }, [user, router]);
 
-  async function login(how: () => Promise<void>) {
+  async function login(how: (options: LoginOptions) => Promise<void>) {
     setBusy(true); setError("");
-    try { await how(); } catch (e) { setError(`ログインできませんでした：${(e as Error).message}`); setBusy(false); }
+    try {
+      const classEndsAt = shared ? new Date(end).getTime() : null;
+      if (shared && (!classEndsAt || classEndsAt <= Date.now())) throw new Error("授業終了時刻を指定してください");
+      await how({ isSharedDevice: shared, classEndsAt });
+    } catch (e) { setError(`ログインできませんでした：${(e as Error).message}`); setBusy(false); }
   }
 
   if (user === undefined || user) return <Loading />;
@@ -36,6 +44,10 @@ export default function Login() {
       </section>
       <section className="login__panel">
         <h2 className="t-md">ログイン</h2>
+        {session.reason && <p className="notice" role="status">{logoutMessage(session.reason, session.policy?.idleDays)}</p>}
+        {session.message && <p role="alert">{session.message}</p>}
+        <label className="t-note"><input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} /> 学校の共用端末で利用する</label>
+        {shared && <label className="field">授業終了時刻<input aria-label="授業終了時刻" type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} required /></label>}
         <p className="t-note">はじめての方も、ここからはじめられます。</p>
         <button className="btn btn--yellow btn--block" onClick={() => login(signInAsHost)} disabled={busy}>{busy ? "ログインしています…" : "Googleでログイン"}</button>
         {canUseTestHost && (

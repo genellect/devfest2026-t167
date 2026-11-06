@@ -42,3 +42,9 @@ inspectは読み取りだけ。grantは有効なGoogle連携ユーザーだけ�
 7. 確認したPR・コミット、PC/スマホでの結果、未確認事項をPRコメントへ記録する。エミュレータや表示シミュレーションの結果を実API・実機の成功と報告しない。
 
 今回の実装作業では上の管理者コマンド、IAM変更、実AI呼び出し、マージ、デプロイは実行していない。Docker/Cloud Runでのコンテナ実行と実サービスの正の検証も、承諾後に行う。
+
+## セッション管理版の反映前確認
+
+この版ではFirestore直接購読をAPI配信へ移すため、通常の旧画面だけのPRプレビューでは動かない。独自セッションAPI/Rules/Webをそろえたローカルエミュレータで確認する。既存の自動プレビューは画面だけが更新される。API未反映中のプレビューはログイン・セッション機能の成功確認として扱わず、同一SHAでのAPI/Rules/Web反映をリリース条件とする。
+
+承認後、メンテナンス時間に利用を停止し、同一SHAのAPI/Rules/Webを反映する。Storageバケットが存在する場合は`firebase.json`のstorage.rulesを承認された管理者が`npm --prefix firebase run fb -- deploy --only storage --project <対象プロジェクト>`で適用する。バケット公開IAMと既存署名URLも確認する。TTLのplanは`bash infra/setup-session-security.sh --plan`、適用は承認後の`--apply`。監査閲覧IAMは運用担当に限定する。学校管理者は信頼された管理側がschoolAdmin/schoolIdを設定する。詳細は[認証とセッション](auth-sessions.md)。

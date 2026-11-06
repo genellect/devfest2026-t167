@@ -4,6 +4,8 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import { HttpError, wrap, run, parse, requireOpenRoom, requireModerator } from './http.js';
 import { participantGroup } from './membership.js';
+import { registerLiveRoutes } from './live-routes.js';
+import { sessionGuards, registerSessionRoutes } from './session-routes.js';
 import { createLimiter } from './limits.js';
 import { PHASES, MAX_GROUPS, statusOf, canSubmitStatement, statementLocked } from './policy.js';
 import { createGroupService } from './groups.js';
@@ -14,7 +16,7 @@ export { PHASES, ANALYZE_COOLDOWN_MS, MAX_GROUPS, MAX_RECORDING_SEC, MAX_RECORDI
 export type { OperationEvent } from './dependencies.js';
 
 export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number }) {
-  const { db, auth, gemini } = deps;
+  const { db, gemini } = deps;
   const now = deps.now ?? Date.now;
   const runtime = { ...deps, now };
   const { refreshGroup, analyzeGroup } = createGroupService(runtime);
@@ -38,19 +40,12 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(value)) { next(new HttpError(400, 'bad_request', '識別子を確認してください')); return; }
     next();
   });
-  // 認証：ID トークンを検証する（/health 以外）
-  const authenticate = run(async (req) => {
-    const token = req.header('authorization')?.match(/^Bearer (.+)$/)?.[1];
-    if (!token) throw new HttpError(401, 'unauthenticated', 'ログインが必要です');
-    try {
-      const decoded = await auth.verifyIdToken(token, true);
-      req.ctx = { uid: decoded.uid, provider: decoded.firebase?.sign_in_provider ?? 'unknown', teacher: decoded.teacher === true };
-    } catch {
-      throw new HttpError(401, 'unauthenticated', 'ID トークンが無効です');
-    }
-    if (req.ctx.provider !== 'google.com') throw new HttpError(403, 'google_login_required', 'Googleでログインしてください');
+  const guards = sessionGuards(runtime);
+  const authenticate = run(async (req, res) => {
+    await new Promise<void>((resolve, reject) => guards.authenticate(req, res, (e?: unknown) => e ? reject(e) : resolve()));
     if (req.params.roomId) await limit(req.ctx.uid, 'submit', 120);
   });
+  registerSessionRoutes(app, runtime, guards, limit);
   const chain = (...fns: ((req: Request, res: Response, next: NextFunction) => void)[]) => fns;
   // 所属確認：パスの roomId のメンバーか
   const member = run(async (req) => {
@@ -62,6 +57,7 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
   const moderator = run(async (req) => {
     requireModerator(req.ctx);
   });
+  registerLiveRoutes(app, runtime, guards, member);
   const roomRef = (id: string) => db.doc(`rooms/${id}`);
   // 稼働確認。Cloud Run は z で終わるパス（/healthz など）を予約していてコンテナに届かないので、/health を使う。
   // /healthz は手元と古い手順のために残す

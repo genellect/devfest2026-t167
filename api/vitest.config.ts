@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
+    fileParallelism: false, // 結合テストが同じ専用エミュレータを初期化するためファイル間は直列。競合検証は各テスト内で並列実行する。
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],

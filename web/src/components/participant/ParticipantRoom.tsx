@@ -7,6 +7,7 @@ import { callApi } from "@/lib/api";
 import { formatMetric } from "@/lib/format";
 import { getNextGoal, getReflection, saveReflection } from "@/lib/local";
 import { mmss } from "@/lib/recorder";
+import { useAppSession } from "@/lib/session";
 import { MAX_RECORDING_MS, useGroupRecording } from "@/lib/recording";
 import { groupStatus, useDoc, useInsights, useMembers, type GroupResult, type GroupStatus, type Room } from "@/lib/room";
 
@@ -46,6 +47,7 @@ export function ParticipantRoom({ roomId, room, uid, group }: Props) {
         <OpinionStep roomId={roomId} uid={uid} total={gs?.total} opinions={gs?.opinions} canChange={(room.groups ?? 1) > 1} onChangeGroup={() => setChoosing(true)} />
       )}
       {discussing && <VoiceStep roomId={roomId} recording={room.recording === false ? null : recording} />}
+      {recording.rec.saveError && <p className="notice notice--error" role="alert">{recording.rec.saveError}</p>}
       <RecordingStatus upload={recording.upload} onRetry={recording.retry} />
       {writing && group && <ConsensusStep roomId={roomId} uid={uid} title={room.title} submitted={gs?.submitted} total={gs?.total} />}
       {showResult && group && <ResultStep roomId={roomId} uid={uid} group={group} source={source} title={room.title} result={result ?? null} />}
@@ -190,6 +192,7 @@ function RecordingStatus({ upload, onRetry }: { upload: ReturnType<typeof useGro
 function VoiceStep({ roomId, recording }: { roomId: string; recording: ReturnType<typeof useGroupRecording> | null }) {
   const insights = useInsights(roomId, true, true);
   const rec = recording?.rec;
+  const lockMinutes = useAppSession().policy?.sharedIdleMinutes ?? 15;
   const [consent, setConsent] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [ending, setEnding] = useState(false);
@@ -235,7 +238,7 @@ function VoiceStep({ roomId, recording }: { roomId: string; recording: ReturnTyp
             <span>グループ全員が、録音することに同意しました</span>
           </label>
         )}
-        {rec && <p className="t-small">録音はグループで1台だけ。議論を終えると、録音を Gemini に送って議論の流れを分析します。音声は分析のあと保存せず、だれが話したかも記録しません。録音中に画面を閉じたり、ほかのアプリに切り替えたりすると、録音が止まることがあります。</p>}
+        {rec && <p className="t-small">録音はグループで1台だけ。議論を終えると、録音を Gemini に送って議論の流れを分析します。音声はサーバーには保存しません。このブラウザには保管するので、「端末とセッション」で確認して削除してください。だれが話したかは記録しません。共用端末は{lockMinutes}分無操作で録音を停止・保存し、画面をロックします。録音中に画面を閉じたり、ほかのアプリに切り替えたりすると、録音が止まることがあります。</p>}
       </section>
       <aside className="stack" style={{ flex: "1 1 360px", maxWidth: "100%" }}>
         <section className="box box--md box--yellow pad stack">
