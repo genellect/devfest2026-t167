@@ -25,20 +25,15 @@ export function SessionSettings({ roomId, room }: { roomId: string; room: Room }
   }
   return <details className="box mvp-settings"><summary>セッション設定・グループ管理</summary>
     <div className="stack">
-      <form className="stack" key={`${room.title}-${room.theme}-${room.minutes}`} onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); void act("settings", { title: f.get("title"), theme: f.get("theme"), minutes: Number(f.get("minutes")), groupSelection: f.get("selection") }); }}>
-        <label className="field">セッション名<input name="title" defaultValue={room.title} maxLength={100} required disabled={room.phase === "closed"} /></label>
+      <form className="stack" key={`${room.title}-${room.theme}`} onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); const theme = String(f.get("theme") ?? "").trim(); void act("settings", { title: (theme || room.title).slice(0, 100), theme }); }}>
         <label className="field">テーマ<input name="theme" defaultValue={room.theme ?? ""} maxLength={1000} disabled={room.phase === "closed"} /></label>
-        <label className="field">制限時間（分）<input name="minutes" type="number" min={1} max={180} defaultValue={room.minutes ?? 15} disabled={room.phase === "closed"} /></label>
-        <label className="field">所属方法<select name="selection" defaultValue={room.groupSelection ?? "participant"} disabled={room.phase === "closed"}><option value="participant">参加者が選択</option><option value="host">Hostが割り当て</option></select></label>
-        <button className="btn" disabled={busy || room.phase === "closed"}>セッション設定を保存</button>
+        <button className="btn" disabled={busy || room.phase === "closed"}>テーマを保存</button>
       </form>
       <label><input type="checkbox" checked={published} disabled={busy} onChange={(e) => { setPublished(e.target.checked); void act("settings", { resultsPublished: e.target.checked }); }} />所属グループの分析結果を参加者に公開する</label>
       {room.phase === "collecting" && <>
-        <button className="btn" disabled={busy || (room.groups ?? 1) >= 12} onClick={() => void act("groups/create", { name: `グループ${(room.groups ?? 1) + 1}` })}>グループを追加</button>
-        <button className="btn" disabled={busy || (room.groups ?? 1) <= 1} onClick={() => void act("groups/delete", { group: room.groups })}>最後の空グループを削除</button>
         <button className="btn btn--blue" disabled={busy} onClick={() => void start()}>セッションを開始</button>
-        {notReady && <div className="notice notice--warn stack" role="alert"><p>{notReady}。外したGuestは、このセッションに参加できなくなります。</p>
-          <button className="btn btn--blue" disabled={busy} onClick={() => void start(true)}>未準備のGuestを外して開始</button></div>}
+        {notReady && <div className="notice notice--warn stack" role="alert"><p>{notReady}。外した参加者は、このセッションに参加できなくなります。</p>
+          <button className="btn btn--blue" disabled={busy} onClick={() => void start(true)}>未準備の参加者を外して開始</button></div>}
       </>}
       <label><input type="checkbox" checked={room.publishOnEnd ?? true} onChange={(e) => void act("settings", { publishOnEnd: e.target.checked })} />終了時に所属グループの結果を自動公開する</label>
       {(["theme", "timer", "members", "speaking"] as const).map((key, i) => <label key={key}><input type="checkbox" disabled={busy} checked={view[key] ?? (key !== "speaking")} onChange={(e) => void changeView(key, e.target.checked)} />Guestに{["テーマ", "残り時間", "所属グループの参加者", "所属グループの発言時間の推定"][i]}を表示</label>)}

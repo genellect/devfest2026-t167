@@ -35,16 +35,17 @@ export function registerSpeakerRoutes(app: Express, deps: Dependencies, guards: 
     const members = await tx.get(root(req).collection('members').where('group', '==', group));
     const voices: VoiceProfile[] = [];
     for (const m of members.docs.filter((m) => m.get('role') === 'participant' && m.get('status') === 'active')) {
-      const attendees = m.get('attendees') as { id: string; displayName: string; voiceRegistered: boolean }[] | undefined;
-      if (!m.get('ready') || !attendees?.length) throw error('voice_required', '全員の音声登録を確認してください');
-      for (const a of attendees) {
+      // 音声登録は任意。登録した人だけを照合し、登録していない人は推定に出さない
+      const attendees = (m.get('attendees') as { id: string; displayName: string; voiceRegistered: boolean }[] | undefined) ?? [];
+      for (const a of attendees.filter((x) => x.voiceRegistered)) {
         const p = await tx.get(db.doc(m.get('deviceMode') === 'shared' ? `sessions/${req.params.roomId}/voiceProfiles/${m.id}-${a.id}` : `users/${m.id}/voiceProfiles/default`));
         const embedding = p.get('embedding') as number[] | undefined;
-        if (!a.voiceRegistered || p.get('version') !== deps.voice!.version || !embedding?.length || embedding.some((n) => !Number.isFinite(n)) || Math.hypot(...embedding) === 0) throw error('voice_required', '登録情報が変更されました。音声を登録し直してください');
+        if (p.get('version') !== deps.voice!.version || !embedding?.length || embedding.some((n) => !Number.isFinite(n)) || Math.hypot(...embedding) === 0) continue;
         voices.push({ uid: a.id, label: a.displayName, embedding });
       }
     }
-    if (!voices.length || voices.length > 40) throw error('roster_invalid', 'グループの参加者を確認してください');
+    if (!voices.length) throw error('voice_required', '声を登録した参加者がいないため、発言者の推定は使えません');
+    if (voices.length > 40) throw error('roster_invalid', 'グループの参加者を確認してください');
     return voices;
   }
   const fingerprint = (voices: VoiceProfile[]) => createHash('sha256').update(JSON.stringify(voices)).digest('hex');

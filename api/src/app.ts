@@ -11,7 +11,7 @@ import { registerOnboardingRoutes } from './onboarding-routes.js';
 import { registerLiveRoutes } from './live-routes.js';
 import { sessionGuards, registerSessionRoutes } from './session-routes.js';
 import { createLimiter } from './limits.js';
-import { PHASES, MAX_GROUPS, statusOf, canSubmitStatement, statementLocked } from './policy.js';
+import { PHASES, MAX_GROUPS, GROUP_CAPACITY, SESSION_TTL_MS, statusOf, canSubmitStatement, statementLocked } from './policy.js';
 import { registerDiscussionRoutes } from './discussion-routes.js';
 import { createGroupService } from './groups.js';
 import { registerRecordingRoutes } from './recording-routes.js';
@@ -76,8 +76,8 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
   app.post('/rooms', ...chain(authenticate, wrap(async (req, res) => {
     await limit(req.ctx.uid, 'create', 10, 60 * 60_000);
     // recording：グループの議論を録音して分析するか（録音の権限は先生が持つ。既定は録音する）
-    const { title, theme, minutes, groups, recording, groupSelection, flowVersion, publishOnEnd, participantView } = parse(z.object({
-      flowVersion: z.literal(1).optional(), publishOnEnd: z.boolean().default(true), participantView: z.object({ theme: z.boolean().default(true), timer: z.boolean().default(true), members: z.boolean().default(true), speaking: z.boolean().optional() }).default({ theme: true, timer: true, members: true }), title: z.string().trim().min(1).max(100), theme: z.string().trim().max(1000).default(''), minutes: z.number().int().min(1).max(180).default(15), groupSelection: z.enum(['participant', 'host']).default('participant'), groups: z.number().int().min(1).max(MAX_GROUPS).default(1), recording: z.boolean().default(true),
+    const { title, theme, className, minutes, groups, recording, groupSelection, flowVersion, publishOnEnd, participantView } = parse(z.object({
+      flowVersion: z.literal(1).optional(), publishOnEnd: z.boolean().default(true), participantView: z.object({ theme: z.boolean().default(true), timer: z.boolean().default(true), members: z.boolean().default(true), speaking: z.boolean().optional() }).default({ theme: true, timer: true, members: true }), title: z.string().trim().min(1).max(100), theme: z.string().trim().max(1000).default(''), minutes: z.number().int().min(1).max(180).optional(), className: z.string().trim().max(40).optional(), groupSelection: z.enum(['participant', 'host']).default('participant'), groups: z.number().int().min(1).max(MAX_GROUPS).default(1), recording: z.boolean().default(true),
     }), req.body);
     const roomId = db.collection('sessions').doc().id;
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -87,7 +87,7 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
         const codeRef = db.doc(`joinCodes/${joinCode}`);
         if ((await tx.get(codeRef)).exists) return false;
         tx.set(codeRef, { roomId });
-        tx.set(roomRef(roomId), { schemaVersion: 3, ...(flowVersion ? { flowVersion } : {}), publishOnEnd, participantView, title, theme, minutes, groupSelection, resultsPublished: false, groups, recording, phase: 'collecting', joinCode, createdBy: req.ctx.uid, createdAt: FieldValue.serverTimestamp(), analysis: { status: 'idle' } });
+        tx.set(roomRef(roomId), { schemaVersion: 3, ...(flowVersion ? { flowVersion } : {}), publishOnEnd, participantView, title, theme, ...(minutes ? { minutes } : {}), ...(className ? { className } : {}), expiresAt: Timestamp.fromMillis(now() + SESSION_TTL_MS), groupSelection, resultsPublished: false, groups, recording, phase: 'collecting', joinCode, createdBy: req.ctx.uid, createdAt: FieldValue.serverTimestamp(), analysis: { status: 'idle' } });
         tx.set(db.doc(`sessions/${roomId}/members/${req.ctx.uid}`), { uid: req.ctx.uid, role: 'host', groupId: null, status: 'active', joinedAt: FieldValue.serverTimestamp() });
         tx.set(db.doc(`users/${req.ctx.uid}/discussions/${roomId}`), { sessionId: roomId });
         tx.set(db.doc(`users/${req.ctx.uid}`), { uid: req.ctx.uid, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
@@ -107,7 +107,7 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
     const codeSnap = await db.doc(`joinCodes/${code}`).get();
     if (!codeSnap.exists) throw new HttpError(404, 'join_code_not_found', '参加コードが見つかりません。数字を確かめてください');
     const roomId = codeSnap.get('roomId') as string;
-    const joinedSingleGroup = await db.runTransaction(async (tx) => {
+    const joinedGroup = await db.runTransaction(async (tx) => {
       const room = await tx.get(roomRef(roomId));
       if (!room.exists) throw new HttpError(404, 'room_not_found', '部屋がありません');
       const mRef = db.doc(`sessions/${roomId}/members/${req.ctx.uid}`);
@@ -115,18 +115,35 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
       // 参加済みの人は、開始・終了のあとでも同じコードやQRで部屋に戻れる。締め切るのは新しい参加だけ
       if (existing.exists) {
         if (existing.get('status') === 'inactive') throw new HttpError(403, 'not_member', 'このセッションには参加できません');
-        return false;
+        return 0;
       }
       requireOpenRoom(room); requireDiscussionActive(room);
       if (room.get('flowVersion') === 1 && room.get('phase') !== 'collecting') throw new HttpError(409, 'already_started', '開始済みのセッションには新規参加できません');
+      if (room.get('flowVersion') === 1 && room.get('groupSelection') !== 'host') {
+        // グループはサーバーが決める。1グループ GROUP_CAPACITY 人までで、超えたら次のグループを作る
+        const groups = room.get('groups') ?? 1;
+        const peers = await tx.get(room.ref.collection('members').where('role', '==', 'participant'));
+        tx.set(db.doc(`users/${req.ctx.uid}/discussions/${roomId}`), { sessionId: roomId });
+        const counts = new Map<number, number>();
+        for (const m of peers.docs) if (m.get('status') !== 'inactive' && Number.isInteger(m.get('group'))) counts.set(m.get('group'), (counts.get(m.get('group')) ?? 0) + 1);
+        let group = Array.from({ length: groups }, (_, i) => i + 1).find((g) => (counts.get(g) ?? 0) < GROUP_CAPACITY) ?? 0;
+        if (!group) {
+          if (groups >= MAX_GROUPS) throw new HttpError(409, 'session_full', 'このセッションは満員です');
+          group = groups + 1;
+          tx.update(room.ref, { groups: group });
+          tx.set(room.ref.collection('groups').doc(String(group)), { groupId: String(group), name: `グループ${group}`, number: group });
+        }
+        tx.set(mRef, { uid: req.ctx.uid, role: 'participant', groupId: String(group), group, status: 'active', joinedAt: FieldValue.serverTimestamp() });
+        return group;
+      }
       const singleGroup = (room.get('groups') ?? 1) <= 1 && room.get('groupSelection') !== 'host';
       if (singleGroup && statusOf(room, 1) !== 'opinions') throw new HttpError(409, 'group_started', 'このグループはもう議論を始めています');
       // グループが1つなら自動でグループ1。複数なら、参加のあとに生徒が自分で選ぶ（groups/choose）
       tx.set(db.doc(`users/${req.ctx.uid}/discussions/${roomId}`), { sessionId: roomId });
       tx.set(mRef, { uid: req.ctx.uid, role: 'participant', groupId: singleGroup ? '1' : null, status: 'active', ...(singleGroup ? { group: 1 } : {}), joinedAt: FieldValue.serverTimestamp() });
-      return singleGroup;
+      return singleGroup ? 1 : 0;
     });
-    if (joinedSingleGroup) await refreshGroup(roomId, 1);
+    if (joinedGroup) await refreshGroup(roomId, joinedGroup);
     res.json({ roomId });
   })));
 
@@ -140,12 +157,13 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
       if (PHASES.indexOf(to) !== cur + 1) throw new HttpError(409, 'wrong_phase', `${room.get('phase')} から ${to} には進めません`);
       if (room.get('flowVersion') === 1 && to === 'discussing') {
         const guests = await tx.get(room.ref.collection('members').where('role', '==', 'participant'));
-        const notReady = guests.docs.filter((m) => m.get('status') !== 'inactive' && (!m.get('ready') || !m.get('groupId')));
+        // 音声登録は任意（話者の推定に出ないだけ）。開始に要るのは、表示名の登録と所属
+        const notReady = guests.docs.filter((m) => m.get('status') !== 'inactive' && (!(m.get('attendees') as unknown[] | undefined)?.length || !m.get('groupId')));
         // 1人の登録失敗や離脱でセッション全体が始められなくならないよう、Hostが確認したうえで未準備のGuestを外して始められる
-        if (notReady.length && !excludeNotReady) throw new HttpError(409, 'guests_not_ready', `音声登録または所属が済んでいないGuestが${notReady.length}人います`, { notReady: notReady.length });
+        if (notReady.length && !excludeNotReady) throw new HttpError(409, 'guests_not_ready', `表示名の登録が済んでいない参加者が${notReady.length}人います`, { notReady: notReady.length });
         for (const m of notReady) tx.update(m.ref, { status: 'inactive', excludedAt: FieldValue.serverTimestamp() });
       }
-      tx.update(roomRef(req.params.roomId), { phase: to, ...(to === 'discussing' ? { startedAt: Timestamp.fromMillis(now()), endsAt: Timestamp.fromMillis(now() + (room.get('minutes') ?? 15) * 60_000) } : {}), [`phaseChangedAt.${to}`]: FieldValue.serverTimestamp() });
+      tx.update(roomRef(req.params.roomId), { phase: to, ...(to === 'discussing' ? { startedAt: Timestamp.fromMillis(now()), ...(room.get('minutes') ? { endsAt: Timestamp.fromMillis(now() + room.get('minutes') * 60_000) } : {}) } : {}), [`phaseChangedAt.${to}`]: FieldValue.serverTimestamp() });
     });
     if (to === 'discussing') {
       const room = await roomRef(req.params.roomId).get();

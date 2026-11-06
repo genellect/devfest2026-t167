@@ -5,14 +5,14 @@ test("共通ホームからホストを選択し、管理画面で設定して�
   await loginStudent(page);
   await page.locator(".mvp-actions").getByRole("link", { name: "参加する" }).click();
   await page.getByRole("link", { name: "ホスト", exact: true }).click();
-  await page.getByLabel("セッション名", { exact: true }).fill("MVPの進行確認");
   await page.getByLabel("テーマ", { exact: true }).fill("チームで何を作るか");
-  await page.getByRole("button", { name: "1", exact: true }).click();
-  await page.getByRole("button", { name: "部屋を作る", exact: true }).click();
+  await page.getByRole("button", { name: "作成する", exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);
   await page.getByText("セッション設定・グループ管理", { exact: true }).click();
   await page.getByRole("button", { name: "セッションを開始", exact: true }).click();
-  await expect(page.getByRole("timer")).toBeVisible();
+  // 時間は設定しない。教員が終えるまで議論が続く
+  await expect(page.getByRole("button", { name: "セッションを終える", exact: true })).toBeVisible();
+  await expect(page.getByRole("timer")).toHaveCount(0);
   await page.getByRole("button", { name: "セッションを終える", exact: true }).click();
   await page.getByRole("button", { name: "終えて結果を見る", exact: true }).click();
   await expect(page.getByRole("heading", { name: "セッション全体の結果", exact: true })).toBeVisible();

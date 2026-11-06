@@ -10,13 +10,11 @@ test("Classroom未連携・教師claimなしでHostを作成し、別セッシ�
   await expect(page.getByText("あなたは、生徒ですか？先生ですか？")).toHaveCount(0);
   await page.locator(".mvp-actions").getByRole("link", { name: "参加する", exact: true }).click();
   await page.getByRole("link", { name: "ホスト", exact: true }).click();
-  await page.getByLabel("セッション名", { exact: true }).fill("Hostとして作ったセッション");
   await page.getByLabel("テーマ", { exact: true }).fill("架空の議論テーマ");
-  await page.getByRole("button", { name: "2", exact: true }).click();
-  await page.getByRole("button", { name: "部屋を作る", exact: true }).click();
+  await page.getByRole("button", { name: "作成する", exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);
   const ownRoom = page.url();
-  await expect(page.getByRole("heading", { name: "Hostとして作ったセッション" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "架空の議論テーマ" })).toBeVisible();
   await expect(page.getByText("セッション設定・グループ管理", { exact: true })).toBeVisible();
   await expect(page.getByText("グループ1", { exact: true })).toBeVisible();
   await page.getByText("セッション設定・グループ管理", { exact: true }).click();
@@ -45,7 +43,7 @@ test("Classroom未連携・教師claimなしでHostを作成し、別セッシ�
     await expect(page.getByLabel("あなたの意見")).toBeVisible();
     await page.goto("/home");
     const cards = page.locator(".mvp-session-link");
-    await expect(cards.filter({ hasText: "Hostとして作ったセッション" })).toContainText("Host");
+    await expect(cards.filter({ hasText: "架空の議論テーマ" })).toContainText("Host");
     await expect(cards.filter({ hasText: "Participantとして参加するセッション" })).toContainText("Participant");
     await page.screenshot({ path: "../docs/screenshots/mvp-home-mobile.png", fullPage: true });
     await page.goto(ownRoom);

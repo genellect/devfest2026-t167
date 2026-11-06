@@ -17,6 +17,10 @@ export interface Room {
   }>;
   phaseChangedAt?: Partial<Record<Phase, Timestamp>>;
   analysis?: { status: "idle" | "running" | "done" | "failed"; startedAt?: Timestamp; error?: string };
+  /** 部屋全体の合意の分析（POST /rooms/{部屋}/consensus/analyze が書く） */
+  consensusAnalysis?: { status?: "running" | "done" | "failed" };
+  /** 任意のクラス名と、セッションが閉じる時刻（作成から3時間） */
+  className?: string; expiresAt?: Timestamp;
 }
 export interface Message { id: string; uid: string; text: string; createdAt?: Timestamp }
 export interface Insight { id: string; summary: string; status: "pending" | "approved"; source?: string; approvedAt?: Timestamp }

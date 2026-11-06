@@ -20,7 +20,7 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     await expect(page.getByRole("heading", { name: "初回の音声登録" })).toBeVisible();
     await page.getByLabel("声の特徴の登録と、上記の利用方法に同意します").check();
     await page.getByRole("button", { name: "声を登録する", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "待機画面" })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("heading", { name: "議論の前に書く" })).toBeVisible({ timeout: 20_000 });
     expect((await host.post(`/api/rooms/${r.roomId}/phase`, { headers, data: { to: "discussing" } })).status()).toBe(200);
     await expect(page.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
     await expect(page.getByText("テーマ：秘密のテーマ")).toBeVisible();
@@ -33,13 +33,13 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     await expect(page.getByText("テーマ：秘密のテーマ")).toHaveCount(0);
     await expect(page.getByRole("timer")).toHaveCount(0);
     expect((await host.post(`/api/rooms/${r.roomId}/finish`, { headers, data: {} })).status()).toBe(200);
-    await expect(page.getByRole("heading", { name: "ディスカッションの結果" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "結論を自分の言葉で書く" })).toBeVisible();
     await page.getByRole("link", { name: "ホームに戻る" }).click();
     const next = await create(); await page.goto(`/join?code=${next.joinCode}`);
     await expect(page).toHaveURL(/\/rooms\//);
     await page.getByLabel("参加者1の表示名").fill("次回の表示名");
     await page.getByRole("button", { name: "表示名を保存して進む" }).click();
-    await expect(page.getByRole("heading", { name: "待機画面" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "議論の前に書く" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "初回の音声登録" })).toHaveCount(0);
   } finally { await host.dispose(); }
 });

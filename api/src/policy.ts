@@ -3,6 +3,10 @@ export const PHASES = ['collecting', 'discussing', 'consensus', 'closed'] as con
 export const ANALYZE_COOLDOWN_MS = 30_000;
 export const RUNNING_TIMEOUT_MS = 60_000;
 export const MAX_GROUPS = 12;
+/** 1グループの人数の上限。超えたらサーバーが次のグループを作る（Docs「サーバーフィードバック」） */
+export const GROUP_CAPACITY = 100;
+/** セッションは作成から3時間で閉じる（講義セッションの失効） */
+export const SESSION_TTL_MS = 3 * 60 * 60_000;
 export const MAX_RECORDING_SEC = 31 * 60;
 export const MAX_RECORDING_BYTES = 12 * 1024 * 1024;
 export const MAX_RECORDING_ATTEMPTS = 3;

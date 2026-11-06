@@ -30,9 +30,15 @@ export function parse<T>(schema: z.ZodType<T>, body: unknown): T {
   if (!result.success) throw new HttpError(400, 'bad_request', '入力内容を確認してください');
   return result.data;
 }
+/** 作成から時間がたって失効したセッション（expiresAt は作成時に API が書く） */
+export function isExpired(room: DocumentSnapshot, now = Date.now()) {
+  const expiresAt = room.get('expiresAt');
+  return typeof expiresAt?.toMillis === 'function' && expiresAt.toMillis() <= now;
+}
 export function requireOpenRoom(room: DocumentSnapshot) {
   if (!room.exists) throw new HttpError(404, 'room_not_found', '部屋がありません');
   if (room.get('phase') === 'closed') throw new HttpError(409, 'room_closed', 'この部屋は終了しています');
+  if (isExpired(room)) throw new HttpError(409, 'room_expired', 'このセッションは終了しました');
 }
 
 export function requireModerator(context: Pick<Context, 'role'>): void {

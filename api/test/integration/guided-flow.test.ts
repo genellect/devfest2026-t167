@@ -101,6 +101,50 @@ it('参加済みのGuestは、開始後も終了後も同じコードで部屋�
   await (await client()).post('/rooms/join', { code: joinCode }).expect(409);
   expect((await member(roomId, p.uid).get()).get('status')).toBe('active');
 });
+it('1本の流れ：開始前の事前意見、音声登録なしでの開始、終了後の合意の一文から、グループの結果と指標が出る', async () => {
+  const h = await client(), a = await client(), b = await client();
+  const r = (await h.post('/rooms', { title: '大学のAI利用', theme: '大学のAI利用', className: '2年3組', flowVersion: 1 }).expect(201)).body;
+  const room = db.doc(`sessions/${r.roomId}`);
+  expect((await room.get()).get('className')).toBe('2年3組');
+  expect((await room.get()).get('minutes')).toBeUndefined();
+  for (const [p, name] of [[a, 'A'], [b, 'B']] as const) {
+    await p.post('/rooms/join', { code: r.joinCode }).expect(200);
+    await p.post(`/rooms/${r.roomId}/onboarding`, { mode: 'personal', names: [name] }).expect(200);
+    await p.post(`/rooms/${r.roomId}/opinion`, { text: `${name}の非公開の意見` }).expect(200);
+  }
+  await h.post(`/rooms/${r.roomId}/phase`, { to: 'discussing' }).expect(200);
+  expect((await room.get()).get('endsAt')).toBeUndefined();
+  await a.post(`/rooms/${r.roomId}/messages`, { text: '費用の話をした' }).expect(200);
+  expect((await h.post(`/rooms/${r.roomId}/analyze`).expect(200)).body.suggested).toBeGreaterThan(0);
+  await h.post(`/rooms/${r.roomId}/finish`).expect(200);
+  await a.post(`/rooms/${r.roomId}/statement`, { text: '申告すれば使ってよい', agreement: 4 }).expect(200);
+  await b.post(`/rooms/${r.roomId}/statement`, { text: '許可があれば使ってよい', agreement: 4 }).expect(200);
+  const group = await db.doc(`sessions/${r.roomId}/results/group-1`).get();
+  expect(group.get('clusters')).toHaveLength(2);
+  const summary = (await h.post(`/rooms/${r.roomId}/consensus/analyze`).expect(200)).body;
+  expect(summary.metrics.alignmentRate).toBe(0.5);
+  expect(JSON.stringify(summary)).not.toContain('非公開の意見');
+});
+it('グループはサーバーが決め、1グループが100人になると次のグループに入る', async () => {
+  const h = await client();
+  const r = (await h.post('/rooms', { title: '大人数', theme: '大人数', flowVersion: 1 }).expect(201)).body;
+  const batch = db.batch();
+  for (let i = 0; i < 100; i++) batch.set(db.doc(`sessions/${r.roomId}/members/seed-${i}`), { uid: `seed-${i}`, role: 'participant', group: 1, groupId: '1', status: 'active' });
+  await batch.commit();
+  const p = await client();
+  await p.post('/rooms/join', { code: r.joinCode }).expect(200);
+  expect((await member(r.roomId, p.uid).get()).get('group')).toBe(2);
+  expect((await db.doc(`sessions/${r.roomId}`).get()).get('groups')).toBe(2);
+  expect((await db.doc(`sessions/${r.roomId}/groups/2`).get()).exists).toBe(true);
+});
+it('作成から3時間で失効したセッションには、参加も書き込みもできない', async () => {
+  const { roomId, joinCode, p } = await setup();
+  const created = (await db.doc(`sessions/${roomId}`).get()).get('expiresAt').toMillis();
+  expect(created - now).toBe(3 * 60 * 60_000);
+  await db.doc(`sessions/${roomId}`).update({ expiresAt: Timestamp.fromMillis(Date.now() - 1) });
+  await (await client()).post('/rooms/join', { code: joinCode }).expect(409);
+  expect((await p.post(`/rooms/${roomId}/opinion`, { text: '失効後' }).expect(409)).body.error.code).toBe('room_expired');
+});
 it('期限をサーバー時刻で判定し、再接続でも終了が維持され、新規発言は拒否する', async () => {
   const { h, p, roomId } = await setup(); await enroll(p, roomId);
   await h.post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(200);

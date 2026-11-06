@@ -5,10 +5,8 @@ test('録音と同じマイクで登録済みの声を照合し、Hostが表示�
   await page.goto('/');
   await page.getByRole('button', { name: 'テスト用の先生でログイン（エミュレータ）' }).click();
   await page.waitForURL(/\/home$/); await page.goto('/host/new');
-  await page.getByLabel('セッション名', { exact: true }).fill('話者識別の接続');
   await page.getByLabel('テーマ', { exact: true }).fill('合成マイクのテスト');
-  await page.getByRole('button', { name: '1', exact: true }).click();
-  await page.getByRole('button', { name: '部屋を作る', exact: true }).click();
+  await page.getByRole('button', { name: '作成する', exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);
   await page.getByRole('button', { name: '参加コードを表示', exact: true }).click();
   const code = (await page.getByTestId('join-code').textContent())!.trim();
@@ -21,7 +19,7 @@ test('録音と同じマイクで登録済みの声を照合し、Hostが表示�
     await guest.getByRole('button', { name: '表示名を保存して進む' }).click();
     await guest.getByLabel('声の特徴の登録と、上記の利用方法に同意します').check();
     await guest.getByRole('button', { name: '声を登録する', exact: true }).click();
-    await expect(guest.getByRole('heading', { name: '待機画面' })).toBeVisible({ timeout: 20_000 });
+    await expect(guest.getByRole('heading', { name: '議論の前に書く' })).toBeVisible({ timeout: 20_000 });
     await page.getByText('セッション設定・グループ管理', { exact: true }).click();
     await page.getByRole('button', { name: 'セッションを開始', exact: true }).click();
     await expect(guest.getByRole('heading', { name: 'グループで話し合いましょう' })).toBeVisible();
@@ -41,7 +39,7 @@ test('録音と同じマイクで登録済みの声を照合し、Hostが表示�
     await page.screenshot({ path: '../docs/screenshots/mvp-speaker-host-mobile.png', fullPage: true });
     await page.getByRole('button', { name: 'セッションを終える', exact: true }).click();
     await page.getByRole('button', { name: '終えて結果を見る', exact: true }).click();
-    await expect(guest.getByRole('heading', { name: 'ディスカッションの結果' })).toBeVisible();
+    await expect(guest.getByRole('heading', { name: '結論を自分の言葉で書く' })).toBeVisible();
     await expect(guest.getByRole('button', { name: '録音中', exact: true })).toHaveCount(0);
     await expect(guest.getByText('録音の送信・分析が完了しました。', { exact: true })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText('分析済み 1/1グループ', { exact: true })).toBeVisible();

@@ -65,13 +65,17 @@ export function HostRoom({ roomId, room }: Props) {
       </Header>
       <SessionSettings roomId={roomId} room={room} />
       {room.flowVersion === 1 && current !== "code" && <HostSpeaking roomId={roomId} />}
-      {room.flowVersion === 1 && room.phase === "discussing" && !room.endedAt && <p className="notice" role="timer">残り時間 {clock.text}</p>}
+      {room.flowVersion === 1 && room.phase === "discussing" && !room.endedAt && room.endsAt && <p className="notice" role="timer">残り時間 {clock.text}</p>}
       {phaseError && <p className="notice notice--error notice--inset" role="alert">{phaseError}</p>}
       {!closed && current === "code" && <Lobby room={room} joined={members.reduce((n, m) => n + (m.attendees?.length || 1), 0)} onNext={() => setView("dashboard")} />}
       {!closed && current === "dashboard" && (
         <Dashboard roomId={roomId} room={room} results={results} members={members} onOpen={setView} onFinish={finish} moving={moving} />
       )}
-      {current === "class" && room.flowVersion === 1 && <GuidedHostResults roomId={roomId} room={room} />}
+      {current === "class" && room.flowVersion === 1 && <>
+        <ConsensusProgress roomId={roomId} room={room} results={results} summary={summary ?? null} />
+        <ClassResult roomId={roomId} room={room} results={results} summary={summary ?? null} onOpen={setView} />
+        <GuidedHostResults roomId={roomId} room={room} />
+      </>}
       {current === "class" && room.flowVersion !== 1 && <ClassResult roomId={roomId} room={room} results={results} summary={summary ?? null} onOpen={setView} />}
       {typeof current === "number" && (
         <GroupResultView result={results.find((r) => r.group === current) ?? null} group={current} roomId={roomId} source={source} />
@@ -174,7 +178,7 @@ function Dashboard({ roomId, room, results, members, onOpen, onFinish, moving }:
             const peers = members.filter((m) => m.group === g);
             const n = room.flowVersion === 1 ? seats(peers) : st?.total ?? members.filter((m) => (m.group ?? (groupCount <= 1 ? 1 : 0)) === g).length;
             const started = millis(st?.startedAt);
-            const detail = status === "opinions" ? (n ? room.flowVersion === 1 ? `音声登録済み ${peers.reduce((sum, m) => sum + (m.attendees?.filter((a) => a.voiceRegistered).length ?? 0), 0)}/${n}人` : `提出 ${st?.opinions ?? 0}/${n}人` : "まだだれもいません")
+            const detail = status === "opinions" ? (n ? `事前意見 ${st?.opinions ?? 0}/${n}人` : "まだだれもいません")
               : status === "discussing" ? `${n}人${started ? `・${Math.max(0, Math.floor((now - started) / 60000))}/${minutes}分` : ""}`
               : status === "consensus" ? `提出 ${st?.submitted ?? 0}/${n}人`
               : `${result?.respondents ?? n}人${result && result.clusters.length > 1 ? `・理解が${result.clusters.length}通り` : ""}`;
@@ -199,7 +203,7 @@ function Dashboard({ roomId, room, results, members, onOpen, onFinish, moving }:
             );
           })}
         </div>
-        {room.flowVersion !== 1 && <AiPanel roomId={roomId} room={room} insights={insights} />}
+        <AiPanel roomId={roomId} room={room} insights={insights} />
       </div>
     </div>
   );
@@ -284,6 +288,41 @@ function AiPanel({ roomId, room, insights }: { roomId: string; room: Room; insig
 
 const describeGap = (clusters: { count: number }[] | undefined) =>
   !clusters || clusters.length === 0 ? "回答なし" : clusters.length === 1 ? "大きなちがいなし" : `理解が${clusters.length}通り`;
+
+/** 終了後：結論の一文の回収状況と、合意のずれ・4つの指標をまとめる操作 */
+function ConsensusProgress({ roomId, room, results, summary }: { roomId: string; room: Room; results: GroupResult[]; summary: Summary | null }) {
+  const [busy, setBusy] = useState<string>();
+  const [message, setMessage] = useState("");
+  const groupCount = room.groups ?? 1;
+  const running = room.consensusAnalysis?.status === "running";
+  async function run(path: string, body: object, key: string) {
+    setBusy(key); setMessage("");
+    try { await callApi(`/rooms/${roomId}/${path}`, body); }
+    catch (e) { setMessage((e as Error).message); }
+    finally { setBusy(undefined); }
+  }
+  return (
+    <div className="body">
+      <section className="box box--lg pad stack" aria-label="結論の一文の回収">
+        <h2 className="t-md">結論の一文</h2>
+        <ul className="stack stack--tight" style={{ margin: 0, paddingLeft: 20 }}>
+          {Array.from({ length: groupCount }, (_, i) => i + 1).map((g) => {
+            const st = room.groupState?.[String(g)];
+            const done = results.some((r) => r.group === g);
+            return <li key={g} className="t-label">グループ{g}：{done ? "結果あり" : `提出 ${st?.submitted ?? 0}/${st?.total ?? 0}人`}
+              {!done && (st?.submitted ?? 0) > 0 && <button className="btn btn--small" style={{ marginLeft: 12 }} disabled={!!busy} onClick={() => void run("groups/analyze", { group: g }, `g${g}`)}>{busy === `g${g}` ? "分析しています…" : "今の回答で結果を出す"}</button>}
+            </li>;
+          })}
+        </ul>
+        <button className="btn btn--blue" disabled={!!busy || running || results.length === 0} onClick={() => void run("consensus/analyze", {}, "all")}>
+          {busy === "all" || running ? "まとめています…" : summary ? "結果をまとめ直す" : "結果をまとめる"}
+        </button>
+        <p className="t-small">全グループの結論の一文から、理解のずれと4つの指標をまとめます。</p>
+        {message && <p className="notice notice--warn" role="alert">{message}</p>}
+      </section>
+    </div>
+  );
+}
 
 /** T1 セッション全体の結果。グループの結果を並べて比べる。指標は分かるものだけ出す */
 function ClassResult({ roomId, room, results, summary, onOpen }: { roomId: string; room: Room; results: GroupResult[]; summary: Summary | null; onOpen: (g: number) => void }) {

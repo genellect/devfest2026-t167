@@ -3,9 +3,11 @@ import { loginStudent } from "./student";
 
 // デモで1人の登録漏れや同意の取り消しがあっても、Hostが始めて終えられ、同意のない録音は送られないことを確かめる。
 
-async function joinAsGuest(guest: Page, code: string, name: string) {
+async function joinAsGuest(guest: Page, code: string, name?: string) {
   await guest.goto(`/join?code=${code}`);
   await expect(guest).toHaveURL(/\/rooms\//);
+  // 表示名を保存しない人は、開始のときに「未準備」になる
+  if (!name) { await expect(guest.getByRole("heading", { name: "表示名を設定" })).toBeVisible(); return; }
   await guest.getByLabel("参加者1の表示名").fill(name);
   await guest.getByRole("button", { name: "表示名を保存して進む" }).click();
   await expect(guest.getByRole("heading", { name: "初回の音声登録" })).toBeVisible();
@@ -16,8 +18,7 @@ test("未準備のGuestを外して開始でき、同意を取り消した録音
   await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
   await page.waitForURL(/\/home$/); await page.goto("/host/new");
   await page.getByLabel("テーマ", { exact: true }).fill("架空の開始確認");
-  await page.getByRole("button", { name: "1", exact: true }).click();
-  await page.getByRole("button", { name: "部屋を作る", exact: true }).click();
+  await page.getByRole("button", { name: "作成する", exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);
   await page.getByRole("button", { name: "参加コードを表示", exact: true }).click();
   const code = (await page.getByTestId("join-code").textContent())!.trim();
@@ -30,15 +31,15 @@ test("未準備のGuestを外して開始でき、同意を取り消した録音
     await joinAsGuest(ready, code, "準備できたGuest");
     await ready.getByLabel("声の特徴の登録と、上記の利用方法に同意します").check();
     await ready.getByRole("button", { name: "声を登録する", exact: true }).click();
-    await expect(ready.getByRole("heading", { name: "待機画面" })).toBeVisible({ timeout: 20_000 });
-    await joinAsGuest(late, code, "登録しないGuest");
+    await expect(ready.getByRole("heading", { name: "議論の前に書く" })).toBeVisible({ timeout: 20_000 });
+    await joinAsGuest(late, code);
 
     await page.getByText("セッション設定・グループ管理", { exact: true }).click();
     await page.getByRole("button", { name: "セッションを開始", exact: true }).click();
-    await expect(page.getByRole("alert").filter({ hasText: "音声登録または所属が済んでいないGuestが1人います" })).toBeVisible();
-    await expect(ready.getByRole("heading", { name: "待機画面" })).toBeVisible();
-    await page.getByRole("alert").filter({ hasText: "音声登録または所属が済んでいないGuest" }).screenshot({ path: "../docs/screenshots/mvp-start-exclude-mobile.png" });
-    await page.getByRole("button", { name: "未準備のGuestを外して開始", exact: true }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "表示名の登録が済んでいない参加者が1人います" })).toBeVisible();
+    await expect(ready.getByRole("heading", { name: "議論の前に書く" })).toBeVisible();
+    await page.getByRole("alert").filter({ hasText: "表示名の登録が済んでいない参加者" }).screenshot({ path: "../docs/screenshots/mvp-start-exclude-mobile.png" });
+    await page.getByRole("button", { name: "未準備の参加者を外して開始", exact: true }).click();
     await expect(ready.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
     await expect(late.getByText("この部屋を表示できません")).toBeVisible();
 
@@ -53,7 +54,7 @@ test("未準備のGuestを外して開始でき、同意を取り消した録音
 
     await page.getByRole("button", { name: "セッションを終える", exact: true }).click();
     await page.getByRole("button", { name: "終えて結果を見る", exact: true }).click();
-    await expect(ready.getByRole("heading", { name: "ディスカッションの結果" })).toBeVisible();
+    await expect(ready.getByRole("heading", { name: "結論を自分の言葉で書く" })).toBeVisible();
     await ready.waitForTimeout(1_500);
     expect(uploads).toEqual([]);
     await expect(ready.getByText("録音の送信・分析が完了しました。", { exact: true })).toHaveCount(0);
