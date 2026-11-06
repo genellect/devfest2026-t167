@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { TabBar } from "@/components/nav";
 import { Header, Loading } from "@/components/ui";
 import { ProfileForm } from "@/components/host/ProfileForm";
 import { signOutHost, useHostUser } from "@/lib/hostAuth";
@@ -22,15 +23,15 @@ export default function ProfilePage() {
     );
   }
   return (
-    <main className="screen">
-      <Header title="設定"><Link className="btn btn--small" href="/host">ホームに戻る</Link></Header>
+    <main className="screen screen--tabs">
+      <Header title="設定" nav={<TabBar role="host" />} />
       <div className="body body--center">
         <div className="box box--lg card" style={{ width: "min(720px, 100%)" }}>
           <h2 className="card__title">プロフィール</h2>
           <ProfileForm defaultName={user.displayName ?? ""} submitLabel="保存する" onSaved={() => setSaved(true)} />
           {saved && <p className="notice" role="status">保存しました。</p>}
-          <div style={{ borderTop: "3px solid #000", paddingTop: 16, display: "flex", alignItems: "center", gap: 16 }}>
-            <p className="t-note" style={{ flex: 1 }}>ログイン中：{user.email ?? user.displayName}</p>
+          <div className="toolbar">
+            <p className="t-note toolbar__grow">ログイン中：{user.email ?? user.displayName}</p>
             <button className="btn" onClick={() => { setRole(user.uid, "student"); router.push("/student"); }}>生徒として使う</button>
             <button className="btn" onClick={async () => { await signOutHost(); router.push("/"); }}>ログアウト</button>
           </div>

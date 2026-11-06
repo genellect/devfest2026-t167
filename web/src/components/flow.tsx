@@ -32,6 +32,7 @@ const PENDING = "音声の分析が届くと、ここに表示されます。";
 
 /** 議論の流れ（話題ごとの時間の帯） */
 export function FlowTimeline({ flow, compact }: { flow: Flow | null; compact?: boolean }) {
+  const total = flow ? flow.segments.reduce((a, s) => a + s.minutes, 0) || 1 : 1;
   return (
     <section className="box box--md pad stack">
       <div className="heading-row">
@@ -40,9 +41,9 @@ export function FlowTimeline({ flow, compact }: { flow: Flow | null; compact?: b
       </div>
       {!flow ? <p className="empty">{PENDING}</p> : (
         <>
-          <div className="timeline" role="img" aria-label={flow.segments.map((s) => `${s.topic} ${s.minutes}分`).join("、")}>
+          <div className={`timeline${compact ? "" : " timeline--tall"}`} role="img" aria-label={flow.segments.map((s) => `${s.topic} ${s.minutes}分`).join("、")}>
             {flow.segments.map((s, i) => (
-              <div key={i} className={`timeline__seg${s.highlight ? " timeline__seg--hl" : ""}`} style={{ flexGrow: s.minutes, minHeight: compact ? 44 : 96 }}>
+              <div key={i} className={`timeline__seg${s.highlight ? " timeline__seg--hl" : ""}`} style={{ flexGrow: s.minutes, "--share": s.minutes / total } as React.CSSProperties}>
                 <span>{s.topic}</span><span>{s.minutes}分</span>
               </div>
             ))}

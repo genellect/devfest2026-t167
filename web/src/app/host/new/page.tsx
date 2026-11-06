@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { TabBar } from "@/components/nav";
 import { Header, Loading } from "@/components/ui";
 import { callApi } from "@/lib/api";
 import { useHostUser } from "@/lib/hostAuth";
@@ -45,8 +46,8 @@ export default function NewRoom() {
     );
   }
   return (
-    <main className="screen">
-      <Header title="新しい議論を作る"><Link className="btn btn--small" href="/host">ホームに戻る</Link></Header>
+    <main className="screen screen--tabs">
+      <Header title="新しい議論を作る" nav={<TabBar role="host" />} />
       <div className="body body--center">
         <form className="box box--lg card" style={{ width: "min(720px, 100%)" }} onSubmit={create}>
           <h2 className="card__title">今日の議論を準備する</h2>
@@ -60,8 +61,8 @@ export default function NewRoom() {
           </div>
           <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
             <legend className="field__label" style={{ marginBottom: 6 }}>グループの数</legend>
-            <div className="choices">
-              {GROUPS.map((n) => <button key={n} type="button" className="choice" style={{ minWidth: 56 }} aria-pressed={groups === n} onClick={() => setGroups(n)}>{n}</button>)}
+            <div className="choices choices--compact">
+              {GROUPS.map((n) => <button key={n} type="button" className="choice" aria-pressed={groups === n} onClick={() => setGroups(n)}>{n}</button>)}
             </div>
             <p className="field__hint">生徒は参加した順に、グループへ割り当てられます。</p>
           </fieldset>

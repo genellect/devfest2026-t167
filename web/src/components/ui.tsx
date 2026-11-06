@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 
-/** 画面上部の白い帯。eyebrow は小さい補足（クラス名など）、title は画面の見出し */
-export function Header({ eyebrow, title, demo, children }: {
-  eyebrow?: string; title: string; demo?: boolean; children?: React.ReactNode;
+/** 画面上部の白い帯。eyebrow は小さい補足（クラス名など）、title は画面の見出し、nav はタブメニュー（components/nav.tsx） */
+export function Header({ eyebrow, title, demo, nav, children }: {
+  eyebrow?: string; title: string; demo?: boolean; nav?: React.ReactNode; children?: React.ReactNode;
 }) {
   return (
     <header className="header">
@@ -15,6 +15,7 @@ export function Header({ eyebrow, title, demo, children }: {
         {demo && <Tag tone="yellow">デモデータ</Tag>}
         {children}
       </div>
+      {nav}
     </header>
   );
 }

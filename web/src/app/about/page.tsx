@@ -1,13 +1,24 @@
 import Link from "next/link";
+import { AutoTabBar } from "@/components/nav";
+import { Header } from "@/components/ui";
+
+const WHO = ["本人", "同じ部屋の人", "先生", "AI（Gemini）"];
+/** データごとに、WHO の順で「見られる範囲」を並べる */
+const ROWS = [
+  ["議論の前の意見", "見られる", "見られない", "人数だけ", "本文だけ（名前は送らない）"],
+  ["結論の一文", "見られる", "見られない", "人数と分かれ方", "本文だけ（名前は送らない）"],
+  ["AI の提案", "先生が承認したもの", "先生が承認したもの", "すべて", "—"],
+  ["議論の録音", "端末の中だけ", "—", "—", "送信は準備中"],
+  ["目標と振り返り", "端末の中だけ", "—", "—", "—"],
+];
 
 /** 使い方とプライバシー。どのデータを誰が見られるかを、生徒・先生の両方に示す */
 export default function About() {
   return (
-    <main className="screen">
-      <header className="header">
-        <div className="header__title"><p className="header__eyebrow">グループディスカッション支援</p><h1 className="header__name">使い方とプライバシー</h1></div>
-        <div className="header__actions"><Link className="btn btn--small" href="/">最初の画面に戻る</Link></div>
-      </header>
+    <main className="screen screen--tabs">
+      <Header eyebrow="グループディスカッション支援" title="使い方とプライバシー" nav={<AutoTabBar />}>
+        <Link className="btn btn--small" href="/">最初の画面に戻る</Link>
+      </Header>
       <div className="body" style={{ maxWidth: 1100, width: "100%", margin: "0 auto" }}>
         <div className="row">
           <section className="box box--md pad stack">
@@ -34,14 +45,15 @@ export default function About() {
 
         <section className="box box--md pad stack">
           <h2 className="t-md">だれが何を見られるか</h2>
-          <table className="table">
-            <thead><tr><th>データ</th><th>本人</th><th>同じ部屋の人</th><th>先生</th><th>AI（Gemini）</th></tr></thead>
+          <table className="table table--stack">
+            <thead><tr><th>データ</th>{WHO.map((w) => <th key={w}>{w}</th>)}</tr></thead>
             <tbody>
-              <tr><td>議論の前の意見</td><td>見られる</td><td>見られない</td><td>人数だけ</td><td>本文だけ（名前は送らない）</td></tr>
-              <tr><td>結論の一文</td><td>見られる</td><td>見られない</td><td>人数と分かれ方</td><td>本文だけ（名前は送らない）</td></tr>
-              <tr><td>AI の提案</td><td>先生が承認したもの</td><td>先生が承認したもの</td><td>すべて</td><td>—</td></tr>
-              <tr><td>議論の録音</td><td>端末の中だけ</td><td>—</td><td>—</td><td>送信は準備中</td></tr>
-              <tr><td>目標と振り返り</td><td>端末の中だけ</td><td>—</td><td>—</td><td>—</td></tr>
+              {ROWS.map(([data, ...cells]) => (
+                <tr key={data}>
+                  <td className="table__head">{data}</td>
+                  {cells.map((c, i) => <td key={i} data-label={WHO[i]}>{c}</td>)}
+                </tr>
+              ))}
             </tbody>
           </table>
         </section>

@@ -54,7 +54,7 @@ export function HostRoom({ roomId, room }: Props) {
         {current === "dashboard" && results.length > 0 && <button className="btn btn--small" onClick={() => setView("class")}>クラス全体の結果</button>}
         <Link className="btn btn--small" href="/host">ホーム</Link>
       </Header>
-      {phaseError && <p className="notice notice--error" role="alert" style={{ margin: "16px 32px 0" }}>{phaseError}</p>}
+      {phaseError && <p className="notice notice--error notice--inset" role="alert">{phaseError}</p>}
       {!closed && current === "code" && <Lobby room={room} joined={members.length} onNext={() => setView("dashboard")} />}
       {!closed && current === "dashboard" && (
         <Dashboard roomId={roomId} room={room} results={results} members={members} onOpen={setView} onFinish={finish} moving={moving} />
@@ -82,7 +82,7 @@ function Lobby({ room, joined, onNext }: { room: Room; joined: number; onNext: (
       <div className="split">
         <section className="box box--lg box--blue pad-lg stack" style={{ justifyContent: "center", gap: 12 }}>
           <p className="t-md" style={{ fontWeight: 700 }}>参加コード</p>
-          <p data-testid="join-code" style={{ fontSize: 112, fontWeight: 900, lineHeight: 1.3, letterSpacing: ".04em" }}>{code}</p>
+          <p data-testid="join-code" className="join-code">{code}</p>
           <p style={{ fontSize: 20 }}>コードを入力するか、QRコードを読み取ってください。</p>
           {(room.groups ?? 1) > 1 && <p className="t-label">参加したら、自分のグループ（1〜{room.groups}）を選びます。</p>}
         </section>
@@ -130,12 +130,12 @@ function Dashboard({ roomId, room, results, members, onOpen, onFinish, moving }:
 
   return (
     <div className="body" style={{ gap: 24 }}>
-      <section className="box box--lg box--blue" style={{ display: "flex", alignItems: "center", gap: 28, padding: "22px 32px" }}>
-        <div style={{ flex: 1 }} className="stack stack--tight">
+      <section className="box box--lg box--blue progress-hero">
+        <div className="stack stack--tight progress-hero__main">
           <p className="t-label">授業の進み具合</p>
-          <p style={{ fontSize: 40, fontWeight: 900, lineHeight: 1.2 }}>結果が出たグループ {results.length}/{groupCount}</p>
+          <p className="t-xl">結果が出たグループ {results.length}/{groupCount}</p>
         </div>
-        <div className="stack stack--tight" style={{ textAlign: "right" }}>
+        <div className="stack stack--tight progress-hero__meta">
           <p className="t-label">参加 {members.length}人{unassigned ? `・グループ未選択 ${unassigned}人` : ""}</p>
           {coverage && <p className="t-label">事前意見の論点の反映率 {formatMetric(coverage.reflectionRate, coverage.source === "mock" ? "mock" : "gemini")}</p>}
         </div>
@@ -149,7 +149,7 @@ function Dashboard({ roomId, room, results, members, onOpen, onFinish, moving }:
           )}
       </section>
       {error && <p className="notice notice--warn" role="alert">{error}</p>}
-      <div className="split" style={{ gridTemplateColumns: "minmax(0, 1fr) 420px" }}>
+      <div className="split">
         <div className="grid-auto">
           {Array.from({ length: groupCount }, (_, i) => i + 1).map((g) => {
             const st = room.groupState?.[String(g)];
@@ -268,7 +268,7 @@ function ClassResult({ roomId, room, results, summary, onOpen }: { roomId: strin
   const groupCount = room.groups ?? 1;
   return (
     <div className="body">
-      <div style={{ display: "grid", gridTemplateColumns: "380px minmax(0, 1fr)", gap: 28 }}>
+      <div className="split split--result">
         <div className="stack" style={{ gap: 20 }}>
           <section className="box box--lg box--blue pad stack">
             <div className="heading-row"><p className="t-label">次の授業で扱えそうなこと</p><SourceTag source={source} /></div>
@@ -292,17 +292,17 @@ function ClassResult({ roomId, room, results, summary, onOpen }: { roomId: strin
         </div>
         <section className="box box--lg pad stack">
           <h2 className="t-md">グループを比べる</h2>
-          <table className="table">
-            <thead><tr><th>グループ</th><th>認識のちがい</th><th>一致度</th><th>回答</th><th /></tr></thead>
+          <table className="table table--stack">
+            <thead><tr><th>グループ</th><th>認識のちがい</th><th>一致度</th><th>回答</th><th><span className="sr-only">操作</span></th></tr></thead>
             <tbody>
               {Array.from({ length: groupCount }, (_, i) => i + 1).map((g) => {
                 const r = results.find((x) => x.group === g);
                 return (
                   <tr key={g}>
-                    <td style={{ fontWeight: 900 }}>グループ{g}</td>
-                    <td>{!r ? "結果待ち" : r.clusters.length > 1 ? <span className="mark">{describeGap(r.clusters)}</span> : describeGap(r.clusters)}</td>
-                    <td>{r ? formatMetric(r.alignmentRate) : "—"}</td>
-                    <td>{r ? `${r.respondents}人` : "—"}</td>
+                    <td className="table__head">グループ{g}</td>
+                    <td data-label="認識のちがい">{!r ? "結果待ち" : r.clusters.length > 1 ? <span className="mark">{describeGap(r.clusters)}</span> : describeGap(r.clusters)}</td>
+                    <td data-label="一致度">{r ? formatMetric(r.alignmentRate) : "—"}</td>
+                    <td data-label="回答">{r ? `${r.respondents}人` : "—"}</td>
                     <td style={{ textAlign: "right" }}>{r && <button className="btn btn--small" onClick={() => onOpen(g)}>詳しく見る</button>}</td>
                   </tr>
                 );

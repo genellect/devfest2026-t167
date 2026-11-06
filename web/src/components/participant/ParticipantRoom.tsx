@@ -177,8 +177,8 @@ function VoiceStep({ roomId }: { roomId: string }) {
   }[rec.state];
 
   return (
-    <div className="body body--tablet" style={{ flexDirection: "row", alignItems: "stretch" }}>
-      <section className="box box--lg pad-lg stack" style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 24, textAlign: "center" }}>
+    <div className="body body--tablet" style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "stretch" }}>
+      <section className="box box--lg pad-lg stack" style={{ flex: "999 1 320px", minWidth: 0, alignItems: "center", justifyContent: "center", gap: 24, textAlign: "center" }}>
         <h2 className="t-lg">グループで話し合いましょう</h2>
         <p className="t-label">議論が終わるまで、画面を見なくても大丈夫です。</p>
         <div className="voice" data-state={rec.state} aria-hidden="true">
@@ -194,7 +194,7 @@ function VoiceStep({ roomId }: { roomId: string }) {
         </div>
         <p className="t-small">録音はこの端末の中にだけ残ります（送信と文字起こしは準備中です）。</p>
       </section>
-      <aside className="stack" style={{ width: 360, flex: "0 0 auto" }}>
+      <aside className="stack" style={{ flex: "1 1 360px", maxWidth: "100%" }}>
         <section className="box box--md box--yellow pad stack">
           <div className="heading-row"><h2 className="t-sm">先生からの問いかけ</h2><Tag>AI の提案</Tag></div>
           {insights.length === 0
@@ -259,7 +259,7 @@ function ConsensusStep({ roomId, uid, title, submitted, total }: { roomId: strin
         </div>
         <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
           <legend className="field__label" style={{ marginBottom: 6 }}>その結論に、どのくらい納得している？</legend>
-          <div className="choices">
+          <div className="choices choices--scale">
             {AGREEMENT.map((label, i) => (
               <button key={label} type="button" className="choice" aria-pressed={agreement === i + 1} onClick={() => setAgreement(i + 1)}>{label}</button>
             ))}
