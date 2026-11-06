@@ -7,7 +7,7 @@ P="${1:-$PROJECT_ID}"
 
 gcloud services enable --project "$P" \
   run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com \
-  firestore.googleapis.com firebase.googleapis.com firebaserules.googleapis.com \
+  firestore.googleapis.com firebase.googleapis.com firebaserules.googleapis.com firebasestorage.googleapis.com \
   firebaseapphosting.googleapis.com identitytoolkit.googleapis.com \
   aiplatform.googleapis.com iam.googleapis.com iamcredentials.googleapis.com \
   sts.googleapis.com cloudresourcemanager.googleapis.com

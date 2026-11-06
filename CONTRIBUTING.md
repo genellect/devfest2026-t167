@@ -53,7 +53,7 @@ http://localhost:3000 を開き、参加コード `DEMO01` で参加する。Aut
 4. **画面を確かめる。** `web/` を変えた PR は、CI と並行して[プレビュー](#画面のプレビュー)に自動で出る。PR の「View deployment」からスマホでも開ける。
 5. **本番反映の承諾をもらう。** `main` へのマージから自動デプロイまでを「本番反映」と呼ぶ。始める前に、必ず Yuto Matsui（GitHub：`genellect`）の承諾を得る。承諾はその PR の本番反映への1回で、マージとデプロイで2回に分けない。CI・レビュー・プレビューの成功は承諾の代わりにならない。承諾を待つ間はマージせず、auto-merge も付けない。依頼の書き方は [PR の確認から本番反映までの手順](docs/contributor-preview-guide.md) の手順4。
 6. **本番反映する。** 承諾のあと、Yuto Matsui または任された担当者が、CI の成功と必要なレビューを確かめてから `bash scripts/dev.sh pr --approved` で auto-merge を付ける。CI が通ると squash merge され、`deploy` が本番に反映する。CI が落ちたら直して push すれば、同じ PR で検査がやり直される。
-7. **レビューが要る PR。** Rules（`firebase/firestore.rules`）・`firebase.json`・`web/apphosting*.yaml`・ワークフロー（`.github/`）・構築スクリプト（`infra/`）を変える PR には、`--approved` でも `pr` が auto-merge を付けない。もう1人のレビューと本番反映の承諾の両方を得てから、`gh pr merge --auto --squash --delete-branch` を実行する。それ以外の PR はレビューを必須にしない。
+7. **レビューが要る PR。** Rules（`firebase/firestore.rules`・`firebase/storage.rules`）・`firebase.json`・`web/apphosting*.yaml`・ワークフロー（`.github/`）・構築スクリプト（`infra/`）を変える PR には、`--approved` でも `pr` が auto-merge を付けない。もう1人のレビューと本番反映の承諾の両方を得てから、`gh pr merge --auto --squash --delete-branch` を実行する。それ以外の PR はレビューを必須にしない。
 
 ```bash
 git switch -c feat/consensus-gap-view

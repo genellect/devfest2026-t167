@@ -47,7 +47,13 @@ Docs正本の匿名参加記述と現在のGoogle必須方針は異なる。依�
 ## 運用・反映
 
 ローカルはAuth/FirestoreエミュレータとGeminiモック、専用ポート/DBで検査。実API試験は別扱い。ユーザー確認後にだけPR、Rules/infra変更は別メンバーレビューとYuto Matsuiの本番反映承諾が必要。
-反映前: auditEvents/sessionsのdeleteAt TTL、Storage RulesとバケットのIAM公開状態、学校claims、ログ閲覧権限を確認。今回クラウドには適用しない。新Rulesは旧フロントの直接購読を止めるため、通常のRules→API→Webだけでは一時停止がある。メンテナンス時間にWeb利用停止→同一SHAのRules/API/Web→再ログイン確認→利用再開。旧Rulesだけへ戻してセッション制御を迂回させない。ロールバックも保護境界を維持する。
+反映前: securityEvents/sessionsのdeleteAt TTL、Storage RulesとバケットのIAM公開状態、学校claims、ログ閲覧権限を確認。今回クラウドには適用しない。新Rulesは旧フロントの直接購読を止めるため、通常のRules→API→Webだけでは一時停止がある。メンテナンス時間にWeb利用停止→同一SHAのRules/API/Web→再ログイン確認→利用再開。旧Rulesだけへ戻してセッション制御を迂回させない。ロールバックも保護境界を維持する。
+
+Storage Rulesも`deploy.yml`から`node infra/deploy-rules.mjs --apply`でFirestore Rulesと同じコミットから配備する。[Firebase Storage登録バケット一覧API](https://firebase.google.com/docs/reference/rest/storage/rest/v1beta/projects.buckets/list)で全ページを読み、登録済みの各バケットへ明示的に適用する。登録がないことを確認できた場合だけStorageを省略し、ビルド用GCSバケットには適用しない。権限・通信・応答形式エラーでは配備を停止する。新規バケットは作成しない。既定の`--plan`は一覧の読み取りのみで変更しない。手動ロールバックは同じ工程を使用する。Storage Rulesだけの変更も`dev.sh pr`のレビュー対象とし、承諾後でも自動マージを設定しない。配備対象とレビュー抑止の両方を回帰テストで検査する。
+
+管理者は対象バケットの有無・Rulesの適用先・バケットIAMの公開状態・既存利用への影響・デプロイ実行主体の権限を確認する。RulesはAdmin SDKやIAM経由のアクセスを制限しない。これらのクラウド操作はローカル検査に含めない。
+
+配備前に管理者が`firebasestorage.googleapis.com`を有効にし、配備アカウントの`firebasestorage.buckets.list`とRules配備権限を確認する。`infra/setup-project.sh`にもAPIを追加したが、この作業では実行していない。API未有効の403を「バケットなし」と扱わない。
 
 ## 実機で確認する項目
 
