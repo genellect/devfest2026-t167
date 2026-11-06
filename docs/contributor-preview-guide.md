@@ -142,7 +142,7 @@ git switch -c feat/update-join-screen origin/main
 bash scripts/dev.sh serve
 ```
 
-パソコンで http://localhost:3000 を開き、参加コード`DEMO01`で試す。この環境ではAuth・Firestoreはエミュレータ、Geminiはモックを使う。ローカルでの確認は本番の動作確認とは別になる。終了するときはターミナルで`Ctrl+C`を押す。
+パソコンで http://localhost:3000 を開き、参加コード`100001`で試す。この環境ではAuth・Firestoreはエミュレータ、Geminiはモックを使う。ローカルでの確認は本番の動作確認とは別になる。終了するときはターミナルで`Ctrl+C`を押す。
 
 ### D. 検査し、PR を出す
 

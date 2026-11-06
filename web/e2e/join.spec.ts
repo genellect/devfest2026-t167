@@ -51,7 +51,7 @@ test("全員の同意を確かめて録音し、議論を終えると録音が�
   const { joinCode, roomId } = await created.json();
   await loginStudent(page);
   await page.goto(`/join?code=${joinCode}`);
-  await page.getByRole("button", { name: "参加する" }).click();
+  await expect(page).toHaveURL(/\/rooms\//);
   await request.post(`/api/rooms/${roomId}/phase`, { headers: { authorization: `Bearer ${hostToken}` }, data: { to: "discussing" } });
   await page.getByLabel("あなたの意見").fill("練習の質を上げれば短くてもよい");
   await page.getByRole("button", { name: "提出する" }).click();
@@ -78,14 +78,16 @@ test("全員の同意を確かめて録音し、議論を終えると録音が�
   await expect(page.getByText("デモデータです。本物の Gemini では、録音から話題の流れを読み取ります。")).toBeVisible({ timeout: 30_000 });
 });
 
-test("QR コードの URL では参加コードが入力済みになる", async ({ page }) => {
-  await page.goto("/join?code=demo01");
+test("QR コードの URL から開くと、ログインのあとにそのまま参加する", async ({ page, request }) => {
+  const hostToken = await moderatorToken(request);
+  const created = await request.post("/api/rooms", { headers: { authorization: `Bearer ${hostToken}` }, data: { title: "QRからの参加" } });
+  const { joinCode, roomId } = await created.json();
+  expect(joinCode).toMatch(/^\d{6}$/);
+  await page.goto(`/join?code=${joinCode}`);
   await expect(page).toHaveURL(/\/$/);
-  await loginStudent(page);
+  await loginStudent(page, "", { home: false });
+  await expect(page).toHaveURL(new RegExp(`/rooms/${roomId}$`));
   await expect(page.getByLabel("参加コード")).toHaveCount(0);
-  await page.getByRole("link", { name: "参加する", exact: true }).click();
-  await page.getByRole("link", { name: "ゲスト", exact: true }).click();
-  await expect(page.getByLabel("参加コード")).toHaveValue("DEMO01");
 });
 
 test("誤った参加コードではエラーが出る", async ({ page }) => {
@@ -98,7 +100,7 @@ test("誤った参加コードではエラーが出る", async ({ page }) => {
   await loginStudent(page);
   await page.getByRole("link", { name: "参加する", exact: true }).click();
   await page.getByRole("link", { name: "ゲスト", exact: true }).click();
-  await page.getByLabel("参加コード").fill("ZZZZZZ");
+  await page.getByLabel("参加コード").fill("999999");
   await page.getByRole("button", { name: "参加する" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "参加コード" })).toContainText("参加コードが見つかりません");
   expect(externalAuthRequests, "エミュレータ認証が外部通信に依存していない").toBe(0);

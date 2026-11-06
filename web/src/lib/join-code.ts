@@ -1,7 +1,11 @@
 const KEY = "t167:pending-join-code";
+/** QRやURLのコード。新しいコードは6桁の数字で、以前に作った英数字6文字のコードも受け付ける */
 export const normalizeJoinCode = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+/** 手で入力するコード。数字だけを残す（全角の数字も半角にそろえる） */
+export const typedJoinCode = (value: string) =>
+  value.replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0)).replace(/\D/g, "").slice(0, 6);
 
-/** QRのコードだけを同じタブに保つ。ログイン後もまずホームを開く。 */
+/** ログイン前にQRで開いたコードを同じタブに保ち、ログインのあとにそのまま参加する */
 export function rememberJoinCode(value: string) {
   const code = normalizeJoinCode(value);
   if (code.length !== 6) return;

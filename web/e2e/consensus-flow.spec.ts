@@ -5,7 +5,7 @@ import { loginStudent } from "./student";
 
 async function joinAndWriteOpinion(guest: Page, code: string, opinion: string) {
   await guest.goto(`/join?code=${code}`);
-  await guest.getByRole("button", { name: "参加する", exact: true }).click();
+  await expect(guest).toHaveURL(/\/rooms\//);
   await guest.getByLabel("あなたの意見（本人だけが見られます）").fill(opinion);
   await guest.getByRole("button", { name: "提出する", exact: true }).click();
   await expect(guest.getByText("グループのみんなの意見を待っています")).toBeVisible();

@@ -5,7 +5,7 @@ import { loginStudent } from "./student";
 
 async function joinAsGuest(guest: Page, code: string, name: string) {
   await guest.goto(`/join?code=${code}`);
-  await guest.getByRole("button", { name: "参加する", exact: true }).click();
+  await expect(guest).toHaveURL(/\/rooms\//);
   await guest.getByLabel("参加者1の表示名").fill(name);
   await guest.getByRole("button", { name: "表示名を保存して進む" }).click();
   await expect(guest.getByRole("heading", { name: "初回の音声登録" })).toBeVisible();

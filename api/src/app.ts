@@ -1,5 +1,5 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import { HttpError, wrap, run, parse, requireOpenRoom, requireModerator } from './http.js';
@@ -80,9 +80,9 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
       flowVersion: z.literal(1).optional(), publishOnEnd: z.boolean().default(true), participantView: z.object({ theme: z.boolean().default(true), timer: z.boolean().default(true), members: z.boolean().default(true), speaking: z.boolean().optional() }).default({ theme: true, timer: true, members: true }), title: z.string().trim().min(1).max(100), theme: z.string().trim().max(1000).default(''), minutes: z.number().int().min(1).max(180).default(15), groupSelection: z.enum(['participant', 'host']).default('participant'), groups: z.number().int().min(1).max(MAX_GROUPS).default(1), recording: z.boolean().default(true),
     }), req.body);
     const roomId = db.collection('sessions').doc().id;
-    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     for (let attempt = 0; attempt < 5; attempt++) {
-      const joinCode = Array.from(randomBytes(6), (b) => alphabet[b % alphabet.length]).join('');
+      // 参加コードは6桁の数字（スマホの数字キーで入れられる）。総当たりはGoogleログインと参加の回数制限で防ぐ
+      const joinCode = String(randomInt(0, 1_000_000)).padStart(6, '0');
       const ok = await db.runTransaction(async (tx) => {
         const codeRef = db.doc(`joinCodes/${joinCode}`);
         if ((await tx.get(codeRef)).exists) return false;
@@ -102,9 +102,10 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
   // 参加：参加前なので所属確認はしない。参加コードで部屋を特定し、participant として登録する
   app.post('/rooms/join', ...chain(authenticate, wrap(async (req, res) => {
     await limit(req.ctx.uid, 'join', 30);
-    const { code } = parse(z.object({ code: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{6}$/, '参加コードは6文字です') }), req.body);
+    // 新しいコードは6桁の数字。以前に作った英数字6文字のコードも引き続き受け付ける
+    const { code } = parse(z.object({ code: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{6}$/, '参加コードは6桁の数字です') }), req.body);
     const codeSnap = await db.doc(`joinCodes/${code}`).get();
-    if (!codeSnap.exists) throw new HttpError(404, 'join_code_not_found', '参加コードが見つかりません');
+    if (!codeSnap.exists) throw new HttpError(404, 'join_code_not_found', '参加コードが見つかりません。数字を確かめてください');
     const roomId = codeSnap.get('roomId') as string;
     const joinedSingleGroup = await db.runTransaction(async (tx) => {
       const room = await tx.get(roomRef(roomId));

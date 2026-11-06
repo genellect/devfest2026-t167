@@ -5,11 +5,12 @@ import { useEffect, useState } from "react";
 import { Loading } from "@/components/ui";
 import { canUseTestHost, signInAsHost, signInAsTestHost, signInAsTestStudent, useHostUser, type LoginOptions } from "@/lib/hostAuth";
 import { logoutMessage, useAppSession } from "@/lib/session";
+import { pendingJoinCode } from "@/lib/join-code";
 
 
 /**
  * ログイン（入口はここだけ）。Google でログインし、共通ホームへ進む。
- * 参加コードの入力は、ログイン後のホームから進む。
+ * QRやリンクから来た人は、ログインのあとにそのまま参加する。それ以外はホームへ進む。
  */
 export default function Login() {
   const router = useRouter();
@@ -22,7 +23,8 @@ export default function Login() {
 
   useEffect(() => {
     if (!user) return;
-    router.replace("/home");
+    // QRやリンクから来た人は、ログインのあとにそのまま参加する
+    router.replace(pendingJoinCode() ? "/join" : "/home");
   }, [user, router]);
 
   async function login(how: (options: LoginOptions) => Promise<void>) {

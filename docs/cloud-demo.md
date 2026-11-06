@@ -19,7 +19,7 @@ T167_TEST_PORT_OFFSET=27700 bash scripts/dev.sh serve
 T167_TEST_PORT_OFFSET=27700 bash scripts/dev.sh check
 ```
 
-ローカルの標準起動はAuth/FirestoreエミュレータとGemini・話者モデルのモック。画面にもモックであることを表示する。あらかじめあるDEMO01ではなく、Hostが新しく作成したセッションのコードで現MVPを確認する。実モデル・実Gemini・実クラウドの確認とは分けて記録する。
+ローカルの標準起動はAuth/FirestoreエミュレータとGemini・話者モデルのモック。画面にもモックであることを表示する。あらかじめある100001ではなく、Hostが新しく作成したセッションのコードで現MVPを確認する。実モデル・実Gemini・実クラウドの確認とは分けて記録する。
 
 録音の継続はHostのセッション開始・終了に従う。グループ集計の配信が遅れても、MVPの議論中に自動停止・送信しない。終了後は送信完了とHostの「分析済み」表示まで確認する。
 

@@ -41,7 +41,7 @@ test("録音中の失効は音声を保存してからログアウトし、再�
   await request.post("/api/sessions", { headers: { authorization: `Bearer ${teacher.idToken}` }, data: { deviceLabel: "架空の教師", deviceType: "pc" } });
   const created = await request.post("/api/rooms", { headers: { authorization: `Bearer ${teacher.idToken}` }, data: { title: "録音の保護確認" } });
   expect(created.status()).toBe(201); const { joinCode, roomId } = await created.json();
-  await loginStudent(page); await page.goto(`/join?code=${joinCode}`); await page.getByRole("button", { name: "参加する", exact: true }).click();
+  await loginStudent(page); await page.goto(`/join?code=${joinCode}`); await expect(page).toHaveURL(/\/rooms\//);
   await request.post(`/api/rooms/${roomId}/phase`, { headers: { authorization: `Bearer ${teacher.idToken}` }, data: { to: "discussing" } });
   await page.getByLabel("あなたの意見").fill("架空の意見"); await page.getByRole("button", { name: "提出する" }).click();
   await page.getByLabel("グループ全員が、録音することに同意しました").check(); await page.getByRole("button", { name: "録音を始める" }).click();
@@ -75,7 +75,7 @@ test("端末容量不足では録音を始めず、既存の議論画面に留�
   await request.post("/api/sessions", { headers: { authorization: `Bearer ${teacher.idToken}` }, data: { deviceLabel: "架空の教師", deviceType: "pc" } });
   const created = await request.post("/api/rooms", { headers: { authorization: `Bearer ${teacher.idToken}` }, data: { title: "容量の保護確認" } });
   const { joinCode, roomId } = await created.json();
-  await loginStudent(page); await page.goto(`/join?code=${joinCode}`); await page.getByRole("button", { name: "参加する", exact: true }).click();
+  await loginStudent(page); await page.goto(`/join?code=${joinCode}`); await expect(page).toHaveURL(/\/rooms\//);
   await request.post(`/api/rooms/${roomId}/phase`, { headers: { authorization: `Bearer ${teacher.idToken}` }, data: { to: "discussing" } });
   await page.getByLabel("あなたの意見").fill("架空の意見"); await page.getByRole("button", { name: "提出する" }).click();
   await page.evaluate(() => { navigator.storage.estimate = async () => ({ quota: 100, usage: 99 }); });

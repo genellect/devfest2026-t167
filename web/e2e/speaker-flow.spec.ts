@@ -16,7 +16,7 @@ test('録音と同じマイクで登録済みの声を照合し、Hostが表示�
   const context = await browser.newContext({ baseURL: new URL(page.url()).origin });
   try {
     const guest = await context.newPage(); await loginStudent(guest);
-    await guest.goto(`/join?code=${code}`); await guest.getByRole('button', { name: '参加する', exact: true }).click();
+    await guest.goto(`/join?code=${code}`); await expect(guest).toHaveURL(/\/rooms\//);
     await guest.getByLabel('参加者1の表示名').fill('架空の参加者');
     await guest.getByRole('button', { name: '表示名を保存して進む' }).click();
     await guest.getByLabel('声の特徴の登録と、上記の利用方法に同意します').check();

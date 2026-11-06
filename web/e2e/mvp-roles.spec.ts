@@ -37,7 +37,7 @@ test("Classroom未連携・教師claimなしでHostを作成し、別セッシ�
     const r = await another.post("/api/rooms", { headers, data: { title: "Participantとして参加するセッション", groups: 1, groupSelection: "host" } });
     expect(r.status()).toBe(201); const { roomId, joinCode } = await r.json();
     await page.goto(`/join?code=${joinCode}`);
-    await page.getByRole("button", { name: "参加する", exact: true }).click();
+    await expect(page).toHaveURL(/\/rooms\//);
     await expect(page.getByText("Hostによるグループの割り当てを待っています。")).toBeVisible();
     await expect(page.getByText("セッション設定・グループ管理", { exact: true })).toHaveCount(0);
     const localStudent = await emulatorGoogleUser("student", studentSubject);

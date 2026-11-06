@@ -94,12 +94,19 @@ describe('認証と所属', () => {
     await api(await anonymous()).post('/rooms', { title: 'x' }).expect(403);
     await api(await anon()).post('/rooms', { title: 'x' }).expect(201);
     const r = await api(await named()).post('/rooms', { title: 'x' }).expect(201);
-    expect(r.body.joinCode).toMatch(/^[A-Z0-9]{6}$/);
+    expect(r.body.joinCode).toMatch(/^\d{6}$/);
   });
   it('参加コードで participant になる。誤ったコードは 404', async () => {
     const { roomId, p1 } = await setupRoom();
     expect((await db.doc(`sessions/${roomId}/members/${uidOf(p1)}`).get()).get('role')).toBe('participant');
     await api(await anon()).post('/rooms/join', { code: 'ZZZZZZ' }).expect(404);
+  });
+  it('新しい参加コードは6桁の数字。以前に作った英数字6文字のコードでも参加できる', async () => {
+    const { roomId } = await setupRoom();
+    await db.doc('joinCodes/AB12CD').set({ roomId });
+    const p = await anon();
+    expect((await api(p).post('/rooms/join', { code: 'ab12cd' }).expect(200)).body).toEqual({ roomId });
+    await api(p).post('/rooms/join', { code: '12345' }).expect(400);
   });
   it('司会者が参加コードを使っても participant に下がらない', async () => {
     const { roomId, mod, joinCode } = await setupRoom();

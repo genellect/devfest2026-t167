@@ -111,7 +111,7 @@ serve() {
   env GOOGLE_CLOUD_PROJECT=$EMU_PROJECT GEMINI_MOCK="$mock" PORT="$T167_API_PORT" ${extra[@]+"${extra[@]}"} npm --prefix api run dev &
   npm --prefix web run dev -- -p "$T167_WEB_PORT" &
   wait_port "$T167_WEB_PORT"
-  echo "== http://localhost:$T167_WEB_PORT を開き、参加コード DEMO01 で参加できます（エミュレータの画面は http://localhost:$((4000 + OFFSET))）=="
+  echo "== http://localhost:$T167_WEB_PORT を開き、参加コード 100001 で参加できます（エミュレータの画面は http://localhost:$((4000 + OFFSET))）=="
   wait
 }
 

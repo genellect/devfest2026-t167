@@ -14,9 +14,9 @@ for (const account of ["生徒", "先生"]) {
     }
   });
 }
-test("参加コードを正規化し、共通メニューから参加できる", async ({ page }) => {
+test("参加コードは数字だけを受け付け、全角の数字も半角にそろえる", async ({ page }) => {
   await loginStudent(page); await page.goto("/join");
-  await page.getByLabel("参加コード").fill("ab-12 cd");
-  await expect(page.getByLabel("参加コード")).toHaveValue("AB12CD");
+  await page.getByLabel("参加コード").fill("12-3 ４５６a");
+  await expect(page.getByLabel("参加コード")).toHaveValue("123456");
   await expect(page.getByRole("button", { name: "参加する" })).toBeEnabled();
 });
