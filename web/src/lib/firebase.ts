@@ -16,15 +16,17 @@ export function firebase() {
   if (!app) {
     app = getApps()[0] ?? (useEmulators
       ? initializeApp({ projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, apiKey: "demo-key", authDomain: "localhost" }) // submit-allow: エミュレータ専用のダミー。authDomain は「Googleでログイン」のポップアップに要る
-      : initializeApp());
+      : process.env.NEXT_PUBLIC_FIREBASE_CONFIG
+        ? initializeApp(JSON.parse(process.env.NEXT_PUBLIC_FIREBASE_CONFIG))
+        : initializeApp());
     // 匿名のローカル開発では OAuth iframe を先読みせず、外部通信を待たない。
     auth = useEmulators
       ? initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence] })
       : getAuth(app);
     db = getFirestore(app);
     if (useEmulators) {
-      connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
-      connectFirestoreEmulator(db, "127.0.0.1", 8080);
+      connectAuthEmulator(auth, `http://127.0.0.1:${process.env.NEXT_PUBLIC_AUTH_EMULATOR_PORT ?? 9099}`, { disableWarnings: true });
+      connectFirestoreEmulator(db, "127.0.0.1", Number(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT ?? 8080));
     }
   }
   return { app: app!, auth: auth!, db: db! };

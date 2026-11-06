@@ -436,3 +436,9 @@ textarea.input { resize: vertical; min-height: 96px; }
 @media (prefers-reduced-motion: reduce) {
   .voice__ring { transition: none; }
 }
+/* MVPもFigma由来の既存トークンとコンポーネントを使う。 */
+.mvp-session-link { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; color: inherit; text-decoration: none; }
+.mvp-qr { max-width: 100%; height: auto; border-radius: 12px; }
+.mvp-code { letter-spacing: .25em; font-size: 28px; text-transform: uppercase; }
+.mvp-settings summary { cursor: pointer; min-height: 44px; font-weight: 700; }
+.mvp-settings form { padding-top: 16px; }

@@ -7,7 +7,7 @@ let env;
 before(async () => {
   env = await initializeTestEnvironment({
     projectId: 'demo-t167',
-    firestore: { rules: readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8'), host: '127.0.0.1', port: 8080 },
+    firestore: { rules: readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8'), host: '127.0.0.1', port: Number((process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080').split(':')[1]) },
   });
 });
 after(async () => { await env.cleanup(); });
@@ -30,6 +30,17 @@ async function seed(phase) {
   });
 }
 const as = (uid) => env.authenticatedContext(uid).firestore();
+
+test('MVPの議論・声の特徴・参加コードは本人もFirestoreへ直接アクセスできない', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    for (const path of ['mvpDiscussions/private', 'mvpUsers/alice/voice/default', 'mvpCodes/ABC123']) await setDoc(doc(ctx.firestore(), path), { value: '非公開データ' });
+  });
+  for (const path of ['mvpDiscussions/private', 'mvpUsers/alice/voice/default', 'mvpCodes/ABC123']) {
+    await assertFails(getDoc(doc(as('alice'), path)));
+    await assertFails(setDoc(doc(as('alice'), path), { value: '変更' }));
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), path)));
+  }
+});
 
 test('本人は自分の非公開意見を読める', async () => {
   await seed('collecting');

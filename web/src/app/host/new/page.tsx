@@ -1,90 +1,24 @@
 "use client";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { TabBar } from "@/components/nav";
-import { Header, Loading } from "@/components/ui";
-import { callApi } from "@/lib/api";
-import { useHostUser } from "@/lib/hostAuth";
-import { useEffect } from "react";
-import { addHistory, getProfile, setDuration, setRoomLabel } from "@/lib/local";
-
-const DURATIONS = [10, 15, 20, 30];
-const GROUPS = [1, 2, 3, 4, 5, 6, 7, 8];
-
-/** S2 部屋を作る */
-export default function NewRoom() {
-  const router = useRouter();
-  const user = useHostUser();
-  const [title, setTitle] = useState("");
-  const [minutes, setMinutes] = useState(15);
-  const [groups, setGroups] = useState(6);
-  const [recording, setRecording] = useState(true);
-  const [label, setLabel] = useState("");
-  useEffect(() => { setLabel(getProfile()?.className ?? ""); }, []);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function create(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true); setError("");
-    try {
-      const { roomId } = await callApi<{ roomId: string }>("/rooms", { title: title.trim(), groups, recording });
-      setDuration(roomId, minutes);
-      if (label.trim()) setRoomLabel(roomId, label.trim());
-      addHistory("host", { roomId, title: title.trim() });
-      router.push(`/rooms/${roomId}`);
-    } catch (err) { setError((err as Error).message); setBusy(false); }
+import Link from 'next/link';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Header } from '@/components/ui';
+import { MvpGate } from '@/components/mvp/MvpGate';
+import { mvpApi } from '@/lib/mvp';
+export default function NewRoom() { return <MvpGate><Form /></MvpGate>; }
+function Form() {
+  const router = useRouter(), [error, setError] = useState(''), [busy, setBusy] = useState(false);
+  async function create(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setError(''); const f = new FormData(event.currentTarget);
+    try { const data = await mvpApi<{ id: string }>('/create', { title: f.get('title'), theme: f.get('theme'), minutes: Number(f.get('minutes')), groups: Number(f.get('groups')), recording: f.get('recording') === 'on', visible: { theme: true, members: true, timer: true }, publishOnEnd: true }); router.push(`/discussions/${data.id}`); }
+    catch (e) { setError((e as Error).message); setBusy(false); }
   }
-
-  if (user === undefined) return <Loading />;
-  if (user === null) {
-    return (
-      <main className="screen"><div className="body body--center">
-        <div className="box box--lg card card--narrow"><p className="t-label">部屋を作るには、先生としてログインしてください。</p>
-          <Link className="btn btn--yellow" href="/">ログインする</Link></div>
-      </div></main>
-    );
-  }
-  return (
-    <main className="screen screen--tabs">
-      <Header title="新しい議論を作る" nav={<TabBar role="host" />} />
-      <div className="body body--center">
-        <form className="box box--lg card" style={{ width: "min(720px, 100%)" }} onSubmit={create}>
-          <h2 className="card__title">今日の議論を準備する</h2>
-          <div className="field">
-            <label className="field__label" htmlFor="label">クラス・授業名（任意）</label>
-            <input id="label" className="input" value={label} maxLength={40} placeholder="例：2年3組 探究の授業" onChange={(e) => setLabel(e.target.value)} />
-          </div>
-          <div className="field">
-            <label className="field__label" htmlFor="title">テーマ</label>
-            <input id="title" className="input" value={title} maxLength={100} placeholder="例：大学生のうちに経験すべきバイトは？" onChange={(e) => setTitle(e.target.value)} />
-          </div>
-          <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
-            <legend className="field__label" style={{ marginBottom: 6 }}>グループの数</legend>
-            <div className="choices choices--compact">
-              {GROUPS.map((n) => <button key={n} type="button" className="choice" aria-pressed={groups === n} onClick={() => setGroups(n)}>{n}</button>)}
-            </div>
-            <p className="field__hint">生徒は参加した順に、グループへ割り当てられます。</p>
-          </fieldset>
-          <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
-            <legend className="field__label" style={{ marginBottom: 6 }}>議論の時間</legend>
-            <div className="choices">
-              {DURATIONS.map((m) => <button key={m} type="button" className="choice" aria-pressed={minutes === m} onClick={() => setMinutes(m)}>{m}分</button>)}
-            </div>
-          </fieldset>
-          <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
-            <legend className="field__label" style={{ marginBottom: 6 }}>議論の録音</legend>
-            <div className="choices">
-              <button type="button" className="choice" aria-pressed={recording} onClick={() => setRecording(true)}>録音して分析する</button>
-              <button type="button" className="choice" aria-pressed={!recording} onClick={() => setRecording(false)}>録音しない</button>
-            </div>
-            <p className="field__hint">録音はグループごとに1台。グループ全員の同意を画面で確かめてから始め、音声は分析のあと保存しません。</p>
-          </fieldset>
-          {error && <p className="notice notice--error" role="alert">{error}</p>}
-          <button className="btn btn--blue btn--block" type="submit" disabled={busy || !title.trim()}>{busy ? "作っています…" : "部屋を作る"}</button>
-        </form>
-      </div>
-    </main>
-  );
+  return <main className="screen"><Header title="新しい議論を作る"><Link className="btn" href="/home">ホーム</Link></Header><div className="body body--center"><form className="box box--lg card" onSubmit={create}>
+    <h2 className="card__title">今日の議論を準備する</h2><label className="field">セッション名<input className="input" name="title" required maxLength={100} placeholder="例：AIとの学び方" /></label>
+    <label className="field">テーマ<textarea className="input" name="theme" required maxLength={1000} placeholder="例：授業でAIをどこまで活用する？" /></label>
+    <label className="field">制限時間（分）<input className="input" name="minutes" type="number" min={1} max={30} defaultValue={15} required /></label>
+    <label className="field">グループ数<select className="input" name="groups" defaultValue={1}>{[1,2,3,4,5,6,7,8].map((g) => <option key={g} value={g}>{g}</option>)}</select></label>
+    <label><input name="recording" type="checkbox" defaultChecked />議論を録音して分析する</label><p>録音はグループごとに1台。全員の同意を得てから、Guestが録音を始めます。</p>
+    {error && <p role="alert">{error}</p>}<button className="btn btn--blue btn--block" disabled={busy}>{busy ? '作成中…' : '部屋を作る'}</button>
+  </form></div></main>;
 }

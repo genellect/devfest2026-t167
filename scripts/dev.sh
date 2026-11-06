@@ -9,7 +9,28 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 FB="firebase/node_modules/.bin/firebase"
 EMU_PROJECT=demo-t167
-export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
+OFFSET=${T167_TEST_PORT_OFFSET:-0}
+case "$OFFSET" in ''|*[!0-9]*) echo 'NG: ポートのオフセットは0〜40000の整数です' >&2; exit 1 ;; esac
+[ "${#OFFSET}" -le 5 ] && [ "$OFFSET" -le 40000 ] || exit 1
+OFFSET=$((10#$OFFSET))
+export T167_WEB_PORT=$((3000 + OFFSET)) T167_API_PORT=$((8081 + OFFSET))
+export FIRESTORE_EMULATOR_HOST=127.0.0.1:$((8080 + OFFSET)) FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:$((9099 + OFFSET))
+export NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT=$((8080 + OFFSET)) NEXT_PUBLIC_AUTH_EMULATOR_PORT=$((9099 + OFFSET))
+emulator_config() {
+  local config; config=$(mktemp /tmp/t167-mvp-emulator.XXXXXX)
+  node - "$PWD" "$OFFSET" > "$config" <<'JS'
+const fs = require('node:fs');
+const [root, value] = process.argv.slice(2), offset = Number(value);
+const config = JSON.parse(fs.readFileSync(root + '/firebase.json'));
+for (const key of ['rules', 'indexes']) config.firestore[key] = root + '/' + config.firestore[key];
+for (const item of Object.values(config.emulators)) if (item && typeof item === 'object' && 'port' in item) item.port += offset;
+config.emulators.hub = { host: '127.0.0.1', port: 4400 + offset };
+config.emulators.logging = { host: '127.0.0.1', port: 4500 + offset };
+config.emulators.firestore.websocketPort = 9150 + offset;
+console.log(JSON.stringify(config));
+JS
+  echo "$config"
+}
 
 setup() {
   for d in web api firebase; do npm ci --prefix "$d" --no-audit --no-fund; done
@@ -62,20 +83,23 @@ serve() {
     echo "本物の Gemini（${PROJECT_ID} の Vertex AI、${VERTEX_LOCATION}、${GEMINI_MODEL}）を使います。Firestore と Auth はエミュレータのままです"
   fi
   # グループへの終了通知が自分にも届くので、先に全ハンドラーを解除して再帰を防ぐ。
-  trap 'trap - INT TERM EXIT; kill 0' INT TERM EXIT
-  "$FB" emulators:start --project "$EMU_PROJECT" --only auth,firestore >/tmp/t167-emulators.log 2>&1 &
-  wait_port 8080 && wait_port 9099
+  trap 'trap - INT TERM EXIT; rm -f "${config:-}"; kill 0' INT TERM EXIT
+  export API_ORIGIN=http://127.0.0.1:$T167_API_PORT NEXT_PUBLIC_USE_EMULATORS=1 NEXT_PUBLIC_FIREBASE_PROJECT_ID=$EMU_PROJECT
+  local config; config=$(emulator_config)
+  "$FB" emulators:start --config "$config" --project "$EMU_PROJECT" --only auth,firestore >"/tmp/t167-mvp-emulators-${OFFSET}.log" 2>&1 &
+  wait_port "$NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT" && wait_port "$NEXT_PUBLIC_AUTH_EMULATOR_PORT"
   npm --prefix firebase run seed
-  env GOOGLE_CLOUD_PROJECT=$EMU_PROJECT GEMINI_MOCK="$mock" PORT=8081 ${extra[@]+"${extra[@]}"} npm --prefix api run dev &
-  npm --prefix web run dev &
-  wait_port 3000
-  echo "== http://localhost:3000 を開き、参加コード DEMO01 で参加できます（エミュレータの画面は http://localhost:4000）=="
+  env GOOGLE_CLOUD_PROJECT=$EMU_PROJECT GEMINI_MOCK="$mock" PORT="$T167_API_PORT" ${extra[@]+"${extra[@]}"} npm --prefix api run dev &
+  npm --prefix web run dev -- -p "$T167_WEB_PORT" &
+  wait_port "$T167_WEB_PORT"
+  echo "== http://localhost:$T167_WEB_PORT を開き、参加コード DEMO01 で参加できます（エミュレータの画面は http://localhost:$((4000 + OFFSET))）=="
   wait
 }
 
 check() {
+  export GOOGLE_CLOUD_PROJECT=$EMU_PROJECT
   # CI と同じ値。App Hosting の apphosting.yaml は通常のビルドには使われない
-  export API_ORIGIN=http://127.0.0.1:8081 NEXT_PUBLIC_USE_EMULATORS=1 NEXT_PUBLIC_FIREBASE_PROJECT_ID=$EMU_PROJECT
+  export API_ORIGIN=http://127.0.0.1:$T167_API_PORT NEXT_PUBLIC_USE_EMULATORS=1 NEXT_PUBLIC_FIREBASE_PROJECT_ID=$EMU_PROJECT
   step() { echo; echo "== $*"; }
   step "静的検査と単体テスト"
   npm --prefix web run lint
@@ -94,8 +118,11 @@ check() {
   npm --prefix web run build
   if [ "${1:-}" = "--quick" ]; then echo; echo "OK（--quick：Rules・API の結合・E2E は省略。PR の CI では実行される）"; return; fi
   step "エミュレータ上で Rules・API の結合・E2E"
-  "$FB" emulators:exec --project "$EMU_PROJECT" --only auth,firestore \
+  local config; config=$(emulator_config)
+  trap 'rm -f "${config:-}"' EXIT
+  "$FB" emulators:exec --config "$config" --project "$EMU_PROJECT" --only auth,firestore \
     "npm --prefix firebase test && npm --prefix api run test:integration && npm --prefix web run e2e"
+  rm -f "$config"; trap - EXIT
   echo; echo "OK: CI と同じ検査がすべて通りました"
 }
 
@@ -121,7 +148,8 @@ pr() {
   else
     local body; body=$(mktemp)
     # PR テンプレートの「変更内容」に、このブランチのコミットの件名を入れておく。残りの項目は書き足す
-    awk -v list="$(git log --reverse --format='- %s' origin/main..HEAD)" '!done && /^-$/ { print list; done=1; next } { print }' \
+    T167_COMMIT_LIST="$(git log --reverse --format='- %s' origin/main..HEAD)" \
+      awk 'BEGIN { list=ENVIRON["T167_COMMIT_LIST"] } !done && /^-$/ { print list; done=1; next } { print }' \
       .github/pull_request_template.md > "$body"
     gh pr create --base main --title "$(git log --reverse --format=%s origin/main..HEAD | head -1)" --body-file "$body"
     rm -f "$body"

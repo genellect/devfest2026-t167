@@ -10,21 +10,24 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-PORTS = (3000, 8080, 8081, 9099)
+OFFSET = int(os.environ.get('T167_TEST_PORT_OFFSET', '0'))
+PORTS = tuple(port + OFFSET for port in (3000, 8080, 8081, 9099))
 STUB = '''#!/usr/bin/env python3
-import socket,sys,time
+import os,socket,sys,time
+offset=int(os.environ.get('T167_TEST_PORT_OFFSET','0'))
 if sys.argv[0].endswith('firebase'):
     ports=[8080,9099]
 elif sys.argv[1:]==['--prefix','firebase','run','seed']:
     raise SystemExit(0)
 elif sys.argv[1:]==['--prefix','api','run','dev']:
     ports=[8081]
-elif sys.argv[1:]==['--prefix','web','run','dev']:
+elif sys.argv[1:5]==['--prefix','web','run','dev']:
     ports=[3000]
 else:
     raise SystemExit('Unexpected command: '+repr(sys.argv))
 sockets=[]
 for port in ports:
+    port+=offset
     s=socket.socket();s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
     s.bind(('127.0.0.1',port));s.listen(8);sockets.append(s)
 while True:time.sleep(1)
@@ -47,6 +50,7 @@ def trial(sig):
         root = Path(directory)
         (root/'scripts').mkdir()
         shutil.copyfile(ROOT/'scripts/dev.sh', root/'scripts/dev.sh')
+        shutil.copyfile(ROOT/'firebase.json', root/'firebase.json')
         fb = root/'firebase/node_modules/.bin/firebase'
         fb.parent.mkdir(parents=True)
         npm = root/'bin/npm'
@@ -61,7 +65,7 @@ def trial(sig):
             try:
                 for _ in range(200):
                     output.flush()
-                    if '== http://localhost:3000' in (root/'output.log').read_text():
+                    if f'== http://localhost:{3000+OFFSET}' in (root/'output.log').read_text():
                         break
                     if process.poll() is not None:
                         raise RuntimeError('serve exited before readiness: '+(root/'output.log').read_text()[-2000:])

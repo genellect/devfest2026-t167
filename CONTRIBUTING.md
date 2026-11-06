@@ -1,5 +1,7 @@
 # 開発への参加
 
+現在のMVPのデモ操作は[デモ操作手順](docs/mvp-demo.md)を参照。ローカルは`T167_TEST_PORT_OFFSET=25000 bash scripts/dev.sh serve`で他の作業とポートを分離でき、同じオフセットで`bash scripts/dev.sh check`を実行する。エミュレータ/モックの成功と実クラウドでの成功は区別する。
+
 開発環境の起動から本番反映までの進め方。PR の確認と本番反映の依頼の手順は、[PR の確認から本番反映までの手順](docs/contributor-preview-guide.md) にある。人も AI エージェントも同じルールに従い、エージェント向けの手順は [AGENTS.md](AGENTS.md) にある。GCP の構築手順はチームドキュメントの「インフラ構築手順書」にある。
 
 インフラ手順書の正本を変えた場合は、関係するコードや運用ルールの変更と同じ PR で、同じ日に `docs/infra-manual.md` も更新する。写しだけを追いつかせる場合は専用 PR にする。

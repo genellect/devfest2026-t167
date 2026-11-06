@@ -5,6 +5,8 @@ import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore'
 import { z } from 'zod';
 import type { Gemini } from './gemini.js';
 import { alignmentRate, interventionEffectiveness, participationFairness, reflectionRate } from './metrics.js';
+import { registerMvpRoutes } from './mvp-routes.js';
+import { modelVoice, mockVoice, type VoiceEngine } from './mvp-voice.js';
 
 export const PHASES = ['collecting', 'discussing', 'consensus', 'closed'] as const;
 export const ANALYZE_COOLDOWN_MS = 30_000;
@@ -35,11 +37,13 @@ class HttpError extends Error {
 const wrap = (fn: (req: Req, res: Response) => Promise<unknown>) =>
   (req: Request, res: Response, next: NextFunction) => { fn(req as Req, res).catch(next); };
 
-export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now?: () => number }) {
+export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now?: () => number; voice?: VoiceEngine }) {
   const { db, auth, gemini } = deps;
   const now = deps.now ?? Date.now;
   const app = express();
   app.use(express.json({ limit: '32kb' }));
+  const emulator = !!process.env.FIRESTORE_EMULATOR_HOST && (process.env.GOOGLE_CLOUD_PROJECT ?? '').startsWith('demo-');
+  registerMvpRoutes(app, { ...deps, voice: deps.voice ?? (emulator && gemini.source === 'mock' ? mockVoice : modelVoice()) });
 
   const run = (fn: (req: Req, res: Response) => Promise<void>) =>
     (req: Request, res: Response, next: NextFunction) => {

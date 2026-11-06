@@ -9,13 +9,13 @@ type IconName = "home" | "create" | "help" | "settings" | "join";
 
 const TABS: Record<NavRole, { href: string; label: string; icon: IconName }[]> = {
   host: [
-    { href: "/host", label: "ホーム", icon: "home" },
+    { href: "/home", label: "ホーム", icon: "home" },
     { href: "/host/new", label: "部屋を作る", icon: "create" },
     { href: "/about", label: "使い方", icon: "help" },
     { href: "/host/profile", label: "設定", icon: "settings" },
   ],
   student: [
-    { href: "/student", label: "ホーム", icon: "home" },
+    { href: "/home", label: "ホーム", icon: "home" },
     { href: "/join", label: "参加", icon: "join" },
     { href: "/about", label: "使い方", icon: "help" },
   ],

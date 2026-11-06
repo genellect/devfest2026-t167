@@ -20,7 +20,7 @@ gcloud artifacts repositories describe app --project "$P" --location="$REGION" >
 SA="api-runtime@${P}.iam.gserviceaccount.com"
 gcloud iam service-accounts describe "$SA" --project "$P" >/dev/null 2>&1 \
   || gcloud iam service-accounts create api-runtime --project "$P" --display-name="Cloud Run API runtime"
-for ROLE in roles/datastore.user roles/aiplatform.user roles/logging.logWriter; do
+for ROLE in roles/datastore.user roles/aiplatform.user roles/logging.logWriter roles/firebaseauth.viewer; do
   gcloud projects add-iam-policy-binding "$P" --member="serviceAccount:${SA}" --role="$ROLE" --condition=None >/dev/null
 done
 echo "OK: $P の基盤を作成しました"

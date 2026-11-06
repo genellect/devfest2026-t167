@@ -8,12 +8,12 @@ pass=0 fail=0
 ok() { pass=$((pass+1)); echo "PASS $1"; }
 ng() { fail=$((fail+1)); echo "FAIL $1"; }
 same() { [ "$2" = "$3" ] && ok "$1" || ng "$1（期待: $2 / 実際: $3）"; }
-sorted() { tr ' ,・' '\n' | sed '/^$/d' | sort -u | tr '\n' ' ' | sed 's/ $//'; }
+sorted() { sed 's/・/ /g' | tr ' ,' '\n' | sed '/^$/d' | sort -u | tr '\n' ' ' | sed 's/ $//'; }
 
 DEPLOY="$ROOT/.github/workflows/deploy.yml"
 # GitHub の Variables：deploy.yml が読む名前を基準に、ほかの場所と一致するか
 VARS=$(grep -oE 'vars\.[A-Z_]+' "$DEPLOY" | sed 's/vars\.//' | sorted)
-[ -n "$VARS" ] && ok "deploy.yml から Variables を読めた（$VARS）" || ng "deploy.yml から Variables を読めない"
+[ -n "$VARS" ] && ok "deploy.yml から Variables を読めた（${VARS}）" || ng "deploy.yml から Variables を読めない"
 same "deploy.yml の事前検査が全部の Variables を確かめる" "$VARS" \
   "$(grep -oE 'for v in [A-Z_ ]+; do' "$DEPLOY" | head -1 | sed -E 's/for v in (.*); do/\1/' | sorted)"
 same "setup-deployer.sh が全部の Variables を表示する" "$VARS" \
