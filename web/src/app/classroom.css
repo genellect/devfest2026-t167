@@ -242,3 +242,5 @@ input[type=checkbox] { accent-color: var(--cr-primary); margin: 0; }
   .choices:not(.choices--compact):not(.choices--scale) { flex-direction: column; }
   .choices:not(.choices--compact):not(.choices--scale) .choice { flex: 0 0 auto; width: 100%; }
 }
+/* スマホの上のバーは題名を優先する。「デモデータ」は本文の各カードにも出るので、バーからは外す */
+@media (max-width: 767px) { .shell__actions .tag--yellow { display: none; } }
