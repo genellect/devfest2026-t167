@@ -5,10 +5,10 @@ import { HostSpeaking } from "@/components/Speaking";
 import { GuidedHostResults } from "./GuidedHostResults";
 import { SessionSettings } from "./SessionSettings";
 import { FlowTimeline, GoodReview, useFlow } from "@/components/flow";
-import { Header, SourceTag, Tag, useGeminiSource } from "@/components/ui";
+import { SourceTag, Tag, useGeminiSource } from "@/components/ui";
+import { AppShell } from "@/components/shell";
 import { ApiError, callApi } from "@/lib/api";
 import { formatMetric } from "@/lib/format";
-import Link from "next/link";
 import { getDuration, getRoomLabel } from "@/lib/local";
 import {
   groupStatus, millis, useGroups, useCountdown, useDoc, useGroupResults, useInsights, useMembers,
@@ -56,13 +56,13 @@ export function HostRoom({ roomId, room }: Props) {
     : `${label ? `${label}　` : ""}${current === "class" ? "セッション全体の結果" : `参加コード ${room.joinCode ?? ""}`}`;
   const back = typeof current === "number" ? (closed ? "class" : "dashboard") : current === "class" && !closed ? "dashboard" : current === "code" ? "dashboard" : undefined;
   return (
-    <main className="screen">
-      <Header eyebrow={eyebrow} title={typeof current === "number" ? `グループ${current}の話し合い` : room.title} demo={source === "mock"}>
+    <AppShell wide back="/home" eyebrow={eyebrow} title={typeof current === "number" ? `グループ${current}の話し合い` : room.title}
+      actions={<>
+        {source === "mock" && <span className="tag tag--yellow">デモデータ</span>}
         {back && <button className="btn btn--small" onClick={() => setView(back)}>{back === "class" ? "セッション全体に戻る" : "ダッシュボード"}</button>}
         {current === "dashboard" && <button className="btn btn--small" onClick={() => setView("code")}>参加コードを表示</button>}
         {current === "dashboard" && results.length > 0 && <button className="btn btn--small" onClick={() => setView("class")}>セッション全体の結果</button>}
-        <Link className="btn btn--small" href="/host">ホーム</Link>
-      </Header>
+      </>}>
       <SessionSettings roomId={roomId} room={room} />
       {room.flowVersion === 1 && current !== "code" && <HostSpeaking roomId={roomId} />}
       {room.flowVersion === 1 && room.phase === "discussing" && !room.endedAt && room.endsAt && <p className="notice" role="timer">残り時間 {clock.text}</p>}
@@ -80,7 +80,7 @@ export function HostRoom({ roomId, room }: Props) {
       {typeof current === "number" && (
         <GroupResultView result={results.find((r) => r.group === current) ?? null} group={current} roomId={roomId} source={source} />
       )}
-    </main>
+    </AppShell>
   );
 }
 

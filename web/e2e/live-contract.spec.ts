@@ -12,7 +12,7 @@ test("Googleログイン前の参加を防ぎ、生徒に教師権限を自己�
   await expect(page.getByLabel("参加コード")).toHaveValue("999999");
   await page.goto("/signup");
   await expect(page).toHaveURL(/\/home$/);
-  await expect(page.locator("main .mvp-actions").getByRole("link", { name: "参加する" })).toBeVisible();
+  await expect(page.locator("main").getByLabel("参加コード")).toBeVisible();
 });
 
 test("APIがHTMLを返す通信障害でも、内部情報を表示せず入力を保持する", async ({ page }) => {

@@ -2,8 +2,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { TabBar } from "@/components/nav";
-import { Header, Loading } from "@/components/ui";
+import { Loading } from "@/components/ui";
+import { AppShell } from "@/components/shell";
 import { callApi } from "@/lib/api";
 import { useHostUser } from "@/lib/hostAuth";
 import { useEffect } from "react";
@@ -43,10 +43,10 @@ export default function NewRoom() {
     );
   }
   return (
-    <main className="screen screen--tabs">
-      <Header title="新しいディスカッション" nav={<TabBar role="host" />} />
-      <div className="body body--center">
-        <form className="box box--lg card card--narrow" onSubmit={create}>
+    <AppShell title="新しい議論">
+      <div className="flow">
+        <form className="flow-card" onSubmit={create} aria-labelledby="new-title">
+          <h2 id="new-title" className="flow-card__title">議論の準備</h2>
           <div className="field">
             <label className="field__label" htmlFor="title">テーマ</label>
             <input id="title" className="input" value={title} maxLength={100} required placeholder="例：大学の課題提出でAIの利用を認めるべきか" onChange={(e) => setTitle(e.target.value)} />
@@ -56,9 +56,9 @@ export default function NewRoom() {
             <input id="label" className="input" value={label} maxLength={40} placeholder="例：2年3組" onChange={(e) => setLabel(e.target.value)} />
           </div>
           {error && <p className="notice notice--error" role="alert">{error}</p>}
-          <button className="btn btn--blue btn--block" type="submit" disabled={busy || !title.trim()}>{busy ? "作成しています…" : "作成する"}</button>
+          <div className="home-actions"><button className="btn btn--blue" type="submit" disabled={busy || !title.trim()}>{busy ? "作成しています…" : "作成する"}</button></div>
         </form>
       </div>
-    </main>
+    </AppShell>
   );
 }

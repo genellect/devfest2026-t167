@@ -28,9 +28,8 @@ test("参加コードで参加し、非公開の意見を出すと、グルー�
   const { joinCode, roomId } = await created.json();
 
   await loginStudent(page);
-  await page.getByRole("link", { name: "参加する", exact: true }).click();
   await page.getByLabel("参加コード").fill(joinCode);
-  await page.getByRole("button", { name: "参加する" }).click();
+  await page.getByRole("button", { name: "参加する", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "大学における生成AI利用の是非" })).toBeVisible();
   await expect(page.getByTestId("phase")).toHaveText("事前意見の受付中");
@@ -97,9 +96,8 @@ test("誤った参加コードではエラーが出る", async ({ page }) => {
     return route.abort();
   });
   await loginStudent(page);
-  await page.getByRole("link", { name: "参加する", exact: true }).click();
   await page.getByLabel("参加コード").fill("999999");
-  await page.getByRole("button", { name: "参加する" }).click();
+  await page.getByRole("button", { name: "参加する", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "参加コード" })).toContainText("参加コードが見つかりません");
   expect(externalAuthRequests, "エミュレータ認証が外部通信に依存していない").toBe(0);
 });
@@ -111,7 +109,7 @@ test("スマホの幅でも、ログインと参加の画面が横にはみ出�
   await loginStudent(page);
   for (const path of ["/student", "/join"]) {
     await page.goto(path);
-    await expect(page.getByRole("link", { name: "参加する", exact: true }).or(page.getByLabel("参加コード"))).toBeVisible();
+    await expect(page.getByLabel("参加コード")).toBeVisible();
     const { scroll, width } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: window.innerWidth }));
     expect(scroll, `${path} の横幅`).toBeLessThanOrEqual(width);
   }

@@ -20,7 +20,7 @@ test("別ブラウザの生徒ログインで旧端末が失効し、再読込�
     const other = await second.newPage(); await loginStudent(other);
     await page.reload(); await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("status")).toContainText("別の端末からログインされたため");
-    await expect(other.getByRole("link", { name: "参加する", exact: true })).toBeVisible();
+    await expect(other.getByLabel("参加コード")).toBeVisible();
   } finally { await second.close(); }
 });
 
@@ -33,7 +33,7 @@ test("共用端末は15分の無操作で再認証画面になり、元画面の
   await page.clock.install(); await page.clock.fastForward(15 * 60_000 + 1000);
   await expect(page.getByRole("dialog", { name: "再認証" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Googleで本人確認" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "参加する", exact: true })).toBeHidden();
+  await expect(page.getByLabel("参加コード")).toBeHidden();
 });
 
 test("録音中の失効は音声を保存してからログアウトし、再ログイン後に再生できる", async ({ page, request }) => {

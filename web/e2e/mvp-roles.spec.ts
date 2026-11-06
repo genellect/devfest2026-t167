@@ -8,7 +8,7 @@ test("Classroom未連携・教師claimなしでHostを作成し、別セッシ�
   await page.route("https://classroom.googleapis.com/**", (r) => { classroomRequests++; return r.abort(); });
   const studentSubject = await loginStudent(page);
   await expect(page.getByText("あなたは、生徒ですか？先生ですか？")).toHaveCount(0);
-  await page.getByRole("link", { name: "ディスカッションを作る（教員）", exact: true }).click();
+  await page.getByRole("link", { name: "議論を作る", exact: true }).click();
   await page.getByLabel("テーマ", { exact: true }).fill("架空の議論テーマ");
   await page.getByRole("button", { name: "作成する", exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);
@@ -42,8 +42,8 @@ test("Classroom未連携・教師claimなしでHostを作成し、別セッシ�
     await expect(page.getByLabel("あなたの意見")).toBeVisible();
     await page.goto("/home");
     const cards = page.locator(".mvp-session-link");
-    await expect(cards.filter({ hasText: "架空の議論テーマ" })).toContainText("教員");
-    await expect(cards.filter({ hasText: "Participantとして参加するセッション" })).toContainText("参加者");
+    await expect(cards.filter({ hasText: "架空の議論テーマ" })).toContainText("ホスト");
+    await expect(cards.filter({ hasText: "Participantとして参加するセッション" })).toContainText(/参加者|グループ1/);
     await page.screenshot({ path: "../docs/screenshots/mvp-home-mobile.png", fullPage: true });
     await page.goto(ownRoom);
     await expect(page.getByRole("button", { name: "ディスカッションを開始", exact: true })).toBeVisible();

@@ -1,4 +1,5 @@
 "use client";
+import { AppShell } from "@/components/shell";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
@@ -36,17 +37,13 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
   }, [room.endsAt, room.phase, ended, roomId]);
 
   return (
-    <main className="screen teacher">
-      <header className="appbar">
-        <div className="appbar__title">
-          <p className="appbar__who">{room.className ? `${room.className}　` : ""}<span className={`pill pill--${state === "議論中" ? "live" : state === "終了" ? "done" : "ready"}`}>{state}</span>{source === "mock" && <span className="pill">デモデータ</span>}</p>
-          <h1 className="appbar__theme">{room.theme || room.title}</h1>
-        </div>
+    <AppShell wide back="/home"
+      eyebrow={<>{room.className && <span>{room.className}</span>}<span className={`pill pill--${state === "議論中" ? "live" : state === "終了" ? "done" : "ready"}`}>{state}</span></>}
+      title={room.theme || room.title}
+      actions={<>{source === "mock" && <span className="tag tag--yellow">デモデータ</span>}
         <button type="button" className="icon-btn" aria-label="設定" title="設定" onClick={() => settings.current?.showModal()}>
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></svg>
-        </button>
-        <Link className="btn btn--small" href="/home">ホーム</Link>
-      </header>
+        </button></>}>
 
       {room.phase === "collecting" && <Lobby roomId={roomId} room={room} seats={seats} opinions={opinions} />}
       {!ended && room.phase !== "collecting" && <Live roomId={roomId} room={room} seats={seats} insights={insights} />}
@@ -62,7 +59,7 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
         <div className="dialog__head"><h2 id="settings-title" className="t-md">設定</h2><button type="button" className="btn btn--small" onClick={() => settings.current?.close()}>閉じる</button></div>
         <SessionSettings roomId={roomId} room={room} embedded />
       </dialog>
-    </main>
+    </AppShell>
   );
 }
 

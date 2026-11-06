@@ -1,6 +1,7 @@
+"use client";
 import Link from "next/link";
-import { AutoTabBar } from "@/components/nav";
-import { Header } from "@/components/ui";
+import { AppShell } from "@/components/shell";
+import { useHostUser } from "@/lib/hostAuth";
 
 const WHO = ["本人", "同じ部屋の人", "Host", "AI（Gemini）"];
 /** データごとに、WHO の順で「見られる範囲」を並べる */
@@ -14,11 +15,9 @@ const ROWS = [
 
 /** 使い方とプライバシー。どのデータを誰が見られるかを、参加者・Hostの両方に示す */
 export default function About() {
+  const user = useHostUser();
   return (
-    <main className="screen screen--tabs">
-      <Header eyebrow="グループディスカッション支援" title="使い方とプライバシー" nav={<AutoTabBar />}>
-        <Link className="btn btn--small" href="/">最初の画面に戻る</Link>
-      </Header>
+    <AppShell title="使い方とプライバシー" nav={!!user} actions={!user && <Link className="btn btn--small" href="/">ログインに戻る</Link>} wide>
       <div className="body" style={{ maxWidth: 1100, width: "100%", margin: "0 auto" }}>
         <div className="row">
           <section className="box box--md pad stack">
@@ -63,6 +62,6 @@ export default function About() {
           <p className="t-note">AI の分析には誤りが含まれることがあります。画面では「Gemini による推定」や「デモデータ」と表示し、実際に測った結果と区別しています。成績の判定には使いません。</p>
         </section>
       </div>
-    </main>
+    </AppShell>
   );
 }
