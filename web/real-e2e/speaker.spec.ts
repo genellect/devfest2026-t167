@@ -31,6 +31,7 @@ test('公開人声を画面で登録し、別録音をマイク入力として�
       if (!i) await expect(guest.getByRole('button', { name: '登録済み', exact: true })).toHaveCount(1);
     }
     await expect(guest.getByRole('heading', { name: '待機画面' })).toBeVisible();
+    await expect(page.getByText('参加 2人', { exact: true })).toBeVisible();
     await page.getByText('セッション設定・グループ管理', { exact: true }).click();
     await page.getByLabel('Guestに所属グループの発言時間の推定を表示').check();
     await page.getByRole('button', { name: 'セッションを開始', exact: true }).click();

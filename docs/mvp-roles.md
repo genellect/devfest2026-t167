@@ -132,3 +132,18 @@ GitHubのmain（017b78f）と公開済みPRを確認し、認証セッションP
 公開人声試験にはSherpa公式Nodeサンプルが参照する[csukuangfj/sr-data](https://github.com/csukuangfj/sr-data)の登録用・識別用の別録音を使用する（Apache-2.0）。`python3 speech/public_samples.py`で取得し、使用したリビジョン・出典・SHA-256を.local-data/public-voices/sources.jsonへ記録する。音声ファイルはPRへ含めない。これは中国語の公開人声2種類の接続確認で、日本語教室の精度試験ではない。
 
 `web/playwright.speaker.config.ts`は専用の実モデル画面試験用。SPEAKER_PYTHON、SPEAKER_EMBEDDING_MODEL、SPEAKER_VAD_MODEL、SPEAKER_LIVE_TEST_WAV（公開識別音声から作ったdiscussion.wav）を渡す。登録用ファイルは画面のファイル選択から送り、別録音をChromiumの擬似マイク入力へ流して、AudioWorklet→API→実モデル→Host/Guest表示・終了まで確認する。マイクのハードウェアや実iPadの検査とは区別する。Firestore/Auth/Geminiはエミュレータ/モックのまま、実際の話者モデルだけを実行する。
+
+### 公開人声の実データ検証結果（2026-11-06）
+
+出典リビジョンはsr-dataの92b4978ba6b4358e95be385e51e86ece86524d33。登録用ファイルを同一話者ごとに連結して先頭8秒を登録し、識別には別のtest録音を使用した。`scripts/public-speaker-evaluate.mjs`は実モデルで1秒区間を処理し、音声・特徴をログへ出さず集計のみ記録する。
+
+| 公開人声 | 評価区間 | 400ms以上の発話区間 | 正しく照合 | 判別不能 | 別話者への誤割当 |
+|---|---:|---:|---:|---:|---:|
+| サンプルA | 5 | 3 | 3 | 0 | 0 |
+| サンプルB | 8 | 7 | 5 | 2 | 0 |
+
+残る3区間は無音または短い発話として話者評価から除外した。2人・短い録音の結果で、一般的な識別精度や日本語教室の正答率を示さない。
+
+ブラウザ通し試験は、画面のファイル選択から2人の登録音声を送り、別録音を擬似マイクからAudioWorklet→API→実モデルへ流した。Host/Guestの実モデル表示、両者の発話時間、録音停止・端末保管、終了、ホームの終了表示まで検査する。共有端末の人数表示はアカウント数ではなく参加者名簿を数える。400msなどの短い発話時間は小数1桁の秒数で示す。
+
+専用試験では、直前のcheckでビルドしたNEXT_PUBLIC_FIREBASE_PROJECT_ID・エミュレータのポートに実行環境を合わせ、API_ORIGINも明示する（今回のオフセット30000ではhttp://127.0.0.1:38081）。Firestore/Authは専用エミュレータ、Gemini分析はモック、話者モデルと入力人声は実データ。クラウドpreviewは旧本番APIと共有するため、この通し結果とは分ける。
