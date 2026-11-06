@@ -164,7 +164,7 @@ input[type=checkbox] { accent-color: var(--cr-primary); margin: 0; }
 .check { align-items: center; font-weight: 400; }
 .choice { border: 1px solid var(--cr-outline); border-radius: 8px; background: var(--cr-surface); color: var(--cr-ink); font-weight: 500; }
 .choice[aria-pressed="true"] { background: var(--cr-primary-soft); border-color: var(--cr-primary); color: #001d35; }
-.choice[aria-pressed="true"]::before { content: "✓"; margin-right: 6px; }
+.choice[aria-pressed="true"]::before { content: "✓" / ""; margin-right: 6px; }
 /* 参加コードの6マス：高さ72px、角丸8px、文字32px */
 .code { gap: 10px; width: min(100%, 400px); }
 .code__cell { width: 100%; }
