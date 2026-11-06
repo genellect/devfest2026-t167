@@ -85,7 +85,7 @@ health以外は有効なGoogle IDトークンとアプリセッションCookie�
 | `GET/PUT /schools/{学校}/security-policy` | Google＋独自セッション | 同校管理者claim | 必要 | policy値域を検査 |
 | `POST /schools/{学校}/users/{利用者}/sessions/revoke` | Google＋独自セッション | 同校管理者claim | 必要 | 対象者も同校であることをサーバーで検査 |
 | `POST /rooms` | Google | —（作成者が司会者になる） | — | — |
-| `POST /rooms/join` | Google | —（参加コードで部屋を特定） | — | `closed` 以外。1グループの部屋への新規参加は議論開始前だけ |
+| `POST /rooms/join` | Google | —（参加コードで部屋を特定） | — | 新しい参加は `closed` 以外で、議論の開始前だけ。参加済みの人は開始後・終了後も同じコードで戻れる（外されたGuestは `403`） |
 | `POST /rooms/{部屋}/phase` | 必要 | 必要 | 必要 | 1つずつ順に進める。MVPフローの開始は全Guestの音声登録と所属が必要で、未準備がいれば`409 guests_not_ready`（人数 `notReady`）。`excludeNotReady: true`で未準備のGuestを外して開始し、外したGuestは以後この部屋に入れない |
 | `POST /rooms/{部屋}/analyze` | 必要 | 必要 | 必要 | `collecting`・`discussing`（授業中） |
 | `POST /rooms/{部屋}/progress` | 必要 | 必要 | 必要 | — |

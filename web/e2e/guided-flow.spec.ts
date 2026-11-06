@@ -27,6 +27,11 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     expect((await host.post(`/api/rooms/${r.roomId}/phase`, { headers, data: { to: "discussing" } })).status()).toBe(200);
     await expect(page.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
     await expect(page.getByText("テーマ：秘密のテーマ")).toBeVisible();
+    // 開始後にホームへ戻っても、同じコードで議論の画面に戻れる
+    await page.getByRole("link", { name: "ホームに戻る" }).click();
+    await page.goto(`/join?code=${r.joinCode}`);
+    await page.getByRole("button", { name: "参加する", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
     expect((await host.post(`/api/rooms/${r.roomId}/settings`, { headers, data: { participantView: { theme: false, timer: false, members: false } } })).status()).toBe(200);
     await expect(page.getByText("テーマ：秘密のテーマ")).toHaveCount(0);
     await expect(page.getByRole("timer")).toHaveCount(0);

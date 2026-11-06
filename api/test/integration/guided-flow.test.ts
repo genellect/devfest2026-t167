@@ -88,6 +88,19 @@ it('未準備のGuestがいても、Hostが確認すればそのGuestを外し�
   await p.post(`/rooms/${roomId}/messages`, { text: '開始後の発言' }).expect(200);
   expect((await db.doc(`sessions/${roomId}`).get()).get('groupState')['1'].total).toBe(1);
 });
+it('参加済みのGuestは、開始後も終了後も同じコードで部屋に戻れる。外されたGuestと新しい参加者は入れない', async () => {
+  const { h, p, roomId, joinCode } = await setup(); await enroll(p, roomId);
+  const late = await client();
+  await late.post('/rooms/join', { code: joinCode }).expect(200);
+  await h.post(`/rooms/${roomId}/phase`, { to: 'discussing', excludeNotReady: true }).expect(200);
+  expect((await p.post('/rooms/join', { code: joinCode }).expect(200)).body).toEqual({ roomId });
+  await late.post('/rooms/join', { code: joinCode }).expect(403);
+  await (await client()).post('/rooms/join', { code: joinCode }).expect(409);
+  await h.post(`/rooms/${roomId}/finish`).expect(200);
+  expect((await p.post('/rooms/join', { code: joinCode }).expect(200)).body).toEqual({ roomId });
+  await (await client()).post('/rooms/join', { code: joinCode }).expect(409);
+  expect((await member(roomId, p.uid).get()).get('status')).toBe('active');
+});
 it('期限をサーバー時刻で判定し、再接続でも終了が維持され、新規発言は拒否する', async () => {
   const { h, p, roomId } = await setup(); await enroll(p, roomId);
   await h.post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(200);

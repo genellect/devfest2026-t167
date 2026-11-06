@@ -108,18 +108,22 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
     const roomId = codeSnap.get('roomId') as string;
     const joinedSingleGroup = await db.runTransaction(async (tx) => {
       const room = await tx.get(roomRef(roomId));
+      if (!room.exists) throw new HttpError(404, 'room_not_found', '部屋がありません');
+      const mRef = db.doc(`sessions/${roomId}/members/${req.ctx.uid}`);
+      const existing = await tx.get(mRef);
+      // 参加済みの人は、開始・終了のあとでも同じコードやQRで部屋に戻れる。締め切るのは新しい参加だけ
+      if (existing.exists) {
+        if (existing.get('status') === 'inactive') throw new HttpError(403, 'not_member', 'このセッションには参加できません');
+        return false;
+      }
       requireOpenRoom(room); requireDiscussionActive(room);
       if (room.get('flowVersion') === 1 && room.get('phase') !== 'collecting') throw new HttpError(409, 'already_started', '開始済みのセッションには新規参加できません');
-      const mRef = db.doc(`sessions/${roomId}/members/${req.ctx.uid}`);
-      if (!(await tx.get(mRef)).exists) {
-        const singleGroup = (room.get('groups') ?? 1) <= 1 && room.get('groupSelection') !== 'host';
-        if (singleGroup && statusOf(room, 1) !== 'opinions') throw new HttpError(409, 'group_started', 'このグループはもう議論を始めています');
-        // グループが1つなら自動でグループ1。複数なら、参加のあとに生徒が自分で選ぶ（groups/choose）
-        tx.set(db.doc(`users/${req.ctx.uid}/discussions/${roomId}`), { sessionId: roomId });
-        tx.set(mRef, { uid: req.ctx.uid, role: 'participant', groupId: singleGroup ? '1' : null, status: 'active', ...(singleGroup ? { group: 1 } : {}), joinedAt: FieldValue.serverTimestamp() });
-        return singleGroup;
-      }
-      return false;
+      const singleGroup = (room.get('groups') ?? 1) <= 1 && room.get('groupSelection') !== 'host';
+      if (singleGroup && statusOf(room, 1) !== 'opinions') throw new HttpError(409, 'group_started', 'このグループはもう議論を始めています');
+      // グループが1つなら自動でグループ1。複数なら、参加のあとに生徒が自分で選ぶ（groups/choose）
+      tx.set(db.doc(`users/${req.ctx.uid}/discussions/${roomId}`), { sessionId: roomId });
+      tx.set(mRef, { uid: req.ctx.uid, role: 'participant', groupId: singleGroup ? '1' : null, status: 'active', ...(singleGroup ? { group: 1 } : {}), joinedAt: FieldValue.serverTimestamp() });
+      return singleGroup;
     });
     if (joinedSingleGroup) await refreshGroup(roomId, 1);
     res.json({ roomId });
