@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { TabBar } from "@/components/nav";
 import { Header } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { signOutHost, useHostUser } from "@/lib/hostAuth";
@@ -15,9 +16,8 @@ export default function StudentHome() {
   useEffect(() => { setGoal(getNextGoal()); setHistory(getHistory("participant")); }, []);
 
   return (
-    <main className="screen">
-      <Header title="あなたのホーム">
-        <Link className="btn btn--small" href="/about">使い方</Link>
+    <main className="screen screen--tabs">
+      <Header title="あなたのホーム" nav={<TabBar role="student" />}>
         {account && <button className="btn btn--small" onClick={() => { setRole(account.uid, "host"); router.push("/host"); }}>先生として使う</button>}
         {account
           ? <button className="btn btn--small" onClick={async () => { await signOutHost(); router.push("/"); }}>ログアウト</button>
@@ -25,7 +25,7 @@ export default function StudentHome() {
       </Header>
       <div className="body body--tablet">
         <div className="row" style={{ flex: "0 0 auto" }}>
-          <section className="box box--md box--yellow pad stack" style={{ flex: 2 }}>
+          <section className="box box--md box--yellow pad stack row__wide">
             <p className="t-label">前回決めた、次に挑戦したいこと</p>
             {goal ? (
               <>
@@ -47,9 +47,9 @@ export default function StudentHome() {
           {history.map((h) => {
             const r = getReflection(h.roomId);
             return (
-              <div key={h.roomId} className="box box--bg pad" style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <div key={h.roomId} className="box box--bg pad list-item">
                 <span className="t-label">{shortDate(h.at)}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div>
                   <p className="t-sm">{h.title}</p>
                   {r.goal && <p className="t-small">目標：{r.goal}{r.achieved ? `　${r.achieved}` : ""}</p>}
                 </div>

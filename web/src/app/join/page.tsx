@@ -1,20 +1,27 @@
 "use client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
+import { TabBar } from "@/components/nav";
 import { Header } from "@/components/ui";
 import { callApi } from "@/lib/api";
 import { ensureSignedIn, firebase } from "@/lib/firebase";
 import { signOutHost } from "@/lib/hostAuth";
 
+const CODE_LENGTH = 6;
+/** 参加コードは英大文字と数字の6文字。小文字・空白・ハイフン入りの貼り付けもそろえる */
+const normalize = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, CODE_LENGTH);
+
 /** P1 参加コード入力。QR コードからは ?code=XXXXXX 付きで開く */
 function JoinForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const [code, setCode] = useState(() => (params.get("code") ?? "").toUpperCase().slice(0, 6));
+  const input = useRef<HTMLInputElement>(null);
+  const [code, setCode] = useState(() => normalize(params.get("code") ?? ""));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [focused, setFocused] = useState(false);
   // 部屋を作った先生のアカウントのまま参加しようとしたときの部屋（司会者のまま入るので、確認を出す）
   const [ownRoom, setOwnRoom] = useState<string>();
 
@@ -30,6 +37,7 @@ function JoinForm() {
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);
+      input.current?.focus(); // すぐ打ち直せるように
     }
   }
 
@@ -51,17 +59,30 @@ function JoinForm() {
     );
   }
 
+  const active = Math.min(code.length, CODE_LENGTH - 1);
   return (
-    <form className="box box--lg card card--narrow" onSubmit={join}>
+    <form className="box box--lg card card--narrow" onSubmit={join} noValidate>
       <h2 className="card__title">参加コードを入力</h2>
       <div className="field">
         <label className="field__label" htmlFor="code">参加コード</label>
-        <input id="code" className="input input--code" value={code} inputMode="text" autoComplete="off" autoCapitalize="characters"
-          maxLength={6} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} />
-        <p className="field__hint">先生の画面に表示されている6文字です。登録やログインはいりません。</p>
+        {/* 見た目は6マス。入力欄は透明な1つだけなので、貼り付け・自動入力・読み上げはふつうの入力欄と同じに動く */}
+        <div className="code" data-invalid={error ? true : undefined}>
+          {Array.from({ length: CODE_LENGTH }, (_, i) => (
+            <span key={i} className="code__cell" aria-hidden="true"
+              data-filled={i < code.length || undefined} data-active={(focused && i === active) || undefined}>
+              {code[i] ?? ""}
+            </span>
+          ))}
+          <input ref={input} id="code" className="code__input" value={code}
+            inputMode="text" autoCapitalize="characters" autoComplete="off" autoCorrect="off" spellCheck={false} enterKeyHint="go"
+            aria-describedby={error ? "code-hint code-error" : "code-hint"} aria-invalid={error ? true : undefined}
+            onChange={(e) => { setCode(normalize(e.target.value)); setError(""); }}
+            onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} />
+        </div>
+        <p id="code-hint" className="field__hint">先生の画面に表示されている英字と数字の6文字です。小文字で入れても大丈夫です。登録やログインはいりません。</p>
       </div>
-      {error && <p className="notice notice--error" role="alert">{error}</p>}
-      <button className="btn btn--blue btn--block" type="submit" disabled={busy || code.length !== 6}>
+      {error && <p id="code-error" className="notice notice--error" role="alert">{error}</p>}
+      <button className="btn btn--blue btn--block" type="submit" disabled={busy || code.length !== CODE_LENGTH}>
         {busy ? "参加しています…" : "参加する"}
       </button>
     </form>
@@ -70,8 +91,8 @@ function JoinForm() {
 
 export default function JoinPage() {
   return (
-    <main className="screen">
-      <Header title="議論に参加する"><Link className="btn btn--small" href="/student">戻る</Link></Header>
+    <main className="screen screen--tabs">
+      <Header title="議論に参加する" nav={<TabBar role="student" />} />
       <div className="body body--center">
         <Suspense><JoinForm /></Suspense>
       </div>

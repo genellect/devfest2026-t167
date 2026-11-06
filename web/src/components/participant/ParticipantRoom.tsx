@@ -292,7 +292,7 @@ function ConsensusStep({ roomId, uid, title, submitted, total }: { roomId: strin
         </div>
         <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
           <legend className="field__label" style={{ marginBottom: 6 }}>その結論に、どのくらい納得している？</legend>
-          <div className="choices">
+          <div className="choices choices--scale">
             {AGREEMENT.map((label, i) => (
               <button key={label} type="button" className="choice" aria-pressed={agreement === i + 1} onClick={() => setAgreement(i + 1)}>{label}</button>
             ))}
