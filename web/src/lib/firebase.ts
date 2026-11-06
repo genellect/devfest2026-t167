@@ -7,6 +7,8 @@ import {
 import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
 
 const useEmulators = process.env.NEXT_PUBLIC_USE_EMULATORS === "1";
+import { publicFirebaseConfig } from "./firebase-config";
+
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let db: Firestore | undefined;
@@ -14,9 +16,15 @@ let db: Firestore | undefined;
 /** App Hosting では FIREBASE_WEBAPP_CONFIG が自動で入るので引数なしで初期化する。ローカルはエミュレータに接続する */
 export function firebase() {
   if (!app) {
+    const options = useEmulators ? undefined : publicFirebaseConfig({
+      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+    });
     app = getApps()[0] ?? (useEmulators
       ? initializeApp({ projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, apiKey: "demo-key", authDomain: "localhost" }) // submit-allow: エミュレータ専用のダミー。authDomain は「Googleでログイン」のポップアップに要る
-      : initializeApp());
+      : options ? initializeApp(options) : initializeApp());
     // 模擬Google認証のローカル開発では OAuth iframe を先読みせず、外部通信を待たない。
     auth = useEmulators
       ? initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence] })

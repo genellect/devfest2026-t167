@@ -20,7 +20,8 @@ gcloud artifacts repositories describe app --project "$P" --location="$REGION" >
 SA="api-runtime@${P}.iam.gserviceaccount.com"
 gcloud iam service-accounts describe "$SA" --project "$P" >/dev/null 2>&1 \
   || gcloud iam service-accounts create api-runtime --project "$P" --display-name="Cloud Run API runtime"
-for ROLE in roles/datastore.user roles/aiplatform.user roles/logging.logWriter; do
+# IDトークンの失効・無効化確認はユーザー情報の読み取りが必要。権限の付与・変更はAPIに許可しない。
+for ROLE in roles/datastore.user roles/aiplatform.user roles/logging.logWriter roles/firebaseauth.viewer; do
   gcloud projects add-iam-policy-binding "$P" --member="serviceAccount:${SA}" --role="$ROLE" --condition=None >/dev/null
 done
 echo "OK: $P の基盤を作成しました"

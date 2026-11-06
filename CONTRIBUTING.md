@@ -45,6 +45,8 @@ http://localhost:3000 を開き、参加コード `DEMO01` で参加する。Aut
 
 ## 開発の流れ
 
+クラウドでのデモ準備は[cloud-demo](docs/cloud-demo.md)を参照。既存のWIF・サービスアカウントを使い、実行用APIには認証の読み取りだけを許可する。教師claimの操作は管理者用コマンドに限定し、通常の起動・CI・デプロイでは付与しない。PR作成と本番反映の承諾は別であり、今回の実装・テストではクラウドを変更しない。
+
 1. **ブランチを作る。** `git fetch origin main` のあと、最新の `origin/main` から作る。
 2. **変更する。** 1つの PR では1つの目的だけを扱い、関係するテストと文書を同じ PR で更新する。
 3. **PR を出す。** コミットしたら `bash scripts/dev.sh pr --no-merge` を実行する。手元の検査（`check --quick`）、push、PR の作成を1回で行い、auto-merge は付けない。PR の本文にはコミットの件名が入るので、[PR テンプレート](.github/pull_request_template.md)の残りの項目（背景・目的、検査とプレビューの結果、未確認のこと、スクリーンショット）を書き足す。

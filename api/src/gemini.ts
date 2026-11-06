@@ -1,5 +1,6 @@
 import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 import { z } from 'zod';
+import type { GoogleCredentials } from './google-auth.js';
 import { externalCall } from './external-call.js';
 
 export interface Point { summary: string; discussed: boolean }
@@ -87,8 +88,8 @@ export const GENERATION_CONFIG = {
 } as const;
 
 /** Vertex AI 経由の Gemini。API キーは使わず、Cloud Run のサービスアカウントで認証する */
-export function vertexGemini(project: string, location: string, model: string): Gemini {
-  const ai = new GoogleGenAI({ vertexai: true, project, location });
+export function vertexGemini(project: string, location: string, model: string, credentials?: GoogleCredentials): Gemini {
+  const ai = new GoogleGenAI({ vertexai: true, project, location, ...(credentials ? { googleAuthOptions: { credentials } } : {}) });
   async function ask<T>(prompt: string, schema: object, parse: z.ZodType<T>): Promise<T> {
     const res = await externalCall((abortSignal) => ai.models.generateContent({
       model,

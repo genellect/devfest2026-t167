@@ -131,6 +131,7 @@ check() {
   bash tests/dev-pr.test.sh
   python3 tests/dev-serve.test.py
   node --test tests/dev-isolation.test.mjs
+  node --test tests/cloud-demo.test.mjs
   bash tests/config.test.sh
   step "ビルド"
   npm --prefix api run build
