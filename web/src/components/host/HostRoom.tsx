@@ -213,7 +213,7 @@ function Dashboard({ roomId, room, results, members, onOpen, onFinish, moving }:
 const ANALYSIS_LOCK_MS = 60_000;
 
 /** AI の分析ボタンと介入提案。提案はHostが承認したものだけが参加者に届く */
-function AiPanel({ roomId, room, insights }: { roomId: string; room: Room; insights: Insight[] }) {
+export function AiPanel({ roomId, room, insights }: { roomId: string; room: Room; insights: Insight[] }) {
   const [busy, setBusy] = useState(false);
   const [paused, setPaused] = useState("");
   const [wait, setWait] = useState(0);
@@ -259,7 +259,7 @@ function AiPanel({ roomId, room, insights }: { roomId: string; room: Room; insig
   return (
     <section className="stack" style={{ gap: 20 }}>
       <div className="box box--md pad stack">
-        <div className="heading-row"><h2 className="t-sm">AIからの介入提案</h2><Tag>Hostだけに表示</Tag></div>
+        <div className="heading-row"><h2 className="t-sm">AIからの介入提案</h2><Tag>教員だけに表示</Tag></div>
         <p className="t-note">事前の意見と今の議論を照らし合わせ、まだ話されていない論点を探します。</p>
         <button className="btn btn--blue btn--block" onClick={analyze} disabled={running || wait > 0}>
           {running ? "分析中…" : wait > 0 ? `あと ${wait} 秒で再分析できます` : "未検討の論点を探す"}
@@ -290,7 +290,7 @@ const describeGap = (clusters: { count: number }[] | undefined) =>
   !clusters || clusters.length === 0 ? "回答なし" : clusters.length === 1 ? "大きなちがいなし" : `理解が${clusters.length}通り`;
 
 /** 終了後：結論の一文の回収状況と、合意のずれ・4つの指標をまとめる操作 */
-function ConsensusProgress({ roomId, room, results, summary }: { roomId: string; room: Room; results: GroupResult[]; summary: Summary | null }) {
+export function ConsensusProgress({ roomId, room, results, summary }: { roomId: string; room: Room; results: GroupResult[]; summary: Summary | null }) {
   const [busy, setBusy] = useState<string>();
   const [message, setMessage] = useState("");
   const groupCount = room.groups ?? 1;
@@ -325,7 +325,7 @@ function ConsensusProgress({ roomId, room, results, summary }: { roomId: string;
 }
 
 /** T1 セッション全体の結果。グループの結果を並べて比べる。指標は分かるものだけ出す */
-function ClassResult({ roomId, room, results, summary, onOpen }: { roomId: string; room: Room; results: GroupResult[]; summary: Summary | null; onOpen: (g: number) => void }) {
+export function ClassResult({ roomId, room, results, summary, onOpen }: { roomId: string; room: Room; results: GroupResult[]; summary: Summary | null; onOpen: (g: number) => void }) {
   const coverage = useDoc<Coverage>(`sessions/${roomId}/results/coverage`).data;
   const respondents = results.reduce((a, r) => a + r.respondents, 0);
   const largest = results.reduce((a, r) => a + Math.max(0, ...r.clusters.map((c) => c.count)), 0);
@@ -387,7 +387,7 @@ function ClassResult({ roomId, room, results, summary, onOpen }: { roomId: strin
 }
 
 /** T2 グループの話し合い。理解の分かれ方、議論の流れ、ここがよかった／ここを見直そう */
-function GroupResultView({ result, group, roomId, source }: { result: GroupResult | null; group: number; roomId: string; source?: string }) {
+export function GroupResultView({ result, group, roomId, source }: { result: GroupResult | null; group: number; roomId: string; source?: string }) {
   const clusters = [...(result?.clusters ?? [])].sort((a, b) => b.count - a.count);
   const { flow } = useFlow(roomId, group, source);
   return (

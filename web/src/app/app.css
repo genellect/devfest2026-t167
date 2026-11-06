@@ -120,3 +120,47 @@ input[type=checkbox] { width: 20px; height: 20px; flex: 0 0 auto; margin: 2px 0 
 .login__link { color: var(--muted); align-self: flex-start; }
 .home-join { min-height: 56px; font-size: 18px; }
 .box--tint { background: var(--container); border-color: transparent; }
+
+/* ---------- 教員の画面 ---------- */
+.teacher__body { width: min(1180px, 100%); margin: 0 auto; display: flex; flex-direction: column; gap: 20px; padding: 20px max(var(--gutter), env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) max(var(--gutter), env(safe-area-inset-left)); }
+.teacher .appbar__theme { font-size: 19px; }
+.pill { display: inline-block; margin-right: 6px; padding: 1px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--container); color: var(--muted); }
+.pill--ready { background: var(--primary-soft); color: #041e49; }
+.pill--live { background: var(--ok); color: var(--ok-ink); }
+.pill--done { background: var(--container); color: var(--ink); }
+.icon-btn { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 999px; border: 1px solid var(--line-soft); background: #fff; color: var(--ink); cursor: pointer; }
+.icon-btn:hover { background: var(--container); }
+/* 設定のダイアログ。開いている間は後ろを操作させない（showModal） */
+.dialog { width: min(560px, calc(100% - 24px)); max-height: calc(100dvh - 48px); border: 0; border-radius: 24px; padding: 0; box-shadow: 0 12px 40px rgb(0 0 0 / .22); }
+.dialog::backdrop { background: rgb(31 31 31 / .45); }
+.dialog__head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; background: #fff; border-bottom: 1px solid var(--line-soft); }
+.dialog .settings { padding: 16px 20px 24px; }
+.settings__group { display: flex; flex-direction: column; gap: 10px; padding-bottom: 16px; border-bottom: 1px solid var(--line-soft); }
+.settings__group:last-of-type { border-bottom: 0; }
+/* 準備中：教室に映す参加コードが主役 */
+.lobby { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.lobby__code { background: #fff; border: 1px solid var(--line-soft); border-radius: 28px; padding: 24px; display: grid; justify-items: center; gap: 12px; text-align: center; }
+.lobby__label { font-size: 15px; color: var(--muted); font-weight: 700; }
+.lobby__digits { font-size: clamp(56px, 13vw, 128px); font-weight: 900; line-height: 1; letter-spacing: .06em; font-variant-numeric: tabular-nums; color: var(--ink); }
+.lobby__qr { width: min(280px, 70vw); aspect-ratio: 1; image-rendering: pixelated; background: var(--container); border-radius: 12px; }
+.lobby__side { display: flex; flex-direction: column; gap: 16px; }
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.stats > div { background: #fff; border: 1px solid var(--line-soft); border-radius: 20px; padding: 16px; }
+.stats dt { font-size: 14px; color: var(--muted); }
+.stats dd { margin: 4px 0 0; font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.start-btn { min-height: 64px; font-size: 20px; }
+@media (min-width: 900px) { .lobby { grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); align-items: start; } }
+/* 議論中：経過時間と終了の帯、提案とグループの2列 */
+.live-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; background: #fff; border: 1px solid var(--line-soft); border-radius: 20px; padding: 14px 18px; }
+.live-bar__time { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.live-bar__end { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+.live-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+@media (min-width: 900px) { .live-grid { grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); align-items: start; } }
+.group-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.group-list li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
+.group-list li:last-child { border-bottom: 0; }
+/* 既存の結果の部品（.body で包まれている）を、教員画面の幅と余白にそろえる */
+.teacher__body > .body { flex: none; padding: 0; }
+.review-group { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.review-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.review-list .pill { margin-right: 8px; }

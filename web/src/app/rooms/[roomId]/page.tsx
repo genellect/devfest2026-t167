@@ -3,6 +3,7 @@ import Link from "next/link";
 import { use, useEffect } from "react";
 import { ErrorScreen, Loading } from "@/components/ui";
 import { HostRoom } from "@/components/host/HostRoom";
+import { TeacherRoom } from "@/components/host/TeacherRoom";
 import { ParticipantRoom } from "@/components/participant/ParticipantRoom";
 import { addHistory } from "@/lib/local";
 import { useDoc, useUid, type Room } from "@/lib/room";
@@ -26,6 +27,6 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   if (!room.data || !role) return <Loading />;
   const warning = member.error || room.error;
   return <>{warning && <p className="notice notice--warn" role="status">{warning}</p>}{role === "host"
-    ? <HostRoom roomId={roomId} room={room.data} />
+    ? room.data.flowVersion === 1 ? <TeacherRoom roomId={roomId} room={room.data} /> : <HostRoom roomId={roomId} room={room.data} />
     : <ParticipantRoom roomId={roomId} room={room.data} uid={uid!} group={member.data?.group ?? (room.data.groupSelection !== "host" && (room.data.groups ?? 1) <= 1 ? 1 : undefined)} />}</>;
 }

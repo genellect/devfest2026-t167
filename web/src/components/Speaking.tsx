@@ -22,7 +22,7 @@ export function GuestSpeaking({ roomId, group }: { roomId: string; group: number
   const { data } = useDoc<SpeakingState>(`sessions/${roomId}/speaking/${group}`);
   return data ? <SpeakingRates state={data} /> : null;
 }
-export function HostSpeaking({ roomId }: { roomId: string }) {
+export function HostSpeaking({ roomId, card = false }: { roomId: string; card?: boolean }) {
   const groups = useRoomFeed(roomId).collections[`sessions/${roomId}/speaking`] ?? [];
-  return <section className="body stack" aria-label="リアルタイムの発言状況"><h2>リアルタイムの発言状況</h2>{!groups.length && <p>録音担当端末が録音を始めると、登録した声との照合結果が表示されます。</p>}{groups.map((g) => <SpeakingRates key={g.id} state={g as unknown as SpeakingState} />)}</section>;
+  return <section className={card ? "flow-card stack" : "body stack"} aria-label="リアルタイムの発言状況"><h2 className={card ? "t-sm" : undefined}>リアルタイムの発言状況</h2>{!groups.length && <p>録音担当端末が録音を始めると、登録した声との照合結果が表示されます。</p>}{groups.map((g) => <SpeakingRates key={g.id} state={g as unknown as SpeakingState} />)}</section>;
 }

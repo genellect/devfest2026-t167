@@ -14,12 +14,12 @@ test("Classroom未連携・教師claimなしでHostを作成し、別セッシ�
   await expect(page).toHaveURL(/\/rooms\//);
   const ownRoom = page.url();
   await expect(page.getByRole("heading", { name: "架空の議論テーマ" })).toBeVisible();
-  await expect(page.getByText("セッション設定・グループ管理", { exact: true })).toBeVisible();
-  await expect(page.getByText("グループ1", { exact: true })).toBeVisible();
-  await page.getByText("セッション設定・グループ管理", { exact: true }).click();
+  await expect(page.getByTestId("join-code")).toHaveText(/^\d{3} \d{3}$/);
+  await expect(page.getByRole("button", { name: "ディスカッションを開始", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "設定", exact: true }).click();
   await page.getByLabel("所属グループの分析結果を参加者に公開する").check();
-  await expect(page.getByRole("status")).toContainText("保存しました。");
-  await page.getByText("セッション設定・グループ管理", { exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("status")).toContainText("保存しました。");
+  await page.getByRole("button", { name: "閉じる", exact: true }).click();
   await mkdir("../docs/screenshots", { recursive: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: "../docs/screenshots/mvp-host-desktop.png", fullPage: true });
@@ -36,7 +36,7 @@ test("Classroom未連携・教師claimなしでHostを作成し、別セッシ�
     await page.goto(`/join?code=${joinCode}`);
     await expect(page).toHaveURL(/\/rooms\//);
     await expect(page.getByText("教員によるグループの割り当てを待っています。")).toBeVisible();
-    await expect(page.getByText("セッション設定・グループ管理", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "設定", exact: true })).toHaveCount(0);
     const localStudent = await emulatorGoogleUser("student", studentSubject);
     expect((await another.post(`/api/rooms/${roomId}/groups/assign`, { headers, data: { uid: localStudent.localId, group: 1 } })).status()).toBe(200);
     await expect(page.getByLabel("あなたの意見")).toBeVisible();
@@ -46,7 +46,7 @@ test("Classroom未連携・教師claimなしでHostを作成し、別セッシ�
     await expect(cards.filter({ hasText: "Participantとして参加するセッション" })).toContainText("参加者");
     await page.screenshot({ path: "../docs/screenshots/mvp-home-mobile.png", fullPage: true });
     await page.goto(ownRoom);
-    await expect(page.getByText("セッション設定・グループ管理", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "ディスカッションを開始", exact: true })).toBeVisible();
     expect(classroomRequests).toBe(0);
   } finally { await another.dispose(); }
 });

@@ -27,9 +27,7 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
   await page.screenshot({ path: "../docs/screenshots/unified-host-new-mobile.png", fullPage: true });
   await page.getByRole("button", { name: "作成する", exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);
-  await page.getByRole("button", { name: "参加コードを表示", exact: true }).click();
-  const code = (await page.getByTestId("join-code").textContent())!.trim();
-  await page.getByRole("button", { name: "ダッシュボードを見る" }).click();
+  const code = (await page.getByTestId("join-code").textContent())!.replace(/\s/g, "");
 
   const origin = new URL(page.url()).origin;
   const contexts = await Promise.all([1, 2].map(() => browser.newContext({ baseURL: origin, viewport: { width: 390, height: 844 } })));
@@ -40,11 +38,10 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     const opinions = ["架空の授業では、AIを使った箇所を申告する決まりを作り、透明性を確保するべきだと考える。", "架空の授業では、端末を持たない学生に貸出をして、費用で参加の機会が変わらないようにしたい。"];
     await joinAndWriteOpinion(a, code, "架空の学生A", opinions[0]);
     await joinAndWriteOpinion(b, code, "架空の学生B", opinions[1]);
-    await expect(page.getByText("事前意見 2/2人")).toBeVisible();
+    await expect(page.getByRole("region", { name: "集まり具合" })).toContainText(/事前意見\s*2\/2人/);
 
     // 教員が開始すると、全員が議論の画面に変わる（時間は設定しない）
-    await page.getByText("セッション設定・グループ管理", { exact: true }).click();
-    await page.getByRole("button", { name: "セッションを開始", exact: true }).click();
+    await page.getByRole("button", { name: "ディスカッションを開始", exact: true }).click();
     for (const g of [a, b]) await expect(g.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
     await expect(a.getByRole("timer")).toHaveCount(0);
 
@@ -65,7 +62,7 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     await a.screenshot({ path: "../docs/screenshots/unified-guest-discussion-mobile.png", fullPage: true });
 
     // 教員が終了すると、全員が結論の一文を書く
-    await page.getByRole("button", { name: "セッションを終える", exact: true }).click();
+    await page.getByRole("button", { name: "ディスカッションを終える", exact: true }).click();
     await page.getByRole("button", { name: "終えて結果を見る", exact: true }).click();
     const statements = ["申告すればAIを使ってよい", "教員の許可がある場合だけAIを使ってよい"];
     for (const [i, g] of [a, b].entries()) {
