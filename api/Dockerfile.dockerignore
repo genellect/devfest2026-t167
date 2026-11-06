@@ -1,0 +1,12 @@
+# API用のルートcontextに必要なソースだけを送る。デモ用Dockerfileには適用しない。
+**
+!api/
+!api/package.json
+!api/package-lock.json
+!api/tsconfig.json
+!api/src/
+!api/src/**
+!speech/
+!speech/requirements.txt
+!speech/setup_models.py
+!speech/worker.py
