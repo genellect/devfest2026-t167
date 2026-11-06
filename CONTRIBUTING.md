@@ -27,7 +27,11 @@ http://localhost:3000 を開き、参加コード `DEMO01` で参加する。Aut
 
 別checkoutのプレビューを起動したまま検査する場合は `T167_TEST_PORT_OFFSET=10000 bash scripts/dev.sh check` を使う。web=13000、API=18081、Firestore=18080、Auth=19099と検査専用DB名を使う。必要なら別のオフセット（0〜40000）を選ぶ。既存プロセスは停止せず、ポート使用中なら検査が停止する。カバレッジ・変異検査・同時提出の負荷測定も含む。依存更新後はlockfileをそろえ、全検査を行う。詳細は [backend-contract](docs/backend-contract.md)。
 
+同じWi-FiのiPadで確認する場合は `serve --mode mock --ipad` を使う。HTTPS・認証・DBの中継をまとめて起動する。操作と検証範囲は [iPadプレビュー](docs/ipad-preview.md)。
+
 終了するときは、起動したターミナルで `Ctrl+C` を押す。Auth・Firestore のエミュレータ、API、画面をまとめて停止する。
+
+接続を明示する場合は `serve --mode mock|vertex|cloud` を使う。`verify-live` は架空入力の実Vertex検査で、通常のcheckでは実行しない。ローカル用のFirebase公開設定・ADC/GCP_SA_KEYの扱いは [ローカル統合](docs/live-integration.md) を参照。
 
 本物の Gemini で試すときは、Google Cloud CLI（gcloud。`.devcontainer` と Codespaces には入っていない）を入れ、プロジェクトの編集者の権限で `gcloud auth application-default login` をしてから `GEMINI_MOCK=0 bash scripts/dev.sh serve` で起動する。Firestore と Auth はエミュレータのままで、Vertex AI だけ本番のプロジェクトを使う（`infra/env.sh` の PROJECT_ID・VERTEX_LOCATION・GEMINI_MODEL）。Gemini の接続先は global、Cloud Run と Firestore は東京に分けている。
 

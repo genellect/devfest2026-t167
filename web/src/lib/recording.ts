@@ -63,7 +63,7 @@ export function useGroupRecording(roomId: string, discussing: boolean, serverSta
   useEffect(() => { if (!discussing && active) void finish(); }, [discussing, active, finish]);
   useEffect(() => { if (state === "recording" && elapsedMs >= MAX_RECORDING_MS) void finish(); }, [state, elapsedMs, finish]);
   // 録音中・未送信の録音があるときにページを離れると、録音が消える
-  const unsaved = active || upload.state === "failed" || upload.state === "waiting";
+  const unsaved = active || upload.state === "uploading" || upload.state === "failed" || upload.state === "waiting";
   useEffect(() => {
     if (!unsaved) return;
     const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); };

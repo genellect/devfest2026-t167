@@ -109,3 +109,9 @@ describe('Zod更新後の応答スキーマ互換性', () => {
     expect(DiscussionSchema.safeParse({ ...valid, ...patch }).success).toBe(false);
   });
 });
+
+it('AI用の環境変数で受け取った認証をVertex SDKへ直接渡せる', async () => {
+  const credentials = { type: 'service_account' as const, project_id: 'p', client_email: 'dummy@example.com', private_key: 'dummy PRIVATE KEY' }; // submit-allow: SDKモックの検証専用
+  await vertexGemini('p', 'global', 'gemini-3.5-flash', credentials).findPoints(['架空の意見'], []);
+  expect(calls.at(-1)!.init).toMatchObject({ vertexai: true, project: 'p', googleAuthOptions: { credentials } });
+});

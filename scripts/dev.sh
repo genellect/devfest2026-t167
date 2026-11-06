@@ -35,9 +35,10 @@ JS
 }
 
 assert_free_ports() {
-  node - "$OFFSET" <<'JS'
+  node - "$OFFSET" "${1:-mock}" <<'JS'
 const net = require('node:net'), offset = Number(process.argv[2]);
-Promise.all([3000, 8080, 8081, 9099, 4000, 4400, 4500, 9150].map(port => new Promise((resolve, reject) => {
+const ports = process.argv[3] === 'cloud' ? [3000, 8081] : [3000, 8080, 8081, 9099, 4000, 4400, 4500, 9150];
+Promise.all(ports.map(port => new Promise((resolve, reject) => {
   const server = net.createServer();
   server.once('error', () => reject(new Error(`ポート ${port + offset} は使用中です。T167_TEST_PORT_OFFSET を変えてください。`)));
   server.listen(port + offset, '127.0.0.1', () => server.close(resolve));
@@ -76,39 +77,77 @@ doctor() {
 
 wait_port() { for _ in $(seq 1 60); do (echo >"/dev/tcp/127.0.0.1/$1") 2>/dev/null && return 0; sleep 1; done; echo "NG: ポート $1 が開きません" >&2; return 1; }
 
-serve() {
-  export API_ORIGIN=http://127.0.0.1:$T167_API_PORT NEXT_PUBLIC_USE_EMULATORS=1 NEXT_PUBLIC_FIREBASE_PROJECT_ID=$EMU_PROJECT
-  local mock="${GEMINI_MOCK:-1}" extra=()
-  if [ "$mock" = 0 ]; then
-    # 本物の Gemini：Firestore と Auth はエミュレータのまま、Vertex AI だけ本番のプロジェクトを使う
-    source infra/env.sh
-    # モデルの比較だけに使う（CONTRIBUTING の「Gemini のモデルと費用」）。本番のモデルは infra/env.sh と GitHub の Variables
-    [ -n "${GEMINI_MODEL_OVERRIDE:-}" ] && GEMINI_MODEL="$GEMINI_MODEL_OVERRIDE"
-    local v
-    for v in PROJECT_ID VERTEX_LOCATION GEMINI_MODEL; do
-      case "${!v:-}" in ""|*ここに*) echo "NG: infra/env.sh の $v を決めてください" >&2; exit 1 ;; esac
-    done
+# 手順書の認証経路を尊重する。鍵JSONは書き出さずSDKへ渡す。
+cloud_environment() {
+  source infra/env.sh
+  [ -n "${GEMINI_MODEL_OVERRIDE:-}" ] && GEMINI_MODEL="$GEMINI_MODEL_OVERRIDE"
+  export VERTEX_PROJECT="$PROJECT_ID" VERTEX_LOCATION GEMINI_MODEL GOOGLE_CLOUD_QUOTA_PROJECT="$PROJECT_ID"
+  if [ -z "${GCP_SA_KEY:-}" ] && [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ ! -f "${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}/application_default_credentials.json" ]; then
     command -v gcloud >/dev/null 2>&1 \
-      || { echo "NG: 本物の Gemini には Google Cloud CLI（gcloud）が要ります。.devcontainer・Codespaces には入っていません（https://cloud.google.com/sdk/docs/install）。モックでの起動は gcloud なしで使えます" >&2; exit 1; }
+      || { echo "NG: Google Cloud CLI（gcloud）とADC、または手順書のGCP_SA_KEYが必要です（docs/credentials.md）" >&2; return 1; }
     gcloud auth application-default print-access-token >/dev/null 2>&1 \
-      || { echo "NG: 本物の Gemini には gcloud auth application-default login が要ります（プロジェクトの編集者の権限で。docs/credentials.md の「実装担当が加わるとき」）" >&2; exit 1; }
-    # 個人の ADC でも課金と割り当てをこのプロジェクトに付ける（gcloud の quota project の設定に頼らない）
-    extra=(VERTEX_PROJECT="$PROJECT_ID" VERTEX_LOCATION="$VERTEX_LOCATION" GEMINI_MODEL="$GEMINI_MODEL" GOOGLE_CLOUD_QUOTA_PROJECT="$PROJECT_ID")
-    echo "本物の Gemini（${PROJECT_ID} の Vertex AI、${VERTEX_LOCATION}、${GEMINI_MODEL}）を使います。Firestore と Auth はエミュレータのままです"
+      || { echo "NG: gcloud auth application-default login が必要です（docs/credentials.md）。GitHub ActionsのWIFはMacの認証には使いません" >&2; return 1; }
   fi
-  assert_free_ports
-  # グループへの終了通知が自分にも届くので、先に全ハンドラーを解除して再帰を防ぐ。
+}
+
+serve() {
+  local mode=mock
+  [ "${GEMINI_MOCK:-1}" = 0 ] && mode=vertex
+  local ipad=0
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --mode) [ "$#" -ge 2 ] || { echo 'NG: --modeの値が必要です' >&2; return 1; }; mode="$2"; shift 2 ;;
+      --ipad) ipad=1; shift ;;
+      *) echo 'NG: serve [--mode mock|vertex|cloud] [--ipad]' >&2; return 1 ;;
+    esac
+  done
+  case "$mode" in mock|vertex|cloud) ;; *) echo 'NG: modeはmock・vertex・cloudです' >&2; return 1 ;; esac
+  if [ "$ipad" = 1 ] && [ "$mode" = cloud ]; then echo 'NG: iPadプレビューはmockまたはvertexで使用してください' >&2; return 1; fi
+  export NEXT_PUBLIC_EMULATOR_PROXY="$ipad"
+  if [ "$ipad" = 1 ]; then
+    export T167_IPAD_HOST="${T167_IPAD_HOST:-$(node -p 'require("node:os").networkInterfaces().en0?.find(x=>x.family==="IPv4"&&!x.internal)?.address??""')}"
+  fi
+  local mock=1 extra=() config='' emulator_log=''
+  export API_ORIGIN=http://127.0.0.1:$T167_API_PORT
+  export NEXT_PUBLIC_USE_EMULATORS=1 NEXT_PUBLIC_FIREBASE_PROJECT_ID=$EMU_PROJECT
+  export METADATA_SERVER_DETECTION=none
+  if [ "$mode" != mock ]; then
+    cloud_environment
+    mock=0
+    extra=(VERTEX_PROJECT="$VERTEX_PROJECT" VERTEX_LOCATION="$VERTEX_LOCATION" GEMINI_MODEL="$GEMINI_MODEL" GOOGLE_CLOUD_QUOTA_PROJECT="$PROJECT_ID")
+    if [ "$mode" = cloud ]; then
+      export NEXT_PUBLIC_USE_EMULATORS=0 NEXT_PUBLIC_FIREBASE_PROJECT_ID="$PROJECT_ID"
+      unset FIRESTORE_EMULATOR_HOST FIREBASE_AUTH_EMULATOR_HOST
+      unset NEXT_PUBLIC_AUTH_EMULATOR_PORT NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT
+    fi
+    node --import ./api/node_modules/tsx/dist/loader.mjs scripts/cloud-preflight.mjs "$mode"
+  fi
+  assert_free_ports "$mode"
   trap 'trap - INT TERM EXIT; rm -f "${config:-}"; kill 0' INT TERM EXIT
-  local config; config=$(emulator_config)
-  local emulator_log; emulator_log=$(mktemp /tmp/t167-emulators-log.XXXXXX)
-  "$FB" emulators:start --config "$config" --project "$EMU_PROJECT" --only auth,firestore >"$emulator_log" 2>&1 &
-  wait_port "$NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT" && wait_port "$NEXT_PUBLIC_AUTH_EMULATOR_PORT"
-  npm --prefix firebase run seed
-  env GOOGLE_CLOUD_PROJECT=$EMU_PROJECT GEMINI_MOCK="$mock" PORT="$T167_API_PORT" ${extra[@]+"${extra[@]}"} npm --prefix api run dev &
+  if [ "$mode" != cloud ]; then
+    config=$(emulator_config)
+    emulator_log=$(mktemp /tmp/t167-emulators.XXXXXX)
+    "$FB" emulators:start --config "$config" --project "$EMU_PROJECT" --only auth,firestore >"$emulator_log" 2>&1 &
+    wait_port "$NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT" && wait_port "$NEXT_PUBLIC_AUTH_EMULATOR_PORT"
+    npm --prefix firebase run seed
+  fi
+  local project="$EMU_PROJECT"
+  [ "$mode" = cloud ] && project="$PROJECT_ID"
+  env GOOGLE_CLOUD_PROJECT="$project" GEMINI_MOCK="$mock" PORT="$T167_API_PORT" ${extra[@]+"${extra[@]}"} npm --prefix api run dev &
   npm --prefix web run dev -- -p "$T167_WEB_PORT" &
   wait_port "$T167_WEB_PORT"
-  echo "== http://localhost:$T167_WEB_PORT を開き、参加コード DEMO01 で参加できます（エミュレータの画面は http://localhost:$((4000 + OFFSET))）=="
+  if [ "$ipad" = 1 ]; then
+    T167_IPAD_MODE="$mode" node scripts/ipad-preview.mjs &
+  fi
+  echo "== http://localhost:$T167_WEB_PORT を開いてください（接続モード：${mode}）=="
+  if [ "$mode" != cloud ]; then echo "テスト用Googleアカウントと参加コードDEMO01を使えます（エミュレータのログ：${emulator_log}）"; fi
   wait
+}
+
+verify_live() {
+  cloud_environment
+  node --import ./api/node_modules/tsx/dist/loader.mjs scripts/cloud-preflight.mjs probe
+  node --import ./api/node_modules/tsx/dist/loader.mjs scripts/verify-live.mjs
 }
 
 check() {
@@ -132,6 +171,8 @@ check() {
   python3 tests/dev-serve.test.py
   node --test tests/dev-isolation.test.mjs
   bash tests/config.test.sh
+  bash tests/live-mode.test.sh
+  node --test tests/ipad-proxy.test.mjs
   step "ビルド"
   npm --prefix api run build
   npm --prefix web run build
@@ -189,7 +230,8 @@ pr() {
 case "${1:-}" in
   setup) setup ;;
   doctor) doctor ;;
-  serve) serve ;;
+  serve) shift; serve "$@" ;;
+  verify-live) verify_live ;;
   check) shift; check "$@" ;;
   pr) shift; pr "$@" ;;
   *) sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;

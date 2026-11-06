@@ -21,3 +21,6 @@ ui-debug.log
 
 # Local quality reports
 api/coverage/
+
+# Local live-service verification
+.local-data/
