@@ -150,6 +150,16 @@ input[type=checkbox] { width: 20px; height: 20px; flex: 0 0 auto; margin: 2px 0 
 .stats dd { margin: 4px 0 0; font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .start-btn { min-height: 64px; font-size: 20px; }
 @media (min-width: 900px) { .lobby { grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); align-items: start; } }
+/* 教室で投影する横長の画面：参加コードとQRを画面の高さに合わせて大きくし、後ろの席からも読めるようにする */
+@media (min-width: 900px) and (orientation: landscape) {
+  .teacher__body.lobby { width: min(1640px, 100%); grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); }
+  .lobby__code { min-height: calc(100dvh - 120px); align-content: center; padding: 3vh 24px; gap: 2vh; }
+  .lobby__label { font-size: clamp(15px, 2.2vh, 24px); }
+  .lobby__digits { font-size: min(19vh, 12.5vw); letter-spacing: .08em; }
+  .lobby__qr { width: min(44vh, 30vw); }
+  .lobby__code .t-note { font-size: clamp(14px, 1.8vh, 20px); }
+  .stats dd { font-size: clamp(32px, 5vh, 56px); }
+}
 /* 議論中：経過時間と終了の帯、提案とグループの2列 */
 .live-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; background: #fff; border: 1px solid var(--line-soft); border-radius: 20px; padding: 14px 18px; }
 .live-bar__time { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
