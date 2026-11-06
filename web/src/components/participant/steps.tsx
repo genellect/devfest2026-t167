@@ -9,10 +9,17 @@ import { getNextGoal, getReflection, saveReflection } from "@/lib/local";
 import { useDoc, useMessages, type GroupResult } from "@/lib/room";
 
 // 旧フロー（ParticipantRoom）と新しい流れ（GuidedGuest）の両方で使う参加者の手順
+
+/** 旧フローでは画面の中央に置き、新しい流れでは親の列にそのまま並べる */
+function Wrap({ bare, children }: { bare: boolean; children: React.ReactNode }) {
+  return bare ? <>{children}</> : <div className="body body--center">{children}</div>;
+}
 /** P2 目標と意見の入力。意見は本人だけが読める（司会者も読めない）。目標はこの端末にだけ残す。
  * 出したあとは、グループ全員がそろうまで待つ（そろうと自動で議論の画面に変わる） */
-export function OpinionStep({ roomId, uid, total, opinions, canChange, onChangeGroup }: {
+export function OpinionStep({ roomId, uid, total, opinions, canChange, onChangeGroup, bare = false }: {
   roomId: string; uid: string; total?: number; opinions?: number; canChange: boolean; onChangeGroup: () => void;
+  /** 1本化した流れでは、目標の欄を出さず、画面のカードとして出す */
+  bare?: boolean;
 }) {
   const mine = useDoc<{ text: string }>(`sessions/${roomId}/privateOpinions/${uid}`).data;
   const [goal, setGoal] = useState("");
@@ -39,44 +46,44 @@ export function OpinionStep({ roomId, uid, total, opinions, canChange, onChangeG
   }
 
   return (
-    <div className="body body--center">
-      <form className="box box--lg card" onSubmit={submit}>
+    <Wrap bare={bare}>
+      <form className={bare ? "flow-card" : "box box--lg card"} onSubmit={submit}>
         <div className="heading-row">
           <h2 className="card__title">議論の前に書く</h2>
           {canChange && !mine && <button type="button" className="btn btn--small" onClick={onChangeGroup}>グループを選び直す</button>}
         </div>
-        {prev && (
+        {!bare && prev && (
           <div className="box box--yellow" style={{ padding: "10px 14px" }}>
             <p className="t-small" style={{ fontWeight: 700 }}>前回決めたこと</p>
             <p className="t-sm">{prev}</p>
           </div>
         )}
-        <div className="field">
+        {!bare && <div className="field">
           <label className="field__label" htmlFor="goal">今日の目標</label>
           <input id="goal" className="input" value={goal} maxLength={60} placeholder="例：根拠をつけて意見を話す" onChange={(e) => setGoal(e.target.value)} />
-        </div>
+        </div>}
         <div className="field">
           <label className="field__label" htmlFor="opinion">あなたの意見（本人だけが見られます）</label>
           <textarea id="opinion" className="input" value={opinion} maxLength={1000} rows={3} placeholder="例：飲食のバイトで、人と話す力がつくと思う"
             onChange={(e) => { setOpinion(e.target.value); setSent(false); }} />
-          <p className="field__hint">Hostにもほかの人にも本文は見えません。AI が、まだ話されていない論点を見つけるためだけに使います。</p>
+          <p className="field__hint">教員にもほかの参加者にも本文は見えません。AI が、まだ話されていない論点を見つけるためだけに使います。</p>
         </div>
         {error && <p className="notice notice--error" role="alert">{error}</p>}
         <button className="btn btn--blue btn--block" type="submit" disabled={!opinion.trim()}>{mine ? "書き直して提出する" : "提出する"}</button>
         {sent && <p className="notice" role="status">提出しました</p>}
         {mine && (
           <div className="notice notice--warn stack stack--tight">
-            <p className="t-label">グループのみんなの意見を待っています{total ? `（${opinions ?? 0}/${total}人）` : ""}</p>
-            <p className="t-note">Hostが議論を始めると、議論の画面に変わります。それまでは書き直せます。</p>
+            <p className="t-label">{bare ? "教員が議論を始めるまで待っています" : `グループのみんなの意見を待っています${total ? `（${opinions ?? 0}/${total}人）` : ""}`}</p>
+            <p className="t-note">議論が始まると、この画面が変わります。それまでは書き直せます。</p>
           </div>
         )}
       </form>
-    </div>
+    </Wrap>
   );
 }
 
 /** 議論で出た発言を短く共有する。AI はこのメモと事前の意見を照らし合わせて、まだ話されていない論点を探す */
-export function DiscussionNotes({ roomId }: { roomId: string }) {
+export function DiscussionNotes({ roomId, bare = false }: { roomId: string; bare?: boolean }) {
   const messages = useMessages(roomId, true);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -90,8 +97,8 @@ export function DiscussionNotes({ roomId }: { roomId: string }) {
     finally { setBusy(false); }
   }
   return (
-    <section className="box box--md pad stack" aria-label="議論の発言メモ">
-      <div className="heading-row"><h2 className="t-sm">議論の発言メモ</h2><Tag>グループとHostに表示</Tag></div>
+    <section className={bare ? "flow-card" : "box box--md pad stack"} aria-label="議論の発言メモ">
+      <div className="heading-row"><h2 className="t-sm">議論の発言メモ</h2><Tag>グループと教員に表示</Tag></div>
       <p className="t-note">話し合いで出た意見を短く書きます。AIはこのメモと事前の意見を照らし合わせて、まだ話されていない論点を探します。</p>
       {messages.slice(-8).map((m) => <p key={m.id} className="t-small">・{m.text}</p>)}
       <form className="stack stack--tight" onSubmit={send}>
@@ -107,7 +114,7 @@ export function DiscussionNotes({ roomId }: { roomId: string }) {
 const AGREEMENT = ["まったく納得していない", "あまり納得していない", "どちらともいえない", "おおむね納得", "とても納得"];
 
 /** P4 結論の理解を入力。本人だけが読み書きできる */
-export function ConsensusStep({ roomId, uid, title, submitted, total }: { roomId: string; uid: string; title: string; submitted?: number; total?: number }) {
+export function ConsensusStep({ roomId, uid, title, submitted, total, bare = false }: { roomId: string; uid: string; title: string; submitted?: number; total?: number; bare?: boolean }) {
   const mine = useDoc<{ text: string; agreement: number; concern?: string }>(`sessions/${roomId}/consensusStatements/${uid}`).data;
   const [text, setText] = useState("");
   const [agreement, setAgreement] = useState(0);
@@ -127,8 +134,8 @@ export function ConsensusStep({ roomId, uid, title, submitted, total }: { roomId
   }
 
   return (
-    <div className="body body--center">
-      <form className="box box--lg card" onSubmit={submit}>
+    <Wrap bare={bare}>
+      <form className={bare ? "flow-card" : "box box--lg card"} onSubmit={submit}>
         <h2 className="card__title">結論を自分の言葉で書く</h2>
         <div className="box box--tint" style={{ padding: "10px 14px" }}>
           <p className="t-small" style={{ fontWeight: 700 }}>議論のテーマ</p>
@@ -160,7 +167,7 @@ export function ConsensusStep({ roomId, uid, title, submitted, total }: { roomId
           </div>
         )}
       </form>
-    </div>
+    </Wrap>
   );
 }
 
@@ -212,18 +219,22 @@ export function ResultStep({ roomId, uid, group, source, title, result }: { room
           <h2 className="t-md">自分はどう関わっていたか</h2>
           <div className="row">
             <section className="box box--sm pad stack">
-              <p className="t-small" style={{ fontWeight: 700 }}>今日の目標</p>
-              <p className="t-md">{r.goal ?? "（目標は書いていません）"}</p>
+              {r.goal && <>
+                <p className="t-small" style={{ fontWeight: 700 }}>今日の目標</p>
+                <p className="t-md">{r.goal}</p>
+              </>}
               {opinion && (
                 <div className="box box--tint" style={{ padding: "8px 12px" }}>
                   <p className="t-small" style={{ fontWeight: 700 }}>事前の意見</p>
                   <p>{opinion.text}</p>
                 </div>
               )}
-              <p className="t-label">目標は達成できた？</p>
-              <div className="choices">
-                {ACHIEVED.map((x) => <button key={x} type="button" className="choice" aria-pressed={r.achieved === x} onClick={() => set({ achieved: x })}>{x}</button>)}
-              </div>
+              {r.goal && <>
+                <p className="t-label">目標は達成できた？</p>
+                <div className="choices">
+                  {ACHIEVED.map((x) => <button key={x} type="button" className="choice" aria-pressed={r.achieved === x} onClick={() => set({ achieved: x })}>{x}</button>)}
+                </div>
+              </>}
               <p className="t-label">言いたいことは言えた？</p>
               <div className="choices">
                 {SPOKE.map((x) => <button key={x} type="button" className="choice" aria-pressed={r.spoke === x} onClick={() => set({ spoke: x })}>{x}</button>)}

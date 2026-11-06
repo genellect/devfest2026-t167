@@ -29,7 +29,6 @@ test("参加コードで参加し、非公開の意見を出すと、グルー�
 
   await loginStudent(page);
   await page.getByRole("link", { name: "参加する", exact: true }).click();
-  await page.getByRole("link", { name: "ゲスト", exact: true }).click();
   await page.getByLabel("参加コード").fill(joinCode);
   await page.getByRole("button", { name: "参加する" }).click();
 
@@ -72,7 +71,7 @@ test("全員の同意を確かめて録音し、議論を終えると録音が�
   await page.getByLabel("グループの結論を、あなたはどう理解した？").fill("練習の中身を見直して時間を短くする");
   await page.getByRole("button", { name: "おおむね納得" }).click();
   await page.getByRole("button", { name: "提出する" }).click();
-  await expect(page.getByText("分析結果はHostの公開後に表示されます。")).toBeVisible();
+  await expect(page.getByText("分析結果は教員が公開すると表示されます。")).toBeVisible();
   await request.post(`/api/rooms/${roomId}/settings`, { headers: { authorization: `Bearer ${hostToken}` }, data: { resultsPublished: true } });
   // モックの分析結果（録音から書かれた results/flow-g1）が、結果の画面に出る
   await expect(page.getByText("デモデータです。本物の Gemini では、録音から話題の流れを読み取ります。")).toBeVisible({ timeout: 30_000 });
@@ -99,7 +98,6 @@ test("誤った参加コードではエラーが出る", async ({ page }) => {
   });
   await loginStudent(page);
   await page.getByRole("link", { name: "参加する", exact: true }).click();
-  await page.getByRole("link", { name: "ゲスト", exact: true }).click();
   await page.getByLabel("参加コード").fill("999999");
   await page.getByRole("button", { name: "参加する" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "参加コード" })).toContainText("参加コードが見つかりません");

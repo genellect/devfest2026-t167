@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./material.css";
+import "./app.css";
 import { LoginGate } from "@/components/LoginGate";
 
-export const metadata: Metadata = { title: "Google Discuss", description: "AI協調型グループディスカッション支援" };
+export const metadata: Metadata = { title: "Discuss", description: "議論の前に全員の考えを集め、話し合いのずれを見つけるグループディスカッション支援" };
 // viewport-fit=cover で、iPhone の下の余白（env(safe-area-inset-*)）を CSS で扱えるようにする
-export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#eef0ff" };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#f8fafd" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (

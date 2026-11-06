@@ -39,18 +39,17 @@ export default function Login() {
   if (user === undefined || user) return <Loading />;
   return (
     <main className="screen login">
-      <section className="box--blue login__hero">
-        <h1 className="t-hero login__title">話し合いのあとに、<br />次の一歩が見つかる。</h1>
-        <p className="t-label login__lead">一人ひとりの考えと成長を、授業につなげます。</p>
+      <section className="login__hero">
+        <p className="login__brand">Discuss</p>
+        <h1 className="t-hero login__title">話す前に、全員の考えを。</h1>
+        <p className="t-label login__lead">発言されなかった意見と、合意のずれを見つけるグループディスカッション。</p>
       </section>
       <section className="login__panel">
-        <h2 className="t-md">ログイン</h2>
         {session.reason && <p className="notice" role="status">{logoutMessage(session.reason, session.policy?.idleDays)}</p>}
-        {session.message && <p role="alert">{session.message}</p>}
-        <label className="t-note"><input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} /> 学校の共用端末で利用する</label>
-        {shared && <label className="field">授業終了時刻<input aria-label="授業終了時刻" type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} required /></label>}
-        <p className="t-note">はじめての方も、ここからはじめられます。</p>
-        <button className="btn btn--yellow btn--block" onClick={() => login(signInAsHost)} disabled={busy}>{busy ? "ログインしています…" : "Googleでログイン"}</button>
+        {session.message && <p className="notice notice--error" role="alert">{session.message}</p>}
+        <button className="btn btn--blue btn--block" onClick={() => login(signInAsHost)} disabled={busy}>{busy ? "ログインしています…" : "Googleでログイン"}</button>
+        <label className="check"><input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} /><span>学校の共用端末で利用する</span></label>
+        {shared && <div className="field"><label className="field__label" htmlFor="class-end">授業終了時刻</label><input id="class-end" className="input" aria-label="授業終了時刻" type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} required /><p className="field__hint">この時刻を過ぎると、この端末から自動でログアウトします。</p></div>}
         {canUseTestHost && (
           <div className="stack stack--tight">
             <button className="btn btn--block btn--small" onClick={() => login(signInAsTestHost)} disabled={busy}>テスト用の先生でログイン（エミュレータ）</button>
@@ -58,10 +57,7 @@ export default function Login() {
           </div>
         )}
         {error && <p className="notice notice--error" role="alert">{error}</p>}
-        <div style={{ borderTop: "3px solid #000", paddingTop: 16, marginTop: 8 }} className="stack stack--tight">
-          <p className="t-note">Googleでログインしてホームを開き、参加コードを入力してください。</p>
-          <Link href="/about" className="t-note" style={{ color: "inherit" }}>使い方とプライバシー</Link>
-        </div>
+        <Link href="/about" className="t-note login__link">使い方とプライバシー</Link>
       </section>
     </main>
   );

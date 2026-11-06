@@ -3,8 +3,7 @@ import { loginStudent } from "./student";
 
 test("共通ホームからホストを選択し、管理画面で設定して開始・強制終了・結果・ホームへ進む", async ({ page }) => {
   await loginStudent(page);
-  await page.locator(".mvp-actions").getByRole("link", { name: "参加する" }).click();
-  await page.getByRole("link", { name: "ホスト", exact: true }).click();
+  await page.getByRole("link", { name: "ディスカッションを作る（教員）", exact: true }).click();
   await page.getByLabel("テーマ", { exact: true }).fill("チームで何を作るか");
   await page.getByRole("button", { name: "作成する", exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);

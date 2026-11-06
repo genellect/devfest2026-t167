@@ -8,8 +8,7 @@ test("Classroom未連携・教師claimなしでHostを作成し、別セッシ�
   await page.route("https://classroom.googleapis.com/**", (r) => { classroomRequests++; return r.abort(); });
   const studentSubject = await loginStudent(page);
   await expect(page.getByText("あなたは、生徒ですか？先生ですか？")).toHaveCount(0);
-  await page.locator(".mvp-actions").getByRole("link", { name: "参加する", exact: true }).click();
-  await page.getByRole("link", { name: "ホスト", exact: true }).click();
+  await page.getByRole("link", { name: "ディスカッションを作る（教員）", exact: true }).click();
   await page.getByLabel("テーマ", { exact: true }).fill("架空の議論テーマ");
   await page.getByRole("button", { name: "作成する", exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);
@@ -36,15 +35,15 @@ test("Classroom未連携・教師claimなしでHostを作成し、別セッシ�
     expect(r.status()).toBe(201); const { roomId, joinCode } = await r.json();
     await page.goto(`/join?code=${joinCode}`);
     await expect(page).toHaveURL(/\/rooms\//);
-    await expect(page.getByText("Hostによるグループの割り当てを待っています。")).toBeVisible();
+    await expect(page.getByText("教員によるグループの割り当てを待っています。")).toBeVisible();
     await expect(page.getByText("セッション設定・グループ管理", { exact: true })).toHaveCount(0);
     const localStudent = await emulatorGoogleUser("student", studentSubject);
     expect((await another.post(`/api/rooms/${roomId}/groups/assign`, { headers, data: { uid: localStudent.localId, group: 1 } })).status()).toBe(200);
     await expect(page.getByLabel("あなたの意見")).toBeVisible();
     await page.goto("/home");
     const cards = page.locator(".mvp-session-link");
-    await expect(cards.filter({ hasText: "架空の議論テーマ" })).toContainText("Host");
-    await expect(cards.filter({ hasText: "Participantとして参加するセッション" })).toContainText("Participant");
+    await expect(cards.filter({ hasText: "架空の議論テーマ" })).toContainText("教員");
+    await expect(cards.filter({ hasText: "Participantとして参加するセッション" })).toContainText("参加者");
     await page.screenshot({ path: "../docs/screenshots/mvp-home-mobile.png", fullPage: true });
     await page.goto(ownRoom);
     await expect(page.getByText("セッション設定・グループ管理", { exact: true })).toBeVisible();

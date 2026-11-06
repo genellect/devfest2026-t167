@@ -12,7 +12,6 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     await fakeQrCamera(page, `${test.info().project.use.baseURL}/join?code=${r.joinCode}`);
     await loginStudent(page);
     await page.locator(".mvp-actions").getByRole("link", { name: "参加する" }).click();
-    await page.getByRole("link", { name: "ゲスト", exact: true }).click();
     // アプリ内のカメラでQRを読み取ると、ボタンを押さずにそのまま参加する
     await page.getByRole("button", { name: "QRコードを読み取る", exact: true }).click();
     await page.getByLabel("参加者1の表示名").fill("架空のGuest");

@@ -9,7 +9,7 @@ for (const account of ["生徒", "先生"]) {
     await expect(page.locator(".mvp-actions").getByRole("link")).toHaveText(["参加する"]);
     for (const path of ["/home", "/host/new", "/join", "/host/profile", "/about"]) {
       await page.goto(path);
-      await expect(page.getByRole("navigation", { name: "メニュー" }).getByRole("link")).toHaveText(["ホーム", "参加", "使い方", "設定"]);
+      await expect(page.getByRole("navigation", { name: "メニュー" }).getByRole("link")).toHaveText(["ホーム", "参加", "アカウント"]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path).toBe(true);
     }
   });

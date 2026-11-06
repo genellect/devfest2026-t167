@@ -8,16 +8,16 @@ export type NavRole = "host" | "student";
 type IconName = "home" | "create" | "help" | "settings" | "join";
 
 const TABS: Record<NavRole, { href: string; label: string; icon: IconName }[]> = {
+  // 使い方のタブはなくし、次に何をするかを画面そのものに置く（Docs「UIフィードバック」）
   host: [
     { href: "/home", label: "ホーム", icon: "home" },
-    { href: "/participate", label: "参加", icon: "join" },
-    { href: "/about", label: "使い方", icon: "help" },
-    { href: "/host/profile", label: "設定", icon: "settings" },
+    { href: "/join", label: "参加", icon: "join" },
+    { href: "/sessions", label: "アカウント", icon: "settings" },
   ],
   student: [
     { href: "/home", label: "ホーム", icon: "home" },
     { href: "/join", label: "参加", icon: "join" },
-    { href: "/about", label: "使い方", icon: "help" },
+    { href: "/sessions", label: "アカウント", icon: "settings" },
   ],
 };
 
