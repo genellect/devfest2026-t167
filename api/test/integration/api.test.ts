@@ -391,3 +391,15 @@ describe('承認と合意の検証', () => {
     ] }]);
   });
 });
+
+describe('Zod・Admin SDK更新後のAPI互換性', () => {
+  it('省略したグループ数と録音設定の既定値を維持する', async () => {
+    const result = await api(await named()).post('/rooms', { title: '依存更新の確認' }).expect(201);
+    const room = (await db.doc(`rooms/${result.body.roomId}`).get()).data();
+    expect(room).toMatchObject({ title: '依存更新の確認', groups: 1, recording: true, phase: 'collecting' });
+  });
+  it.each([{ groups: '2' }, { recording: 'false' }, { title: '' }])('入力の型・必須値の制約を維持する: %j', async (patch) => {
+    const result = await api(await named()).post('/rooms', { title: '依存更新の確認', ...patch }).expect(400);
+    expect(result.body.error.code).toBe('bad_request');
+  });
+});

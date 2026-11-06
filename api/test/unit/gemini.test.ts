@@ -64,3 +64,17 @@ describe('録音の分析の出力の検証', () => {
     expect(() => DiscussionSchema.parse({ speechDetected: true })).toThrow();
   });
 });
+
+// Zodのメジャー更新でも、AI応答の型を暗黙に変換して受理しないことを固定する。
+describe('Zod更新後の応答スキーマ互換性', () => {
+  const valid = {
+    speechDetected: true, totalMinutes: 1, segments: [], flowNote: '', good: [], review: [],
+    behaviors: { questions: [], responses: [], reasoning: [], collaboration: [] }, teacherSuggestions: [],
+  };
+  it.each([
+    { speechDetected: 'true' }, { totalMinutes: '1' },
+    { good: [{ at: 10, text: '理由を聞いた' }] }, { teacherSuggestions: [42] },
+  ])('型の異なる応答を拒否する: %j', (patch) => {
+    expect(DiscussionSchema.safeParse({ ...valid, ...patch }).success).toBe(false);
+  });
+});

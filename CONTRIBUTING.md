@@ -13,7 +13,7 @@
 
 ## 起動する
 
-必要なもの：Node.js（`.nvmrc` の版）、Java 21（Firestore エミュレータ用）、`gh`（PR を出すため）。GCP には接続しない。Windows では WSL の中で動かす。手元に入れたくない場合は、`.devcontainer` を VS Code の Dev Containers か GitHub Codespaces で開けば、すべて入った環境ができる（Codespaces はブラウザ版ではなく VS Code から開く。画面がエミュレータに 127.0.0.1 でつなぐため）。
+必要なもの：Node.js 22.12以上の22系（`.nvmrc` の版）、Java 21（Firestore エミュレータ用）、`gh`（PR を出すため）。GCP には接続しない。Windows では WSL の中で動かす。手元に入れたくない場合は、`.devcontainer` を VS Code の Dev Containers か GitHub Codespaces で開けば、すべて入った環境ができる（Codespaces はブラウザ版ではなく VS Code から開く。画面がエミュレータに 127.0.0.1 でつなぐため）。
 
 ```bash
 bash scripts/dev.sh setup    # 依存を lockfile どおりに入れ、web/.env.local を用意する
@@ -30,6 +30,10 @@ http://localhost:3000 を開き、参加コード `DEMO01` で参加する。Aut
 本物の Gemini で試すときは、Google Cloud CLI（gcloud。`.devcontainer` と Codespaces には入っていない）を入れ、プロジェクトの編集者の権限で `gcloud auth application-default login` をしてから `GEMINI_MOCK=0 bash scripts/dev.sh serve` で起動する。Firestore と Auth はエミュレータのままで、Vertex AI だけ本番のプロジェクトを使う（`infra/env.sh` の PROJECT_ID・VERTEX_LOCATION・GEMINI_MODEL）。Gemini の接続先は global、Cloud Run と Firestore は東京に分けている。
 
 クラウドの Claude Code では環境のセットアップスクリプトに `bash .claude/cloud-setup.sh` を、Codex では `bash .codex/setup.sh` を登録する。
+
+## 依存を更新する
+
+依存の修正版を選び、package.jsonとlockfileを同じ変更で更新する。メジャー更新では型・入力検証・既定値が維持されるかを確認する。`npm ci`、開発依存を含む`npm audit`、`bash scripts/dev.sh check`を実行し、実APIを使わない検査と実接続の確認を区別して報告する。依存更新に認証・画面・データ構造等の機能変更を混ぜない。固定版とoverridesの用途はREADMEの「依存ライブラリの管理」を参照。
 
 ## 開発の流れ
 

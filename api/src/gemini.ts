@@ -40,7 +40,7 @@ export function normalizeAt(at: string): string {
 }
 // Gemini の出力が多すぎる・長すぎるときは、拒否せずに切り詰める（temperature 0 なので、拒否すると送り直しても同じく失敗する）
 const text = (max: number) => z.string().min(1).transform((s) => s.slice(0, max));
-const list = <T extends z.ZodTypeAny>(item: T, max: number) => z.array(item).transform((a) => a.slice(0, max));
+const list = <T extends z.ZodType>(item: T, max: number) => z.array(item).transform((a) => a.slice(0, max));
 const minutes = z.number().transform((n) => Math.min(Math.max(n, 0), 120));
 const AT = z.string().min(1).transform(normalizeAt);
 const MomentSchema = z.object({ at: AT, text: text(200) });
