@@ -251,9 +251,45 @@ describe('グループごとの進行', () => {
     fail = true;
     expect((await api(p2).post(`/rooms/${roomId}/statement`, { text: 'b', agreement: 3 }).expect(200)).body).toMatchObject({ analyzed: false, error: 'gemini_unavailable' });
     expect((await db.doc(`rooms/${roomId}/consensusStatements/${uidOf(p2)}`).get()).exists).toBe(true);
+    await api(p2).post(`/rooms/${roomId}/groups/analyze`).expect(429); // 前の分析から30秒たっていない
+    clock += 31_000;
     await api(p2).post(`/rooms/${roomId}/groups/analyze`).expect(503);
     fail = false;
+    clock += 31_000;
     expect((await api(p2).post(`/rooms/${roomId}/groups/analyze`).expect(200)).body.analyzed).toBe(true);
+  });
+  it('結果が出たグループは、生徒の操作では分析し直さない。先生の出し直しは30秒あける', async () => {
+    const { roomId, mod, p1, p2 } = await discussing();
+    await api(p1).post(`/rooms/${roomId}/groups/end`).expect(200);
+    await api(p1).post(`/rooms/${roomId}/statement`, { text: 'a', agreement: 3 }).expect(200);
+    expect((await api(p2).post(`/rooms/${roomId}/statement`, { text: 'b', agreement: 3 }).expect(200)).body.analyzed).toBe(true);
+    const first = (await db.doc(`rooms/${roomId}/results/group-1`).get()).get('jobId');
+    clock += 31_000;
+    // 一文の送り直しと出し直しでは、Gemini を呼ばない
+    expect((await api(p2).post(`/rooms/${roomId}/statement`, { text: 'c', agreement: 3 }).expect(200)).body).toMatchObject({ analyzed: false, skipped: 'done' });
+    expect((await api(p2).post(`/rooms/${roomId}/groups/analyze`).expect(200)).body).toMatchObject({ analyzed: false, skipped: 'done' });
+    expect((await db.doc(`rooms/${roomId}/results/group-1`).get()).get('jobId')).toBe(first);
+    // 先生は出し直せるが、続けては出せない
+    expect((await api(mod).post(`/rooms/${roomId}/groups/analyze`, { group: 1 }).expect(200)).body.analyzed).toBe(true);
+    await api(mod).post(`/rooms/${roomId}/groups/analyze`, { group: 1 }).expect(429);
+  });
+  it('同時に分析が始まっても、Gemini を呼ぶのは1回だけ', async () => {
+    const { roomId, mod, p1, p2 } = await discussing();
+    await api(p1).post(`/rooms/${roomId}/groups/end`).expect(200);
+    await api(p1).post(`/rooms/${roomId}/statement`, { text: 'a', agreement: 3 }).expect(200);
+    delay = 300;
+    const [auto, manual] = await Promise.all([
+      api(p2).post(`/rooms/${roomId}/statement`, { text: 'b', agreement: 3 }),
+      new Promise((r) => setTimeout(r, 100)).then(() => api(mod).post(`/rooms/${roomId}/groups/analyze`, { group: 1 })),
+    ]);
+    expect(auto.body.analyzed).toBe(true);
+    expect(manual.status).toBe(200);
+    expect(manual.body).toMatchObject({ analyzed: false, skipped: 'running' });
+  });
+  it('存在しないグループ番号は受け付けない', async () => {
+    const { roomId, mod } = await setupRoom(); // グループは1つ
+    await api(mod).post(`/rooms/${roomId}/groups/start`, { group: 2 }).expect(400);
+    await api(mod).post(`/rooms/${roomId}/groups/analyze`, { group: 2 }).expect(400);
   });
 });
 

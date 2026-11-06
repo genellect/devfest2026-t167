@@ -56,3 +56,12 @@ test("誤った参加コードではエラーが出る", async ({ page }) => {
   await expect(page.getByRole("alert").filter({ hasText: "参加コード" })).toContainText("参加コードが見つかりません");
   expect(externalAuthRequests, "エミュレータ認証が外部通信に依存していない").toBe(0);
 });
+
+test("スマホの幅でも、ログインと参加の画面が横にはみ出さない", async ({ page }) => {
+  for (const path of ["/", "/join"]) {
+    await page.goto(path);
+    await expect(page.getByRole("link", { name: /参加コードを入力/ }).or(page.getByLabel("参加コード"))).toBeVisible();
+    const { scroll, width } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: window.innerWidth }));
+    expect(scroll, `${path} の横幅`).toBeLessThanOrEqual(width);
+  }
+});

@@ -246,26 +246,59 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
     return { total: uids.length, opinions, submitted, started: start };
   }
 
-  /** そのグループの一文を分析して results/group-{番号} に保存する（force なら全員そろっていなくても） */
-  async function analyzeGroup(roomId: string, group: number, force = false) {
+  /**
+   * そのグループの一文を分析して results/group-{番号} に保存する。Gemini の呼び出しを増やしすぎないよう、
+   * - 結果が出た（done）グループは、先生の出し直し（force）でなければ分析し直さない
+   * - 分析はグループごとに同時に1つだけ。始めるときに jobId を書き、保存するときに一致を確かめて古い結果を捨てる
+   * - 出し直しは、前の分析の開始から30秒あける（manual なら 429、自動なら何もしない）
+   */
+  async function analyzeGroup(roomId: string, group: number, opts: { force?: boolean; manual?: boolean } = {}) {
     const uids = await groupMembers(roomId, group);
     const stmts = (await db.collection(`rooms/${roomId}/consensusStatements`).get()).docs.filter((d) => uids.includes(d.id));
     await roomRef(roomId).set({ groupState: { [group]: { submitted: stmts.length, total: uids.length } } }, { merge: true });
     const ready = uids.length > 0 && stmts.length >= uids.length;
-    if ((!ready && !force) || stmts.length === 0) return { ready, analyzed: false, submitted: stmts.length, total: uids.length };
+    const base = { ready, analyzed: false, submitted: stmts.length, total: uids.length };
+    if ((!ready && !opts.force) || stmts.length === 0) return base;
+    const jobId = randomUUID();
+    const claim = await db.runTransaction(async (tx) => {
+      const st = (await tx.get(roomRef(roomId))).get('groupState')?.[group] ?? {};
+      if (st.status === 'done' && !opts.force) return { skip: 'done' as const };
+      const a = st.analysis ?? {};
+      const started = a.startedAt instanceof Timestamp ? a.startedAt.toMillis() : 0;
+      if (a.running && now() - started < RUNNING_TIMEOUT_MS) return { skip: 'running' as const };
+      const wait = ANALYZE_COOLDOWN_MS - (now() - started);
+      if (wait > 0) return { skip: 'cooldown' as const, wait };
+      tx.set(roomRef(roomId), { groupState: { [group]: { analysis: { jobId, running: true, startedAt: Timestamp.fromMillis(now()) } } } }, { merge: true });
+      return { skip: undefined };
+    });
+    if (claim.skip === 'cooldown' && opts.manual) {
+      const sec = Math.ceil((claim.wait ?? 0) / 1000);
+      throw new HttpError(429, 'cooldown', `あと ${sec} 秒待ってください`, { retryAfterSec: sec });
+    }
+    if (claim.skip) return { ...base, skipped: claim.skip };
+    // 保存や後片付けは、今の分析（jobId が一致）のときだけ行う
+    const finishIfMine = (write: (tx: FirebaseFirestore.Transaction) => void) => db.runTransaction(async (tx) => {
+      const st = (await tx.get(roomRef(roomId))).get('groupState')?.[group] ?? {};
+      if (st.analysis?.jobId !== jobId) return false;
+      write(tx);
+      return true;
+    });
     let cmp;
     try {
       cmp = await gemini.compare(stmts.map((d) => d.get('text') as string), [], []);
     } catch {
-      return { ready, analyzed: false, submitted: stmts.length, total: uids.length, error: 'gemini_unavailable' };
+      await finishIfMine((tx) => tx.set(roomRef(roomId), { groupState: { [group]: { analysis: { running: false } } } }, { merge: true }));
+      return { ...base, error: 'gemini_unavailable' };
     }
     const clusters = cmp.groups.map((c) => ({ label: c.label, count: new Set(c.members).size })).filter((c) => c.count > 0);
-    await db.doc(`rooms/${roomId}/results/group-${group}`).set({
-      group, respondents: stmts.length, clusters, alignmentRate: alignmentRate(cmp.groups, stmts.length),
-      source: gemini.source, updatedAt: FieldValue.serverTimestamp(),
+    const saved = await finishIfMine((tx) => {
+      tx.set(db.doc(`rooms/${roomId}/results/group-${group}`), {
+        group, respondents: stmts.length, clusters, alignmentRate: alignmentRate(cmp.groups, stmts.length),
+        source: gemini.source, jobId, updatedAt: FieldValue.serverTimestamp(),
+      });
+      tx.set(roomRef(roomId), { groupState: { [group]: { status: 'done', analysis: { running: false } } } }, { merge: true });
     });
-    await roomRef(roomId).set({ groupState: { [group]: { status: 'done' } } }, { merge: true });
-    return { ready, analyzed: true, submitted: stmts.length, total: uids.length };
+    return { ...base, analyzed: saved, ...(saved ? {} : { skipped: 'stale' }) };
   }
 
   // グループを選ぶ（生徒）。議論を始めたグループには入れない。自分のグループが始まったあとは移れない
@@ -300,7 +333,8 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
   // 今いるメンバーでグループの議論を始める（司会者）。休みの人がいて止まったグループのため
   app.post('/rooms/:roomId/groups/start', ...chain(authenticate, member, moderator, wrap(async (req, res) => {
     const roomId = req.params.roomId;
-    const { group } = parse(z.object({ group: z.number().int().min(1).max(MAX_GROUPS) }), req.body);
+    const groups = (await roomRef(roomId).get()).get('groups') ?? 1;
+    const { group } = parse(z.object({ group: z.number().int().min(1).max(groups) }), req.body);
     const r = await refreshGroup(roomId, group, { forceStart: true });
     res.json({ group, ...r });
   })));
@@ -344,11 +378,13 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
   app.post('/rooms/:roomId/groups/analyze', ...chain(authenticate, member, wrap(async (req, res) => {
     const roomId = req.params.roomId;
     const isMod = req.ctx.role === 'moderator';
+    const groups = (await roomRef(roomId).get()).get('groups') ?? 1;
     const group = isMod
-      ? parse(z.object({ group: z.number().int().min(1).max(MAX_GROUPS) }), req.body).group
+      ? parse(z.object({ group: z.number().int().min(1).max(groups) }), req.body).group
       : await myGroup(roomId, req.ctx.uid);
-    const r = await analyzeGroup(roomId, group, isMod);
-    if (r.error) throw new HttpError(503, 'gemini_unavailable', 'AI の分析は一時停止中です。少し待ってから再実行してください');
+    // 生徒は全員そろったときだけ、先生は今ある回答でも出せる。どちらも30秒あける
+    const r = await analyzeGroup(roomId, group, { force: isMod, manual: true });
+    if ('error' in r) throw new HttpError(503, 'gemini_unavailable', 'AI の分析は一時停止中です。少し待ってから再実行してください');
     res.json({ group, ...r });
   })));
 

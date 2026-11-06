@@ -29,12 +29,12 @@ export default function Login() {
 
   if (user === undefined || user) return <Loading />;
   return (
-    <main className="screen" style={{ display: "grid", gridTemplateColumns: "minmax(0, 11fr) minmax(0, 7fr)" }}>
-      <section className="box--blue" style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 64px", gap: 24 }}>
-        <h1 className="t-hero" style={{ fontSize: 56, lineHeight: 1.5 }}>話し合いのあとに、<br />次の一歩が見つかる。</h1>
-        <p className="t-label" style={{ fontSize: 19 }}>一人ひとりの考えと成長を、授業につなげます。</p>
+    <main className="screen login">
+      <section className="box--blue login__hero">
+        <h1 className="t-hero login__title">話し合いのあとに、<br />次の一歩が見つかる。</h1>
+        <p className="t-label login__lead">一人ひとりの考えと成長を、授業につなげます。</p>
       </section>
-      <section style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 64px", gap: 16 }}>
+      <section className="login__panel">
         <h2 className="t-md">ログイン</h2>
         <p className="t-note">はじめての方も、ここからはじめられます。</p>
         <button className="btn btn--yellow btn--block" onClick={() => login(signInAsHost)} disabled={busy}>{busy ? "ログインしています…" : "Googleでログイン"}</button>
@@ -46,7 +46,8 @@ export default function Login() {
         )}
         {error && <p className="notice notice--error" role="alert">{error}</p>}
         <div style={{ borderTop: "3px solid #000", paddingTop: 16, marginTop: 8 }} className="stack stack--tight">
-          <Link href="/join" className="t-label" style={{ color: "inherit" }}>ログインせずに参加コードを入力する</Link>
+          <p className="t-note">先生から参加コードを聞いた生徒は、ログインしなくても参加できます。</p>
+          <Link href="/join" className="btn btn--blue btn--block">ログインせずに参加コードを入力する</Link>
           <Link href="/about" className="t-note" style={{ color: "inherit" }}>使い方とプライバシー</Link>
         </div>
       </section>
