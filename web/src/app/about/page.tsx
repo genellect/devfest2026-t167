@@ -2,17 +2,17 @@ import Link from "next/link";
 import { AutoTabBar } from "@/components/nav";
 import { Header } from "@/components/ui";
 
-const WHO = ["本人", "同じ部屋の人", "先生", "AI（Gemini）"];
+const WHO = ["本人", "同じ部屋の人", "Host", "AI（Gemini）"];
 /** データごとに、WHO の順で「見られる範囲」を並べる */
 const ROWS = [
   ["議論の前の意見", "見られる", "見られない", "人数だけ", "本文だけ（名前は送らない）"],
   ["結論の一文", "見られる", "見られない", "人数と分かれ方", "本文だけ（名前は送らない）"],
-  ["AI の提案", "先生が承認したもの", "先生が承認したもの", "すべて", "—"],
+  ["AI の提案", "Hostが承認したもの", "Hostが承認したもの", "すべて", "—"],
   ["議論の録音", "端末の中だけ", "—", "—", "全員の同意後に送信・分析し、音声は保存しない"],
   ["目標と振り返り", "端末の中だけ", "—", "—", "—"],
 ];
 
-/** 使い方とプライバシー。どのデータを誰が見られるかを、生徒・先生の両方に示す */
+/** 使い方とプライバシー。どのデータを誰が見られるかを、参加者・Hostの両方に示す */
 export default function About() {
   return (
     <main className="screen screen--tabs">
@@ -22,7 +22,7 @@ export default function About() {
       <div className="body" style={{ maxWidth: 1100, width: "100%", margin: "0 auto" }}>
         <div className="row">
           <section className="box box--md pad stack">
-            <h2 className="t-md">生徒の使い方</h2>
+            <h2 className="t-md">参加者の使い方</h2>
             <ol className="stack stack--tight" style={{ margin: 0, paddingLeft: 22 }}>
               <li>Googleでログインし、ホームから参加コードを入力します。QRコードで開いた場合も、ログイン後のホームから参加します。</li>
               <li>今日の目標と、議論の前の意見を書きます。</li>
@@ -32,13 +32,13 @@ export default function About() {
             </ol>
           </section>
           <section className="box box--md pad stack">
-            <h2 className="t-md">先生の使い方</h2>
+            <h2 className="t-md">Hostの使い方</h2>
             <ol className="stack stack--tight" style={{ margin: 0, paddingLeft: 22 }}>
               <li>Google アカウントで登録し、テーマとグループの数を決めて部屋を作ります。</li>
               <li>参加コードと QR コードを教室で映します。</li>
               <li>全員が意見を書いたら、議論を始めます。</li>
               <li>AI が見つけた「まだ話されていない論点」を確かめ、必要なものだけ全員に表示します。</li>
-              <li>結論の一文がそろったら分析し、クラス全体とグループごとの結果を見ます。</li>
+              <li>結論の一文がそろったら分析し、セッション全体とグループごとの結果を見ます。</li>
             </ol>
           </section>
         </div>

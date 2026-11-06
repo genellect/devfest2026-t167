@@ -145,7 +145,8 @@ export function useRecorder(roomId?: string) {
   stopRef.current = stop;
   useEffect(() => registerRecordingGuard(async () => { await stop(); }), [stop]);
 
-  return { state, saveError, level, elapsedMs, start, pause, resume, stop };
+  const capture = useCallback(() => ({ stream: stream.current, context: audio.current }), []);
+  return { state, saveError, level, elapsedMs, start, pause, resume, stop, capture };
 }
 
 export const mmss = (ms: number) => {

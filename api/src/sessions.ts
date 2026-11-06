@@ -2,12 +2,12 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { Timestamp, type Firestore, type Transaction } from 'firebase-admin/firestore';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { HttpError } from './http.js';
-import { DEFAULT_SESSION_POLICY, FRESH_LOGIN_MS, SECURITY_RETENTION_MS, idleMs, roleOf, schoolOf, sessionLimit, sessionPolicySchema, type SessionPolicy, type SessionRole } from './session-policy.js';
+import { DEFAULT_SESSION_POLICY, FRESH_LOGIN_MS, SECURITY_RETENTION_MS, idleMs, schoolOf, sessionLimit, readSessionPolicy, type SessionPolicy } from './session-policy.js';
 
 export const SESSION_REASONS = ['idle_expired', 'replaced', 'logout', 'logout_all', 'admin_revoked', 'class_ended'] as const;
 export type RevokeReason = typeof SESSION_REASONS[number];
 export interface Session {
-  sessionId: string; uid: string; schoolId: string | null; role: SessionRole;
+  sessionId: string; uid: string; schoolId: string | null;
   deviceLabel: string; deviceType: 'pc' | 'tablet' | 'phone' | 'other'; userAgentSummary: string;
   createdAt: Timestamp; lastActivityAt: Timestamp; expiresAt: Timestamp; deleteAt: Timestamp;
   revokedAt: Timestamp | null; revokeReason: RevokeReason | null; lockedAt: Timestamp | null;
@@ -42,7 +42,7 @@ export function createSessions(db: Firestore, now: () => number, notifications?:
     const school = schoolOf(token);
     if (!school) return DEFAULT_SESSION_POLICY;
     const snap = await db.doc(`schools/${school}/security/policy`).get();
-    return snap.exists ? sessionPolicySchema.parse(snap.data()) : DEFAULT_SESSION_POLICY;
+    return snap.exists ? readSessionPolicy(snap.data()!) : DEFAULT_SESSION_POLICY;
   }
   // 監査データにuid/セッションID/自由入力を含めず、関連付けは非公開のランダムsubjectIdだけ。
   function audit(tx: Transaction, event: string, subjectId: string, reason?: string) {
@@ -58,7 +58,7 @@ export function createSessions(db: Firestore, now: () => number, notifications?:
   async function create(token: DecodedIdToken, info: Pick<Session, 'deviceLabel' | 'deviceType' | 'isSharedDevice'> & { classEndsAt: number | null }, oldSecret?: string) {
     requireFresh(token, now());
     const p = await policy(token), uid = token.uid, secret = randomBytes(32).toString('base64url'), id = hashSession(secret);
-    const data: Session = { ...info, classEndsAt: info.classEndsAt === null ? null : Timestamp.fromMillis(info.classEndsAt), uid, sessionId: id, schoolId: schoolOf(token), role: roleOf(token), userAgentSummary: info.deviceType, createdAt: stamp(), lastActivityAt: stamp(), expiresAt: Timestamp.fromMillis(now() + idleMs(p)), deleteAt: Timestamp.fromMillis(now() + idleMs(p) + SECURITY_RETENTION_MS), revokedAt: null, revokeReason: null, lockedAt: null, reauthenticatedAt: stamp() };
+    const data: Session = { ...info, classEndsAt: info.classEndsAt === null ? null : Timestamp.fromMillis(info.classEndsAt), uid, sessionId: id, schoolId: schoolOf(token), userAgentSummary: info.deviceType, createdAt: stamp(), lastActivityAt: stamp(), expiresAt: Timestamp.fromMillis(now() + idleMs(p)), deleteAt: Timestamp.fromMillis(now() + idleMs(p) + SECURITY_RETENTION_MS), revokedAt: null, revokeReason: null, lockedAt: null, reauthenticatedAt: stamp() };
     await db.runTransaction(async (tx) => {
       const index = await tx.get(control(uid)), ids = (index.get('activeIds') ?? []) as string[];
       const subjectId = index.get('subjectId') ?? randomUUID();
@@ -81,7 +81,8 @@ export function createSessions(db: Firestore, now: () => number, notifications?:
         else live.push(s);
       }
       live.sort((a, b) => a.lastActivityAt.toMillis() - b.lastActivityAt.toMillis() || a.createdAt.toMillis() - b.createdAt.toMillis() || a.sessionId.localeCompare(b.sessionId));
-      while (live.length >= sessionLimit(p, data.role)) revoke(tx, live.shift()!, 'replaced', subjectId);
+      while (live.length >= sessionLimit(p)) revoke(tx, live.shift()!, 'replaced', subjectId);
+      tx.set(db.doc(`users/${uid}`), { uid, updatedAt: stamp() }, { merge: true });
       tx.create(ref(uid, id), data);
       tx.set(control(uid), { activeIds: [...live.map((s) => s.sessionId), id], subjectId });
       audit(tx, 'login_success', subjectId); audit(tx, 'session_created', subjectId);

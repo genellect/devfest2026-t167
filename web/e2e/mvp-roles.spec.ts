@@ -1,0 +1,55 @@
+import { expect, test } from "@playwright/test";
+import { emulatorGoogleUser } from "../../firebase/emulator-auth.mjs";
+import { loginStudent } from "./student";
+import { mkdir } from "node:fs/promises";
+
+test("Classroom未連携・教師claimなしでHostを作成し、別セッションにParticipantとして参加する", async ({ page, playwright }) => {
+  let classroomRequests = 0;
+  await page.route("https://classroom.googleapis.com/**", (r) => { classroomRequests++; return r.abort(); });
+  const studentSubject = await loginStudent(page);
+  await expect(page.getByText("あなたは、生徒ですか？先生ですか？")).toHaveCount(0);
+  await page.locator(".mvp-actions").getByRole("link", { name: "参加する", exact: true }).click();
+  await page.getByRole("link", { name: "ホスト", exact: true }).click();
+  await page.getByLabel("セッション名", { exact: true }).fill("Hostとして作ったセッション");
+  await page.getByLabel("テーマ", { exact: true }).fill("架空の議論テーマ");
+  await page.getByRole("button", { name: "2", exact: true }).click();
+  await page.getByRole("button", { name: "部屋を作る", exact: true }).click();
+  await expect(page).toHaveURL(/\/rooms\//);
+  const ownRoom = page.url();
+  await expect(page.getByRole("heading", { name: "Hostとして作ったセッション" })).toBeVisible();
+  await expect(page.getByText("セッション設定・グループ管理", { exact: true })).toBeVisible();
+  await expect(page.getByText("グループ1", { exact: true })).toBeVisible();
+  await page.getByText("セッション設定・グループ管理", { exact: true }).click();
+  await page.getByLabel("所属グループの分析結果を参加者に公開する").check();
+  await expect(page.getByRole("status")).toContainText("保存しました。");
+  await page.getByText("セッション設定・グループ管理", { exact: true }).click();
+  await mkdir("../docs/screenshots", { recursive: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: "../docs/screenshots/mvp-host-desktop.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "../docs/screenshots/mvp-host-mobile.png", fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const another = await playwright.request.newContext({ baseURL: new URL(page.url()).origin });
+  try {
+    const u = await emulatorGoogleUser("student", `another-host-${Date.now()}`);
+    const headers = { authorization: `Bearer ${u.idToken}` };
+    expect((await another.post("/api/sessions", { headers, data: { deviceLabel: "別のHost", deviceType: "pc" } })).status()).toBe(201);
+    const r = await another.post("/api/rooms", { headers, data: { title: "Participantとして参加するセッション", groups: 1, groupSelection: "host" } });
+    expect(r.status()).toBe(201); const { roomId, joinCode } = await r.json();
+    await page.goto(`/join?code=${joinCode}`);
+    await page.getByRole("button", { name: "参加する", exact: true }).click();
+    await expect(page.getByText("Hostによるグループの割り当てを待っています。")).toBeVisible();
+    await expect(page.getByText("セッション設定・グループ管理", { exact: true })).toHaveCount(0);
+    const localStudent = await emulatorGoogleUser("student", studentSubject);
+    expect((await another.post(`/api/rooms/${roomId}/groups/assign`, { headers, data: { uid: localStudent.localId, group: 1 } })).status()).toBe(200);
+    await expect(page.getByLabel("あなたの意見")).toBeVisible();
+    await page.goto("/home");
+    const cards = page.locator(".mvp-session-link");
+    await expect(cards.filter({ hasText: "Hostとして作ったセッション" })).toContainText("Host");
+    await expect(cards.filter({ hasText: "Participantとして参加するセッション" })).toContainText("Participant");
+    await page.screenshot({ path: "../docs/screenshots/mvp-home-mobile.png", fullPage: true });
+    await page.goto(ownRoom);
+    await expect(page.getByText("セッション設定・グループ管理", { exact: true })).toBeVisible();
+    expect(classroomRequests).toBe(0);
+  } finally { await another.dispose(); }
+});

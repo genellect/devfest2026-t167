@@ -1,15 +1,18 @@
 # バックエンドの契約と検証
 
+> 2026-11-06 MVP仕様変更：全員Googleログイン・共通ホーム。固定の教師/生徒ロールとteacher claimによるHost制限を廃止し、議論のmembers.roleでHost/Participantを判定します。ログイン上限は全員1台です。新仕様・API・移行条件は [MVPロール設計](mvp-roles.md) を参照。以下の旧仕様と相違する場合は新仕様を適用します。
+
+
 ## 認証と権限
 
-生徒・教師とも Firebase の `google.com` ID token が必須。API は無効化・失効と独自HttpOnlyセッションの状態も確認する。部屋作成は `teacher: true` の管理者設定の custom claim を要求し、教師操作には部屋の moderator 所属も必要。画面の役割選択では権限を付与しない。教師権限は信頼された管理者だけが Admin SDK で設定する。ローカルでは `firebase/seed.mjs` が模擬Googleユーザーに付与する。一般ユーザーに claim 設定用のAPIは公開しない。
+全員Google認証とHttpOnlyログインセッションが必須。作成者をバックエンドでHostとして登録し、対象セッションのmembers.roleで認可する。教師claimはHost権限の条件にしない。
 
 Google Docs のインフラ手順書とその写しには「参加者は匿名」の旧方針が残る。生徒もGoogle必須という依頼者の明示指示を、この実装では優先した。Google Docs の正本・本番設定は変更していない。公開前には正本・認証プロバイダー設定との同期が必要。
 
 ## 進行と保存
 
-- 部屋は collecting → discussing → consensus → closed。一段ずつ教師が進める。
-- グループは opinions → discussing → consensus → done。全員提出で開始、欠席時は教師が開始できる。
+- 部屋は collecting → discussing → consensus → closed。一段ずつHostが進める。
+- グループは opinions → discussing → consensus → done。Hostの開始後、全員提出で開始、欠席時は教師が開始できる。
 - closed の書き込みと分析結果の保存は拒否する。進行中の古いジョブは jobId が一致する場合だけ保存する。
 - 意見の更新・移動は議論開始前だけ。結論の一文は分析中と結果確定後には更新できない。部屋全体の合意分析が実行中・完了後の変更も拒否する。停止したジョブは教師が60秒後に再実行して回復させる。確定後は409を返し、分析結果と入力の食い違いを防ぐ。
 - グループ結果の出し直しは教師が実施する。回答がそろわないときの教師による確定では、未提出者のあとからの提出も受け付けない。

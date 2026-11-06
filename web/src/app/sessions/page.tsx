@@ -37,7 +37,7 @@ export default function SessionsPage() {
   return <main className="screen session-screen"><Header title="端末とセッション"><Link href="/student" className="btn btn--small">ホーム</Link></Header>
     <div className="body"><section className="session-list">
       <h2 className="t-md">ログインしている端末</h2>
-      <p>{current.policy?.idleDays ?? 7}日間使わなかった端末は、自動でログアウトします。生徒は{current.policy?.studentLimit ?? 1}台、先生は{current.policy?.teacherLimit ?? 2}台、学校管理者は{current.policy?.adminLimit ?? 2}台まで利用できます。</p>
+      <p>{current.policy?.idleDays ?? 7}日間使わなかった端末は、自動でログアウトします。全ユーザー共通で{current.policy?.maxConcurrentSessions ?? 1}台まで利用できます。</p>
       {error && <p className="notice notice--error" role="alert">{error}</p>}
       {sessions.map((s) => <article className="session-device" key={s.sessionId}>
         <h3>{s.deviceLabel}{s.sessionId === current.session?.sessionId ? "（この端末）" : ""}</h3>
@@ -50,7 +50,7 @@ export default function SessionsPage() {
         <label className="field">授業終了時刻<input aria-label="授業終了時刻" type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
         <button className="btn" disabled={busy} onClick={() => act(shared)}>この端末を共用端末として設定</button>
       </section>
-      <SchoolSecurity />
+      <section className="session-device"><h2>音声の登録情報</h2><p>各自の端末で登録した声の特徴を、このGoogleアカウントから削除します。次回は再登録が必要です。</p><button className="btn" onClick={async () => { try { await sessionRequest("/voice-profile/delete", "POST", {}); window.alert("音声の登録情報を削除しました。"); } catch { window.alert("削除できませんでした。接続を確認してください。"); } }}>音声登録を削除する</button></section><SchoolSecurity />
       <h2 className="t-md">この端末に保管した録音</h2><p>このブラウザ内の、ご本人の録音だけを表示します。送信前に自動削除しません。共用端末では確認後に録音を削除してください。同じ端末を使う人が音声を見られる場合があります。</p>
       {recordings.map((r) => <article key={r.id} className="session-device"><h3>{new Date(r.createdAt).toLocaleString("ja-JP")}</h3><p>{r.complete ? "保存済み" : "途中保存・単体で再生できるとは限りません"}・{r.chunks}チャンク</p>
         {r.complete && <button className="btn" disabled={busy} onClick={() => act(async () => { const blob = await recoveryAudio(current.user!.uid, r.id); setAudio(URL.createObjectURL(blob)); })}>再生・ダウンロード</button>}

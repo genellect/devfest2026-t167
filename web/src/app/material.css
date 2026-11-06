@@ -1,0 +1,20 @@
+/* Material Design 3: shared color, shape, typography and state tokens. */
+:root { --md-primary: #0b57d0; --md-on-primary: #fff; --md-surface: #f8fafd; --md-surface-container: #eef2fa; --md-outline: #747775; --md-radius: 24px; }
+body { background: var(--md-surface); color: #1f1f1f; font-family: "Google Sans", "Noto Sans JP", system-ui, sans-serif; }
+.box, .box--md, .box--lg, .session-card { border: 1px solid #d9dfe8; border-radius: var(--md-radius); box-shadow: none; }
+.box--blue { background: #e8f0fe; color: #12366b; }
+.box--yellow { background: #fef7e0; }
+.btn { border: 1px solid var(--md-outline); border-radius: 999px; box-shadow: none; min-height: 44px; font-weight: 600; transition: background .15s, box-shadow .15s; }
+.btn--blue { background: var(--md-primary); color: var(--md-on-primary); border-color: transparent; }
+.btn--yellow { background: #c2e7ff; color: #001d35; border-color: transparent; }
+.btn:hover:not(:disabled) { box-shadow: 0 2px 6px #0002; transform: none; }
+.btn:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #0b57d0; outline-offset: 3px; }
+.input, input:not([type=checkbox]), select, textarea { border-radius: 12px; border-width: 1px; }
+.choice { border-radius: 16px; border-width: 1px; box-shadow: none; }
+.choice[aria-pressed=true] { background: #d3e3fd; color: #041e49; }
+.header, .tabbar { border-width: 1px; background: var(--md-surface); }
+.mvp-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 24px; }
+.mvp-session-link { display: flex; justify-content: space-between; gap: 16px; color: inherit; text-decoration: none; }
+.mvp-settings { padding: 24px; margin: 16px clamp(16px, 4vw, 64px); background: var(--md-surface-container); }
+.mvp-settings form, .mvp-settings .stack { gap: 16px; }
+@media(max-width: 650px) { .mvp-actions { grid-template-columns: 1fr; } .mvp-session-link { flex-direction: column; } }

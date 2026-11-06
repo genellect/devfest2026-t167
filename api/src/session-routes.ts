@@ -30,7 +30,7 @@ export function sessionGuards(deps: Dependencies) {
     try { decoded = await deps.auth.verifyIdToken(token, true); }
     catch { await sessions.failed('login_failed'); throw new HttpError(401, 'unauthenticated', 'IDトークンが無効です'); }
     if (decoded.firebase?.sign_in_provider !== 'google.com') { await sessions.failed('suspicious_auth'); throw new HttpError(403, 'google_login_required', 'Googleでログインしてください'); }
-    req.ctx = { uid: decoded.uid, provider: 'google.com', teacher: decoded.teacher === true, token: decoded };
+    req.ctx = { uid: decoded.uid, provider: 'google.com', token: decoded };
     return decoded;
   }
   const identity = run(async (req) => { await identify(req); });
@@ -39,7 +39,7 @@ export function sessionGuards(deps: Dependencies) {
     const checked = await sessions.validate(token, secret);
     req.ctx.session = checked.session;
     // 明示的な成功操作だけを延長する。取得・進捗ポーリング・購読・トークン更新は除く。
-    if (req.method === 'POST' && req.path.startsWith('/rooms') && !req.path.endsWith('/progress')) {
+    if (req.method === 'POST' && req.path.startsWith('/rooms') && !req.path.endsWith('/progress') && !req.path.includes('/speaker/')) {
       res.locals.recordActivity = async () => {
         const active = await sessions.validate(token, secret, { activity: true });
         setSessionCookie(res, secret, active.session, deps.now());

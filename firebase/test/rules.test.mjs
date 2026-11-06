@@ -14,8 +14,8 @@ before(async () => {
     storage: { ...parse(process.env.FIREBASE_STORAGE_EMULATOR_HOST), rules: readFileSync(new URL('../storage.rules', import.meta.url), 'utf8') },
   });
   await env.withSecurityRulesDisabled(async (ctx) => {
-    await setDoc(doc(ctx.firestore(), 'rooms/demo/members/alice'), { role: 'participant', group: 1 });
-    await setDoc(doc(ctx.firestore(), 'rooms/demo/privateOpinions/alice'), { text: 'private-test' });
+    await setDoc(doc(ctx.firestore(), 'sessions/demo/members/alice'), { role: 'participant', group: 1 });
+    await setDoc(doc(ctx.firestore(), 'sessions/demo/privateOpinions/alice'), { text: 'private-test' });
     await uploadBytes(ref(ctx.storage(), 'recordings/test.wav'), new Uint8Array([1, 2]));
   });
 });
@@ -26,10 +26,10 @@ for (const kind of ['student', 'teacher', 'admin', 'revoked', 'refreshed', 'anon
       firebase: { sign_in_provider: kind === 'anonymous' ? 'anonymous' : 'google.com' },
       ...(kind === 'teacher' ? { teacher: true } : {}), ...(kind === 'admin' ? { schoolAdmin: true, schoolId: 'school' } : {}),
     });
-    for (const path of ['rooms/demo', 'rooms/demo/members/alice', 'rooms/demo/privateOpinions/alice', 'rooms/demo/messages/test', 'rooms/demo/results/group-1', 'users/alice/sessions/test', 'users/bob/sessions/test', 'schools/school/security/policy', 'securityEvents/test']) {
+    for (const path of ['sessions/demo', 'sessions/demo/members/alice', 'sessions/demo/privateOpinions/alice', 'sessions/demo/messages/test', 'sessions/demo/results/group-1', 'users/alice/sessions/test', 'users/bob/sessions/test', 'schools/school/security/policy', 'securityEvents/test']) {
       await assertFails(getDoc(doc(ctx.firestore(), path))); await assertFails(setDoc(doc(ctx.firestore(), path), { spoof: true }));
     }
-    await assertFails(getDocs(collection(ctx.firestore(), 'rooms/demo/results')));
+    await assertFails(getDocs(collection(ctx.firestore(), 'sessions/demo/results')));
   });
   test(`${kind}: Storageへ直接録音を読み書きできない`, async () => {
     const ctx = kind === 'guest' ? env.unauthenticatedContext() : env.authenticatedContext('alice', { firebase: { sign_in_provider: 'google.com' }, teacher: kind === 'teacher' });

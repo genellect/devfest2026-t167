@@ -21,3 +21,5 @@ ui-debug.log
 
 # Local quality reports
 api/coverage/
+.local-data/
+__pycache__/

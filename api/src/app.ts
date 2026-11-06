@@ -4,10 +4,15 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import { HttpError, wrap, run, parse, requireOpenRoom, requireModerator } from './http.js';
 import { participantGroup } from './membership.js';
+import { Timestamp } from 'firebase-admin/firestore';
+import { enforceDiscussionTime, requireDiscussionActive } from './discussion-lifecycle.js';
+import { registerSpeakerRoutes } from './speaker-routes.js';
+import { registerOnboardingRoutes } from './onboarding-routes.js';
 import { registerLiveRoutes } from './live-routes.js';
 import { sessionGuards, registerSessionRoutes } from './session-routes.js';
 import { createLimiter } from './limits.js';
 import { PHASES, MAX_GROUPS, statusOf, canSubmitStatement, statementLocked } from './policy.js';
+import { registerDiscussionRoutes } from './discussion-routes.js';
 import { createGroupService } from './groups.js';
 import { registerRecordingRoutes } from './recording-routes.js';
 import { registerAnalysisRoutes } from './analysis-routes.js';
@@ -49,29 +54,32 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
   const chain = (...fns: ((req: Request, res: Response, next: NextFunction) => void)[]) => fns;
   // 所属確認：パスの roomId のメンバーか
   const member = run(async (req) => {
-    const snap = await db.doc(`rooms/${req.params.roomId}/members/${req.ctx.uid}`).get();
-    if (!snap.exists) throw new HttpError(403, 'not_member', 'この部屋のメンバーではありません');
+    const snap = await db.doc(`sessions/${req.params.roomId}/members/${req.ctx.uid}`).get();
+    if (!snap.exists || snap.get('status') === 'inactive') throw new HttpError(403, 'not_member', 'この部屋のメンバーではありません');
     req.ctx.role = snap.get('role');
+    await enforceDiscussionTime(runtime, req.params.roomId);
   });
   // 司会者確認
   const moderator = run(async (req) => {
     requireModerator(req.ctx);
   });
   registerLiveRoutes(app, runtime, guards, member);
-  const roomRef = (id: string) => db.doc(`rooms/${id}`);
+  registerOnboardingRoutes(app, runtime, { authenticate, member });
+  registerSpeakerRoutes(app, runtime, { authenticate, member });
+  registerDiscussionRoutes(app, runtime, { authenticate, member, host: moderator });
+  const roomRef = (id: string) => db.doc(`sessions/${id}`);
   // 稼働確認。Cloud Run は z で終わるパス（/healthz など）を予約していてコンテナに届かないので、/health を使う。
   // /healthz は手元と古い手順のために残す
   app.get(['/health', '/healthz'], (_req, res) => { res.json({ ok: true, gemini: gemini.source }); });
 
-  // 部屋の作成：管理側で教師権限を付けたGoogleログインが必要。所属はまだないので所属確認はしない
+  // 全Google利用者が作成可能。セッションとHostの所属を同じトランザクションで保存する。
   app.post('/rooms', ...chain(authenticate, wrap(async (req, res) => {
-    if (!req.ctx.teacher) throw new HttpError(403, 'teacher_required', '管理者が承認した先生だけが部屋を作成できます');
     await limit(req.ctx.uid, 'create', 10, 60 * 60_000);
     // recording：グループの議論を録音して分析するか（録音の権限は先生が持つ。既定は録音する）
-    const { title, groups, recording } = parse(z.object({
-      title: z.string().trim().min(1).max(100), groups: z.number().int().min(1).max(MAX_GROUPS).default(1), recording: z.boolean().default(true),
+    const { title, theme, minutes, groups, recording, groupSelection, flowVersion, publishOnEnd, participantView } = parse(z.object({
+      flowVersion: z.literal(1).optional(), publishOnEnd: z.boolean().default(true), participantView: z.object({ theme: z.boolean().default(true), timer: z.boolean().default(true), members: z.boolean().default(true), speaking: z.boolean().optional() }).default({ theme: true, timer: true, members: true }), title: z.string().trim().min(1).max(100), theme: z.string().trim().max(1000).default(''), minutes: z.number().int().min(1).max(180).default(15), groupSelection: z.enum(['participant', 'host']).default('participant'), groups: z.number().int().min(1).max(MAX_GROUPS).default(1), recording: z.boolean().default(true),
     }), req.body);
-    const roomId = db.collection('rooms').doc().id;
+    const roomId = db.collection('sessions').doc().id;
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     for (let attempt = 0; attempt < 5; attempt++) {
       const joinCode = Array.from(randomBytes(6), (b) => alphabet[b % alphabet.length]).join('');
@@ -79,8 +87,10 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
         const codeRef = db.doc(`joinCodes/${joinCode}`);
         if ((await tx.get(codeRef)).exists) return false;
         tx.set(codeRef, { roomId });
-        tx.set(roomRef(roomId), { schemaVersion: 2, title, groups, recording, phase: 'collecting', joinCode, createdBy: req.ctx.uid, createdAt: FieldValue.serverTimestamp(), analysis: { status: 'idle' } });
-        tx.set(db.doc(`rooms/${roomId}/members/${req.ctx.uid}`), { role: 'moderator', joinedAt: FieldValue.serverTimestamp() });
+        tx.set(roomRef(roomId), { schemaVersion: 3, ...(flowVersion ? { flowVersion } : {}), publishOnEnd, participantView, title, theme, minutes, groupSelection, resultsPublished: false, groups, recording, phase: 'collecting', joinCode, createdBy: req.ctx.uid, createdAt: FieldValue.serverTimestamp(), analysis: { status: 'idle' } });
+        tx.set(db.doc(`sessions/${roomId}/members/${req.ctx.uid}`), { uid: req.ctx.uid, role: 'host', groupId: null, status: 'active', joinedAt: FieldValue.serverTimestamp() });
+        tx.set(db.doc(`users/${req.ctx.uid}`), { uid: req.ctx.uid, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        for (let g = 1; g <= groups; g++) tx.set(db.doc(`sessions/${roomId}/groups/${g}`), { groupId: String(g), name: `グループ${g}`, number: g });
         return true;
       });
       if (ok) { res.status(201).json({ roomId, joinCode }); return; }
@@ -97,13 +107,14 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
     const roomId = codeSnap.get('roomId') as string;
     const joinedSingleGroup = await db.runTransaction(async (tx) => {
       const room = await tx.get(roomRef(roomId));
-      requireOpenRoom(room);
-      const mRef = db.doc(`rooms/${roomId}/members/${req.ctx.uid}`);
+      requireOpenRoom(room); requireDiscussionActive(room);
+      if (room.get('flowVersion') === 1 && room.get('phase') !== 'collecting') throw new HttpError(409, 'already_started', '開始済みのセッションには新規参加できません');
+      const mRef = db.doc(`sessions/${roomId}/members/${req.ctx.uid}`);
       if (!(await tx.get(mRef)).exists) {
-        const singleGroup = (room.get('groups') ?? 1) <= 1;
+        const singleGroup = (room.get('groups') ?? 1) <= 1 && room.get('groupSelection') !== 'host';
         if (singleGroup && statusOf(room, 1) !== 'opinions') throw new HttpError(409, 'group_started', 'このグループはもう議論を始めています');
         // グループが1つなら自動でグループ1。複数なら、参加のあとに生徒が自分で選ぶ（groups/choose）
-        tx.set(mRef, { role: 'participant', ...(singleGroup ? { group: 1 } : {}), joinedAt: FieldValue.serverTimestamp() });
+        tx.set(mRef, { uid: req.ctx.uid, role: 'participant', groupId: singleGroup ? '1' : null, status: 'active', ...(singleGroup ? { group: 1 } : {}), joinedAt: FieldValue.serverTimestamp() });
         return singleGroup;
       }
       return false;
@@ -117,10 +128,19 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
     const { to } = parse(z.object({ to: z.enum(PHASES) }), req.body);
     await db.runTransaction(async (tx) => {
       const room = await tx.get(roomRef(req.params.roomId));
+      if (room.get('flowVersion') === 1 && to !== 'discussing') throw new HttpError(409, 'use_finish', 'MVPの終了は終了操作を使ってください');
       const cur = PHASES.indexOf(room.get('phase'));
       if (PHASES.indexOf(to) !== cur + 1) throw new HttpError(409, 'wrong_phase', `${room.get('phase')} から ${to} には進めません`);
-      tx.update(roomRef(req.params.roomId), { phase: to, [`phaseChangedAt.${to}`]: FieldValue.serverTimestamp() });
+      if (room.get('flowVersion') === 1 && to === 'discussing') {
+        const guests = await tx.get(room.ref.collection('members').where('role', '==', 'participant'));
+        if (!guests.empty && guests.docs.some((m) => !m.get('ready') || !m.get('groupId'))) throw new HttpError(409, 'guests_not_ready', '全Guestの音声登録と所属を確認してください');
+      }
+      tx.update(roomRef(req.params.roomId), { phase: to, ...(to === 'discussing' ? { startedAt: Timestamp.fromMillis(now()), endsAt: Timestamp.fromMillis(now() + (room.get('minutes') ?? 15) * 60_000) } : {}), [`phaseChangedAt.${to}`]: FieldValue.serverTimestamp() });
     });
+    if (to === 'discussing') {
+      const room = await roomRef(req.params.roomId).get();
+      for (let g = 1; g <= (room.get('groups') ?? 1); g++) await refreshGroup(req.params.roomId, g, { forceStart: room.get('flowVersion') === 1 });
+    }
     res.json({ phase: to });
   })));
 
@@ -141,6 +161,7 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
     const prev = await db.runTransaction(async (tx) => {
       const room = await tx.get(roomRef(roomId));
       requireOpenRoom(room);
+      if (room.get('groupSelection') === 'host') throw new HttpError(403, 'host_assignment_required', 'Hostがグループを割り当てます');
       if (group > (room.get('groups') ?? 1)) throw new HttpError(400, 'bad_request', 'グループ番号を確認してください');
       const previous = await participantGroup(tx, room, req.ctx.uid).catch((error: unknown) => {
         if (error instanceof HttpError && error.code === 'no_group') return undefined;
@@ -149,7 +170,7 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
       if (previous === group) return previous;
       if (statusOf(room, group) !== 'opinions' || (previous && statusOf(room, previous) !== 'opinions'))
         throw new HttpError(409, 'group_started', '議論を始めたグループには移動できません');
-      tx.update(db.doc(`rooms/${roomId}/members/${req.ctx.uid}`), { group });
+      tx.update(db.doc(`sessions/${roomId}/members/${req.ctx.uid}`), { group, groupId: String(group) });
       return previous;
     });
     if (prev) await refreshGroup(roomId, prev);
@@ -166,7 +187,7 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
       requireOpenRoom(room);
       const group = await participantGroup(tx, room, req.ctx.uid);
       if (statusOf(room, group) !== 'opinions') throw new HttpError(409, 'wrong_phase', 'グループの議論が始まったので、事前の意見は変えられません');
-      tx.set(db.doc(`rooms/${roomId}/privateOpinions/${req.ctx.uid}`), { text, updatedAt: FieldValue.serverTimestamp() });
+      tx.set(db.doc(`sessions/${roomId}/privateOpinions/${req.ctx.uid}`), { text, updatedAt: FieldValue.serverTimestamp() });
       return group;
     });
     res.json({ group, ...(await refreshGroup(roomId, group)) });
@@ -187,6 +208,7 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
     const group = await db.runTransaction(async (tx) => {
       const room = await tx.get(roomRef(roomId));
       requireOpenRoom(room);
+      if (room.get('flowVersion') === 1) throw new HttpError(403, 'host_finish_required', 'ディスカッションの終了はHostが管理します');
       const group = await participantGroup(tx, room, req.ctx.uid);
       const status = statusOf(room, group);
       if (status === 'consensus' || status === 'done') return group;
@@ -214,7 +236,7 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
       if (statementLocked(room, group)) throw new HttpError(409, 'analysis_in_progress', '分析中または結果確定後の回答は変更できません');
       if (!canSubmitStatement(room.get('phase'), status))
         throw new HttpError(409, 'wrong_phase', 'グループの議論が終わってから書いてください');
-      tx.set(db.doc(`rooms/${roomId}/consensusStatements/${req.ctx.uid}`), {
+      tx.set(db.doc(`sessions/${roomId}/consensusStatements/${req.ctx.uid}`), {
         text: body.text, agreement: body.agreement, ...(body.concern ? { concern: body.concern } : {}), updatedAt: FieldValue.serverTimestamp(),
       });
       return group;
@@ -230,7 +252,7 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
   // グループの結果を出し直す。生徒は自分のグループ（全員そろっているときだけ）、先生は任意のグループを今ある回答で出せる
   app.post('/rooms/:roomId/groups/analyze', ...chain(authenticate, member, wrap(async (req, res) => {
     const roomId = req.params.roomId;
-    const isMod = req.ctx.role === 'moderator';
+    const isMod = req.ctx.role === 'host';
     if (isMod) requireModerator(req.ctx);
     const group = await db.runTransaction(async (tx) => {
       const room = await tx.get(roomRef(roomId));

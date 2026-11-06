@@ -1,19 +1,22 @@
 # 認証とアプリセッション
 
+> 2026-11-06 MVP仕様変更：全員Googleログイン・共通ホーム。固定の教師/生徒ロールとteacher claimによるHost制限を廃止し、議論のmembers.roleでHost/Participantを判定します。ログイン上限は全員1台です。新仕様・API・移行条件は [MVPロール設計](mvp-roles.md) を参照。以下の旧仕様と相違する場合は新仕様を適用します。
+
+
 ## 設計と既存構成
 
-Next.js → 同一オリジン `/api` の転送 → Express/TypeScript (Cloud Run) → Firebase Admin SDKを維持する。FastAPIは導入しない。FirebaseのGoogle本人認証を置換せず、全保護APIで失効確認付きIDトークンと独自Cookieの両方を検査する。学校・権限は管理者が設定した `schoolId` / `schoolAdmin` / `teacher` claimsのみを信頼する。UIの役割選択は認可情報に使わない。
+Next.js → 同一オリジン `/api` の転送 → Express/TypeScript (Cloud Run) → Firebase Admin SDKを維持する。FastAPIは導入しない。FirebaseのGoogle本人認証を置換せず、全保護APIで失効確認付きIDトークンと独自Cookieの両方を検査する。学校ポリシー操作は管理者設定のschoolId/schoolAdminだけを信頼する。議論の権限は各セッションのmembers.roleを参照する。teacher claimとUIの役割選択は使わない。
 
 Docs正本の匿名参加記述と現在のGoogle必須方針は異なる。依頼者の全員Googleログイン必須の指示を優先する。既存未マージの依存更新・品質・クラウド準備・ログイン必須化 (#26/27/28/30/31) を前提とする。依頼者の確認後にPRを公開する。マージ・auto-merge・本番反映は別途承諾まで行わない。
 
 ## 判断
 
 - 7日=168時間。UTCのサーバー時刻。GET/ストリーム/トークン更新は延長しない。成功した業務操作・ユーザー操作によるactivityだけが更新する。ブラウザで信頼されたキー/ポインター操作をまとめて送る。サーバーは認証・セッション・上限を検査するが、改造クライアントが本物の人間操作を行ったかを証明することはできない。
-- 1/2/2台、最終利用が古い順、同時刻は作成時刻・IDで決定。ユーザーごとの制御文書を全作成/失効トランザクションで共有する。
+- 初期値は全員1台、最終利用が古い順、同時刻は作成時刻・IDで決定。ユーザーごとの制御文書を全作成/失効トランザクションで共有する。
 - 生の256-bit乱数はHttpOnly Cookieだけ。文書IDと一覧IDはSHA-256。クライアント指定IDで作成しない。UIDは検証済みトークンからのみ取得。CookieとUIDを両方照合。
 - 本番は `__Host-discuss_session; HttpOnly; Secure; SameSite=Strict; Path=/`。Domainなし。Max-Ageは残り有効期限。両エミュレータが有効なローカルだけ別名の非Secure Cookie。同じCookieでも別ユーザーのIDトークンとは組み合わせられない。
 - 全保護APIにFirebase Bearerが必須なのでCookieだけではCSRFが成立しない。cross-site Fetch Metadataも拒否しCORSを開かない。作成/解除には5分以内のGoogle再認証を要求し、解除時にCookieを回転する。
-- 既存Firestore直接購読はCloud Runの認可済みライブ配信へ移す。部屋ごとにブラウザ内で1接続を共有し変更時だけ配信。取得は利用日時を延ばさない。失効は各APIと配信時および30秒以内の再検査で検出。Firestore/Storage Rulesはクライアントを全拒否。非公開意見は本人だけ、未承認提案/全体結果は教師だけ、グループ結果は同グループだけ。
+- 既存Firestore直接購読はCloud Runの認可済みライブ配信へ移す。部屋ごとにブラウザ内で1接続を共有し変更時だけ配信。取得は利用日時を延ばさない。失効は各APIと配信時および30秒以内の再検査で検出。Firestore/Storage Rulesはクライアントを全拒否。非公開意見は本人だけ、未承認提案/全体結果はHostだけ、グループ結果は同グループの参加者へ公開中だけ。
 - Storage/署名URLは現状未使用。今回も作成しない。将来発行時は同じセッション検査、単一オブジェクト/PUTだけ/短命(例60秒)/サイズと形式検査。発行済みURLは期限まで失効不可という残余リスクがある。
 - 共用端末の15分ロックはサーバーでも検査。録音を継続する特権は付けず、ロック時は録音を停止して端末内保存を完了してから認証画面を出す。録音中の期限切れ/失効/通信断でもローカル音声を優先し、送信成功前に削除しない。
 - 授業終了日時は共用端末設定時に指定しサーバーで強制。学校管理者の一括失効APIも用意する。MVPには学校ディレクトリ/時間割連携はなく、既存の部屋終了を学校全体の授業終了と同一視しない。
@@ -21,9 +24,9 @@ Docs正本の匿名参加記述と現在のGoogle必須方針は異なる。依�
 
 ## 保存モデル
 
-`users/{uid}/sessions/{sha256(cookie)}`: sessionId,uid,schoolId,role,deviceLabel,deviceType,createdAt,lastActivityAt,expiresAt,revokedAt,revokeReason,isSharedDevice,userAgentSummary,lockedAt,classEndsAt,reauthenticatedAt,deleteAt。時刻はFirestore Timestamp。deleteAtは認証に使わず、期限後30日保持用TTL。
-`users/{uid}/sessionControl/state`: activeIds (最大2)、監査用の一方向に乱数化したsubjectId。セッション一覧は本人の最新30件。
-`schools/{schoolId}/security/policy`: idleDays,studentLimit,teacherLimit,adminLimit,sharedIdleMinutes,endAtClassEnd,newDeviceNotifications。値域はAPIで制限。
+`users/{uid}/sessions/{sha256(cookie)}`: sessionId,uid,schoolId,deviceLabel,deviceType,createdAt,lastActivityAt,expiresAt,revokedAt,revokeReason,isSharedDevice,userAgentSummary,lockedAt,classEndsAt,reauthenticatedAt,deleteAt。時刻はFirestore Timestamp。deleteAtは認証に使わず、期限後30日保持用TTL。
+`users/{uid}/sessionControl/state`: activeIds（共通上限、既定1）、監査用の一方向に乱数化したsubjectId。セッション一覧は本人の最新30件。
+`schools/{schoolId}/security/policy`: idleDays,maxConcurrentSessions,sharedIdleMinutes,endAtClassEnd,newDeviceNotifications。値域はAPIで制限。
 `securityEvents/{randomId}`: event,at,deleteAt,subjectId,reason。氏名/メール/uid/生のセッションID/端末ラベル/IP/UA/トークン/Cookie/音声/意見本文は記録しない。subjectIdはランダムで外部ログに出さない。ログは管理用Firestoreに30日保持、Rulesは拒否。閲覧は運用監査担当のIAMに限定する。既存Editor/Ownerは閲覧可能なため本番前に最小権限をレビューする。
 
 ## API (同一オリジン `/api` 経由)

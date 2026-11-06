@@ -11,15 +11,15 @@ export function registerAnalysisRoutes(app: Express, deps: Dependencies, guards:
   const { db, gemini } = deps;
   const { authenticate, member, moderator } = guards;
   const { beginAnalysis, finishAnalysis } = createAnalysisJobs(deps);
-  const roomRef = (id: string) => db.doc(`rooms/${id}`);
+  const roomRef = (id: string) => db.doc(`sessions/${id}`);
   const chain = (...handlers: Handler[]) => handlers;
   // 未検討論点の分析（司会者）。複数インスタンスでも重複しないよう、部屋ドキュメントのトランザクションで排他する
   app.post('/rooms/:roomId/analyze', ...chain(authenticate, member, moderator, wrap(async (req, res) => {
     const roomId = req.params.roomId;
     const { jobId } = await beginAnalysis(roomId, 'analysis');
     const [ops, msgs] = await Promise.all([
-      db.collection(`rooms/${roomId}/privateOpinions`).get(),
-      db.collection(`rooms/${roomId}/messages`).orderBy('createdAt').get(),
+      db.collection(`sessions/${roomId}/privateOpinions`).get(),
+      db.collection(`sessions/${roomId}/messages`).orderBy('createdAt').get(),
     ]);
     let points;
     try {
@@ -33,9 +33,9 @@ export function registerAnalysisRoutes(app: Express, deps: Dependencies, guards:
     // 遅れて返った古い結果は捨てる（jobId が今の分析と一致するときだけ保存）
     const saved = await finishAnalysis(roomId, 'analysis', jobId, (tx) => {
       for (const p of points.filter((x) => !x.discussed)) {
-        tx.set(db.collection(`rooms/${roomId}/insights`).doc(), { summary: p.summary, status: 'pending', jobId, source: gemini.source, createdAt: FieldValue.serverTimestamp() });
+        tx.set(db.collection(`sessions/${roomId}/insights`).doc(), { summary: p.summary, status: 'pending', jobId, source: gemini.source, createdAt: FieldValue.serverTimestamp() });
       }
-      tx.set(db.doc(`rooms/${roomId}/results/coverage`), {
+      tx.set(db.doc(`sessions/${roomId}/results/coverage`), {
         total: points.length, discussed: points.filter((x) => x.discussed).length,
         reflectionRate: reflectionRate(points), source: gemini.source, jobId, updatedAt: FieldValue.serverTimestamp(),
       });
@@ -50,9 +50,9 @@ export function registerAnalysisRoutes(app: Express, deps: Dependencies, guards:
     const roomId = req.params.roomId;
     const [room, members, opinions, statements] = await Promise.all([
       roomRef(roomId).get(),
-      db.collection(`rooms/${roomId}/members`).where('role', '==', 'participant').get(),
-      db.collection(`rooms/${roomId}/privateOpinions`).select().get(),
-      db.collection(`rooms/${roomId}/consensusStatements`).select().get(),
+      db.collection(`sessions/${roomId}/members`).where('role', '==', 'participant').get(),
+      db.collection(`sessions/${roomId}/privateOpinions`).select().get(),
+      db.collection(`sessions/${roomId}/consensusStatements`).select().get(),
     ]);
     const groupOf = new Map(members.docs.map((m) => [m.id, groupNumber(m, room.get('groups'))]));
     const byGroup = Array.from({ length: room.get('groups') ?? 1 }, (_, i) => ({ group: i + 1, participants: 0, opinions: 0, statements: 0 }));
@@ -65,7 +65,7 @@ export function registerAnalysisRoutes(app: Express, deps: Dependencies, guards:
 
   // 提案の承認（司会者）
   app.post('/rooms/:roomId/insights/:insightId/approve', ...chain(authenticate, member, moderator, wrap(async (req, res) => {
-    const ref = db.doc(`rooms/${req.params.roomId}/insights/${req.params.insightId}`);
+    const ref = db.doc(`sessions/${req.params.roomId}/insights/${req.params.insightId}`);
     await db.runTransaction(async (tx) => {
       requireOpenRoom(await tx.get(roomRef(req.params.roomId)));
       const s = await tx.get(ref);
@@ -81,11 +81,11 @@ export function registerAnalysisRoutes(app: Express, deps: Dependencies, guards:
     const roomId = req.params.roomId;
     const { jobId, groups: roomGroups } = await beginAnalysis(roomId, 'consensusAnalysis');
     const [stmts, approved, msgs, members, coverage] = await Promise.all([
-      db.collection(`rooms/${roomId}/consensusStatements`).get(),
-      db.collection(`rooms/${roomId}/insights`).where('status', '==', 'approved').get(),
-      db.collection(`rooms/${roomId}/messages`).orderBy('createdAt').get(),
-      db.collection(`rooms/${roomId}/members`).where('role', '==', 'participant').get(),
-      db.doc(`rooms/${roomId}/results/coverage`).get(),
+      db.collection(`sessions/${roomId}/consensusStatements`).get(),
+      db.collection(`sessions/${roomId}/insights`).where('status', '==', 'approved').get(),
+      db.collection(`sessions/${roomId}/messages`).orderBy('createdAt').get(),
+      db.collection(`sessions/${roomId}/members`).where('role', '==', 'participant').get(),
+      db.doc(`sessions/${roomId}/results/coverage`).get(),
     ]);
     const firstApproval = Math.min(...approved.docs.map((d) => (d.get('approvedAt') as Timestamp | undefined)?.toMillis() ?? Infinity));
     const after = msgs.docs.filter((d) => ((d.get('createdAt') as Timestamp | undefined)?.toMillis() ?? 0) >= firstApproval).map((d) => d.get('text') as string);
@@ -125,7 +125,7 @@ export function registerAnalysisRoutes(app: Express, deps: Dependencies, guards:
       updatedAt: FieldValue.serverTimestamp(),
     };
     const saved = await finishAnalysis(roomId, 'consensusAnalysis', jobId, (tx) => {
-      tx.set(db.doc(`rooms/${roomId}/results/summary`), { ...summary, jobId });
+      tx.set(db.doc(`sessions/${roomId}/results/summary`), { ...summary, jobId });
       tx.update(roomRef(roomId), { 'consensusAnalysis.status': 'done', 'consensusAnalysis.finishedAt': FieldValue.serverTimestamp() });
     });
     if (!saved) throw new HttpError(409, 'stale_result', '新しい分析や状態変更のため、この結果は破棄しました');

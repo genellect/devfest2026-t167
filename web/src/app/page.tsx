@@ -5,10 +5,10 @@ import { useEffect, useState } from "react";
 import { Loading } from "@/components/ui";
 import { canUseTestHost, signInAsHost, signInAsTestHost, signInAsTestStudent, useHostUser, type LoginOptions } from "@/lib/hostAuth";
 import { logoutMessage, useAppSession } from "@/lib/session";
-import { getRole, homeOf } from "@/lib/local";
+
 
 /**
- * ログイン（入口はここだけ）。Google でログインし、初めての人は役割（生徒・先生）を選ぶ画面へ進む。
+ * ログイン（入口はここだけ）。Google でログインし、共通ホームへ進む。
  * 参加コードの入力は、ログイン後のホームから進む。
  */
 export default function Login() {
@@ -22,8 +22,7 @@ export default function Login() {
 
   useEffect(() => {
     if (!user) return;
-    const role = getRole(user.uid);
-    router.replace(role ? homeOf(role) : "/signup");
+    router.replace("/home");
   }, [user, router]);
 
   async function login(how: (options: LoginOptions) => Promise<void>) {

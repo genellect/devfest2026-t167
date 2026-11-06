@@ -1,0 +1,95 @@
+import { expect, it, beforeEach } from 'vitest';
+import request from 'supertest';
+import { initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { randomUUID } from 'node:crypto';
+import { emulatorGoogleUser } from '../../../firebase/emulator-auth.mjs';
+import { createApp } from '../../src/app.js';
+import { mockGemini } from '../../src/gemini.js';
+import { endDiscussion } from '../../src/discussion-lifecycle.js';
+import { wave } from '../fixtures/audio.js';
+const projectId = process.env.GOOGLE_CLOUD_PROJECT;
+if (!projectId?.startsWith('demo-')) throw new Error('デモプロジェクトだけで検査します');
+initializeApp({ projectId }); const db = getFirestore(), auth = getAuth();
+let now = Date.now(), silent = false;
+const voice = { version: 'test-v1', source: 'mock' as const, extract: async () => ({ embedding: silent ? null : Array(16).fill(0.25), speechMs: silent ? 0 : 8000 }) };
+const deps = { db, auth, gemini: mockGemini(), voice, now: () => now }, app = createApp(deps);
+beforeEach(() => { now = Date.now(); silent = false; });
+async function client() {
+  const u = await emulatorGoogleUser('student', `guided-${randomUUID()}`);
+  const session = await request(app).post('/sessions').set('authorization', `Bearer ${u.idToken}`).send({ deviceLabel: 'テスト端末', deviceType: 'tablet' }).expect(201);
+  const cookie = session.headers['set-cookie'][0].split(';')[0], headers = { authorization: `Bearer ${u.idToken}`, cookie };
+  return { uid: u.localId, headers, post: (path: string, body = {}) => request(app).post(path).set(headers).send(body), get: (path: string) => request(app).get(path).set(headers) };
+}
+async function setup() {
+  const h = await client(), p = await client();
+  const r = (await h.post('/rooms', { title: 'MVP', theme: 'テーマ', minutes: 1, groups: 1, flowVersion: 1, participantView: { theme: true, timer: true, members: true } }).expect(201)).body;
+  await p.post('/rooms/join', { code: r.joinCode }).expect(200);
+  return { h, p, ...r } as { h: Awaited<ReturnType<typeof client>>; p: Awaited<ReturnType<typeof client>>; roomId: string; joinCode: string };
+}
+const member = (roomId: string, uid: string) => db.doc(`sessions/${roomId}/members/${uid}`);
+async function enroll(p: Awaited<ReturnType<typeof client>>, roomId: string, mode: 'personal' | 'shared' = 'personal', names = ['表示名']) {
+  await p.post(`/rooms/${roomId}/onboarding`, { mode, names }).expect(200);
+  const rows = (await member(roomId, p.uid).get()).get('attendees') as { id: string }[];
+  for (const a of rows) await request(app).post(`/rooms/${roomId}/voice/${a.id}?consent=1`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(9 * 32000, 1)).expect(200);
+}
+it('個人端末はGoogle UIDに紐付いた声の特徴を初回だけ登録し、別セッションでも再利用する', async () => {
+  const { h, p, roomId } = await setup(); await enroll(p, roomId);
+  expect((await member(roomId, p.uid).get()).get('ready')).toBe(true);
+  const profile = await db.doc(`users/${p.uid}/voiceProfiles/default`).get();
+  expect(profile.get('embedding')).toHaveLength(16); expect(profile.get('audio')).toBeUndefined();
+  const r = (await h.post('/rooms', { title: '次回', groups: 1, flowVersion: 1 }).expect(201)).body;
+  await p.post('/rooms/join', { code: r.joinCode }).expect(200);
+  expect((await p.post(`/rooms/${r.roomId}/onboarding`, { mode: 'personal', names: ['次の表示名'] }).expect(200)).body.reused).toBe(true);
+  expect((await member(r.roomId, p.uid).get()).get('ready')).toBe(true);
+  await p.post('/voice-profile/delete').expect(200); expect((await profile.ref.get()).exists).toBe(false);
+});
+it('共用端末は全員を毎回登録し、終了時にその回の声の特徴だけ削除する', async () => {
+  const { h, p, roomId } = await setup(); await enroll(p, roomId, 'shared', ['A', 'B']);
+  expect((await db.collection(`sessions/${roomId}/voiceProfiles`).get()).size).toBe(2);
+  expect((await db.doc(`users/${p.uid}/voiceProfiles/default`).get()).exists).toBe(false);
+  await h.post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(200);
+  await p.post(`/rooms/${roomId}/finish`).expect(403);
+  await h.post(`/rooms/${roomId}/finish`).expect(200);
+  expect((await db.collection(`sessions/${roomId}/voiceProfiles`).get()).empty).toBe(true);
+  expect((await db.doc(`sessions/${roomId}`).get()).get('endReason')).toBe('host');
+  await h.get(`/rooms/${roomId}/results/session-summary`).expect(200);
+  await p.get(`/rooms/${roomId}/results/session-summary`).expect(403);
+});
+it('未登録・無音・途中の登録では開始できず、Hostの開始後に登録や新規参加をさせない', async () => {
+  const { h, p, roomId, joinCode } = await setup();
+  await h.post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(409);
+  await p.post(`/rooms/${roomId}/onboarding`, { mode: 'personal', names: ['A', 'B'] }).expect(400);
+  await h.post(`/rooms/${roomId}/onboarding`, { mode: 'personal', names: ['Host'] }).expect(403);
+  await p.post(`/rooms/${roomId}/onboarding`, { mode: 'shared', names: ['A', 'B'] }).expect(200);
+  const rows = (await member(roomId, p.uid).get()).get('attendees');
+  silent = true;
+  await request(app).post(`/rooms/${roomId}/voice/${rows[0].id}?consent=1`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(9 * 32000)).expect(400);
+  silent = false;
+  await request(app).post(`/rooms/${roomId}/voice/missing?consent=1`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(9 * 32000)).expect(404);
+  await request(app).post(`/rooms/${roomId}/voice/${rows[0].id}?consent=1`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(10)).expect(400);
+  for (const row of rows) await request(app).post(`/rooms/${roomId}/voice/${row.id}?consent=1`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(9 * 32000)).expect(200);
+  await h.post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(200);
+  await p.post(`/rooms/${roomId}/onboarding`, { mode: 'personal', names: ['変更'] }).expect(409);
+  await (await client()).post('/rooms/join', { code: joinCode }).expect(409);
+});
+it('期限をサーバー時刻で判定し、再接続でも終了が維持され、新規発言は拒否する', async () => {
+  const { h, p, roomId } = await setup(); await enroll(p, roomId);
+  await h.post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(200);
+  const room = await db.doc(`sessions/${roomId}`).get(); expect(room.get('endsAt').toMillis()).toBe(now + 60_000);
+  now += 59_999; await p.post(`/rooms/${roomId}/messages`, { text: '期限前' }).expect(200);
+  now++; await p.post(`/rooms/${roomId}/check-time`).expect(200);
+  expect((await room.ref.get()).get('endReason')).toBe('timeout');
+  await p.post(`/rooms/${roomId}/messages`, { text: '期限後' }).expect(409);
+  await h.post(`/rooms/${roomId}/finish`).expect(200);
+  expect((await room.ref.get()).get('endReason')).toBe('timeout');
+  now += 5 * 60_000 + 1;
+  await request(app).post(`/rooms/${roomId}/groups/recording?consent=1&durationSec=1`).set(p.headers).set('content-type', 'audio/wav').send(wave()).expect(409);
+});
+it('期限前と存在しないセッションの検査では終了を書き込まない', async () => {
+  const { roomId } = await setup(); await endDiscussion(deps, roomId, 'timeout');
+  expect((await db.doc(`sessions/${roomId}`).get()).get('endedAt')).toBeUndefined();
+  await endDiscussion(deps, 'missing', 'timeout');
+  expect((await db.doc('sessions/missing').get()).exists).toBe(false);
+});

@@ -19,20 +19,23 @@ test("/api は Cloud Run 役の API に転送される", async ({ request }) => 
 });
 
 test("参加コードで参加し、非公開の意見を出すと、グループがそろって議論が始まる", async ({ page, request }) => {
+  const hostToken = await moderatorToken(request);
   const created = await request.post("/api/rooms", {
-    headers: { authorization: `Bearer ${await moderatorToken(request)}` },
+    headers: { authorization: `Bearer ${hostToken}` },
     data: { title: "大学における生成AI利用の是非" },
   });
   expect(created.status()).toBe(201);
-  const { joinCode } = await created.json();
+  const { joinCode, roomId } = await created.json();
 
   await loginStudent(page);
-  await page.getByRole("link", { name: "参加コードを入力", exact: true }).click();
+  await page.getByRole("link", { name: "参加する", exact: true }).click();
+  await page.getByRole("link", { name: "ゲスト", exact: true }).click();
   await page.getByLabel("参加コード").fill(joinCode);
   await page.getByRole("button", { name: "参加する" }).click();
 
   await expect(page.getByRole("heading", { name: "大学における生成AI利用の是非" })).toBeVisible();
   await expect(page.getByTestId("phase")).toHaveText("事前意見の受付中");
+  await request.post(`/api/rooms/${roomId}/phase`, { headers: { authorization: `Bearer ${hostToken}` }, data: { to: "discussing" } });
   await page.getByLabel("あなたの意見").fill("AI を使ったことを申告するルールが必要");
   await page.getByRole("button", { name: "提出する" }).click();
   // グループ（この部屋は1グループ・1人）の全員の意見がそろったので、議論の画面に自動で変わる
@@ -40,14 +43,16 @@ test("参加コードで参加し、非公開の意見を出すと、グルー�
 });
 
 test("全員の同意を確かめて録音し、議論を終えると録音が分析され、結果に議論の流れが出る", async ({ page, request }) => {
+  const hostToken = await moderatorToken(request);
   const created = await request.post("/api/rooms", {
-    headers: { authorization: `Bearer ${await moderatorToken(request)}` },
+    headers: { authorization: `Bearer ${hostToken}` },
     data: { title: "部活動の時間を短くするべきか" },
   });
-  const { joinCode } = await created.json();
+  const { joinCode, roomId } = await created.json();
   await loginStudent(page);
   await page.goto(`/join?code=${joinCode}`);
   await page.getByRole("button", { name: "参加する" }).click();
+  await request.post(`/api/rooms/${roomId}/phase`, { headers: { authorization: `Bearer ${hostToken}` }, data: { to: "discussing" } });
   await page.getByLabel("あなたの意見").fill("練習の質を上げれば短くてもよい");
   await page.getByRole("button", { name: "提出する" }).click();
   await expect(page.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
@@ -67,6 +72,8 @@ test("全員の同意を確かめて録音し、議論を終えると録音が�
   await page.getByLabel("グループの結論を、あなたはどう理解した？").fill("練習の中身を見直して時間を短くする");
   await page.getByRole("button", { name: "おおむね納得" }).click();
   await page.getByRole("button", { name: "提出する" }).click();
+  await expect(page.getByText("分析結果はHostの公開後に表示されます。")).toBeVisible();
+  await request.post(`/api/rooms/${roomId}/settings`, { headers: { authorization: `Bearer ${hostToken}` }, data: { resultsPublished: true } });
   // モックの分析結果（録音から書かれた results/flow-g1）が、結果の画面に出る
   await expect(page.getByText("デモデータです。本物の Gemini では、録音から話題の流れを読み取ります。")).toBeVisible({ timeout: 30_000 });
 });
@@ -76,7 +83,8 @@ test("QR コードの URL では参加コードが入力済みになる", async 
   await expect(page).toHaveURL(/\/$/);
   await loginStudent(page);
   await expect(page.getByLabel("参加コード")).toHaveCount(0);
-  await page.getByRole("link", { name: "参加コードを入力", exact: true }).click();
+  await page.getByRole("link", { name: "参加する", exact: true }).click();
+  await page.getByRole("link", { name: "ゲスト", exact: true }).click();
   await expect(page.getByLabel("参加コード")).toHaveValue("DEMO01");
 });
 
@@ -88,7 +96,8 @@ test("誤った参加コードではエラーが出る", async ({ page }) => {
     return route.abort();
   });
   await loginStudent(page);
-  await page.getByRole("link", { name: "参加コードを入力", exact: true }).click();
+  await page.getByRole("link", { name: "参加する", exact: true }).click();
+  await page.getByRole("link", { name: "ゲスト", exact: true }).click();
   await page.getByLabel("参加コード").fill("ZZZZZZ");
   await page.getByRole("button", { name: "参加する" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "参加コード" })).toContainText("参加コードが見つかりません");
@@ -102,7 +111,7 @@ test("スマホの幅でも、ログインと参加の画面が横にはみ出�
   await loginStudent(page);
   for (const path of ["/student", "/join"]) {
     await page.goto(path);
-    await expect(page.getByRole("link", { name: /参加コードを入力/ }).or(page.getByLabel("参加コード"))).toBeVisible();
+    await expect(page.getByRole("link", { name: "参加する", exact: true }).or(page.getByLabel("参加コード"))).toBeVisible();
     const { scroll, width } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: window.innerWidth }));
     expect(scroll, `${path} の横幅`).toBeLessThanOrEqual(width);
   }

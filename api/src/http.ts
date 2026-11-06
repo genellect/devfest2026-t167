@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import type { Session } from './sessions.js';
 
-export interface Context { uid: string; provider: string; teacher: boolean; role?: 'moderator' | 'participant'; token?: DecodedIdToken; session?: Session }
+export interface Context { uid: string; provider: string; role?: 'host' | 'participant'; token?: DecodedIdToken; session?: Session }
 export type AuthRequest = Request & { ctx: Context };
 export type Handler = (req: Request, res: Response, next: NextFunction) => void;
 export class HttpError extends Error {
@@ -35,6 +35,6 @@ export function requireOpenRoom(room: DocumentSnapshot) {
   if (room.get('phase') === 'closed') throw new HttpError(409, 'room_closed', 'この部屋は終了しています');
 }
 
-export function requireModerator(context: Pick<Context, 'role' | 'teacher'>): void {
-  if (context.role !== 'moderator' || !context.teacher) throw new HttpError(403, 'not_moderator', '管理者が承認した司会者だけが実行できます');
+export function requireModerator(context: Pick<Context, 'role'>): void {
+  if (context.role !== 'host') throw new HttpError(403, 'not_moderator', 'このセッションのHostだけが実行できます');
 }

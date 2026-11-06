@@ -92,21 +92,21 @@ describe('同時ログインと失効', () => {
     expect((await get(a).expect(401)).body.error.reason).toBe('replaced'); await get(b).expect(200);
     const index = await db.doc(`users/${a.uid}/sessionControl/state`).get(); expect(index.get('activeIds')).toEqual([b.id]);
   });
-  it('教師の3台目は作成順ではなく最終利用が古い端末を失効させる', async () => {
+  it('教師claimがあっても2台目で旧端末が失効し、上限は全員1台', async () => {
     const u = await user('teacher'), a = await login(u); clock += 1000; const b = await login(u);
-    clock += 1000; await post(a, '/sessions/activity').expect(200); clock += 1000; const c = await login(u);
-    await get(a).expect(200); await get(b).expect(401); await get(c).expect(200);
+    await get(a).expect(401); await get(b).expect(200);
+    expect((await ref(b).get()).get('role')).toBeUndefined();
   });
   it('同時に5台がログインしても生徒1台の上限を超えない', async () => {
     const u = await user(), clients = await Promise.all(Array.from({ length: 5 }, () => login(u)));
     const snapshots = await Promise.all(clients.map((c) => ref(c).get()));
     expect(snapshots.filter((s) => !s.get('revokedAt'))).toHaveLength(1);
     expect((await db.doc(`users/${u.localId}/sessionControl/state`).get()).get('activeIds')).toHaveLength(1);
-  });
+  }, 20_000);
   it('個別ログアウトと全端末ログアウトを強制する', async () => {
     const u = await user('teacher'), a = await login(u), b = await login(u);
-    await post(a, '/sessions/revoke', { sessionId: b.id }).expect(200); await get(b).expect(401); await get(a).expect(200);
-    const c = await login(u); await post(a, '/sessions/logout-all').expect(200); await get(a).expect(401); await get(c).expect(401);
+    await post(b, '/sessions/revoke', { sessionId: b.id }).expect(200); await get(b).expect(401); await get(a).expect(401);
+    const c = await login(u); await post(c, '/sessions/logout-all').expect(200); await get(a).expect(401); await get(c).expect(401);
     const d = await login(u); expect((await post(d, '/sessions/logout').expect(200)).headers['set-cookie'][0]).toContain('Expires='); await get(d).expect(401);
   });
   it('共用端末は15分無操作でサーバーがロックし、通常の活動では解除できない', async () => {
@@ -141,7 +141,7 @@ describe('同時ログインと失効', () => {
     const cookie = created.headers['set-cookie'][0].split(';')[0];
     const adminReq = (method: 'get' | 'put' | 'post', path: string) => request(adminApp)[method](path).set('authorization', 'Bearer synthetic').set('cookie', cookie);
     await adminReq('get', `/schools/${school}/security-policy`).expect(200);
-    await adminReq('put', `/schools/${school}/security-policy`).send({ idleDays: 2, newDeviceNotifications: true }).expect(200);
+    await adminReq('put', `/schools/${school}/security-policy`).send({ idleDays: 2, maxConcurrentSessions: 2, newDeviceNotifications: true }).expect(200);
     await adminReq('put', `/schools/${school}/security-policy`).send({ studentLimit: 9 }).expect(400);
     await adminReq('get', '/schools/other/security-policy').expect(403);
     await adminReq('post', `/schools/${school}/users/${target.localId}/sessions/revoke`).send({}).expect(200);
@@ -189,14 +189,17 @@ describe('ライブ配信と既存データの認可', () => {
     return { until, close };
   }
   async function seed(c: Client, role: string) {
-    const room = db.collection('rooms').doc();
-    await room.set({ title: 'live-test', groups: 2, phase: 'discussing', createdAt: Timestamp.now() });
-    await room.collection('members').doc(c.uid).set({ role, group: 1 });
+    const room = db.collection('sessions').doc();
+    await room.set({ title: 'live-test', groups: 2, phase: 'discussing', createdAt: Timestamp.now(), resultsPublished: true });
+    await room.collection('members').doc(c.uid).set({ uid: c.uid, status: 'active', role, group: 1, groupId: '1' });
+    await room.collection('members').doc('outsider-peer').set({ role: 'participant', group: 2, status: 'active', name: 'OTHER-GROUP-MEMBER' });
+    await room.collection('messages').doc('other-message').set({ uid: 'outsider-peer', text: 'OTHER-GROUP-MESSAGE', createdAt: Timestamp.now() });
+    await room.update({ 'groupState.2': { note: 'OTHER-GROUP-STATE' } });
     await room.collection('privateOpinions').doc(c.uid).set({ text: 'OWN-PRIVATE-OPINION' });
     await room.collection('privateOpinions').doc('other').set({ text: 'OTHER-PRIVATE-OPINION' });
     await room.collection('consensusStatements').doc(c.uid).set({ text: 'OWN-STATEMENT' });
     await room.collection('insights').doc('pending').set({ summary: 'UNAPPROVED-INSIGHT', status: 'pending' });
-    await room.collection('insights').doc('approved').set({ summary: 'APPROVED-INSIGHT', status: 'approved' });
+    await room.collection('insights').doc('approved').set({ summary: 'APPROVED-INSIGHT', status: 'approved', group: 1 });
     await room.collection('results').doc('group-1').set({ label: 'OWN-GROUP-RESULT' });
     await room.collection('results').doc('group-2').set({ label: 'OTHER-GROUP-RESULT' });
     await room.collection('results').doc('summary').set({ label: 'CLASS-SUMMARY' });
@@ -208,20 +211,55 @@ describe('ライブ配信と既存データの認可', () => {
     const stream = await streamClient(c, room.id);
     try {
       const text = await stream.until((text) => text.includes('OWN-PRIVATE-OPINION') && text.includes('OWN-STATEMENT') && text.includes('OWN-GROUP-RESULT') && text.includes('APPROVED-INSIGHT'));
-      for (const forbidden of ['OTHER-PRIVATE-OPINION', 'UNAPPROVED-INSIGHT', 'OTHER-GROUP-RESULT', 'CLASS-SUMMARY']) expect(text).not.toContain(forbidden);
+      for (const forbidden of ['OTHER-PRIVATE-OPINION', 'UNAPPROVED-INSIGHT', 'OTHER-GROUP-RESULT', 'CLASS-SUMMARY', 'OTHER-GROUP-MEMBER', 'OTHER-GROUP-MESSAGE', 'OTHER-GROUP-STATE']) expect(text).not.toContain(forbidden);
       await post(c, `/rooms/${room.id}/messages`, { text: 'MY-MESSAGE' }).expect(200);
       await stream.until((text) => text.includes('MY-MESSAGE'));
       await room.update({ phase: 'closed' }); await post(c, `/rooms/${room.id}/messages`, { text: 'late' }).expect(409);
     } finally { await stream.close(); }
   });
+  it('ライブ接続のまま公開停止すると結果を消し、再公開で現在の結果だけを送る', async () => {
+    const c = await login(await user()), room = await seed(c, 'participant'), stream = await streamClient(c, room.id);
+    try {
+      await stream.until((v) => v.includes('OWN-GROUP-RESULT'));
+      await room.update({ resultsPublished: false });
+      await stream.until((v) => v.includes(`"${room.path}/results/group-1":null`));
+      await room.collection('results').doc('group-1').set({ label: 'WITHHELD-RESULT' });
+      await room.update({ title: 'publication-stopped' });
+      const hidden = await stream.until((v) => v.includes('publication-stopped'));
+      expect(hidden).not.toContain('WITHHELD-RESULT');
+      await room.update({ resultsPublished: true });
+      await stream.until((v) => v.includes('WITHHELD-RESULT'));
+    } finally { await stream.close(); }
+  });
   it('教師にも非公開意見を送らず、開いた配信でも失効を検査する', async () => {
-    const c = await login(await user('teacher')), room = await seed(c, 'moderator'), stream = await streamClient(c, room.id);
+    const c = await login(await user('teacher')), room = await seed(c, 'host'), stream = await streamClient(c, room.id);
     try {
       const text = await stream.until((v) => v.includes('CLASS-SUMMARY') && v.includes('UNAPPROVED-INSIGHT'));
       expect(text).not.toContain('OWN-PRIVATE-OPINION'); expect(text).not.toContain('OTHER-PRIVATE-OPINION');
       await post(c, '/sessions/logout').expect(200); await room.update({ title: 'after-revoke' });
       const ended = await stream.until((v) => v.includes('event: failure'));
       expect(ended).toContain('session_revoked'); expect(ended).not.toContain('after-revoke');
+    } finally { await stream.close(); }
+  });
+  it('話者集計はHostが許可した所属グループだけに配信し、終了後は結果公開も必要', async () => {
+    const c = await login(await user()), room = await seed(c, 'participant');
+    await room.collection('speaking').doc('1').set({ label: 'OWN-SPEAKING' });
+    await room.collection('speaking').doc('2').set({ label: 'OTHER-SPEAKING' });
+    await room.collection('voiceProfiles').doc('private').set({ embedding: ['PRIVATE-VOICE-VECTOR'] });
+    const stream = await streamClient(c, room.id);
+    try {
+      const hidden = await stream.until((s) => s.includes(`"${room.path}/speaking/1":null`));
+      expect(hidden).not.toContain('OWN-SPEAKING');
+      await room.update({ participantView: { speaking: true } });
+      await stream.until((s) => s.includes('OWN-SPEAKING'));
+      await room.update({ endedAt: Timestamp.now(), resultsPublished: false });
+      await room.collection('speaking').doc('1').set({ label: 'FINAL-SPEAKING' });
+      await room.update({ title: 'speaking-withheld' });
+      const withheld = await stream.until((s) => s.includes('speaking-withheld'));
+      expect(withheld).not.toContain('FINAL-SPEAKING');
+      await room.update({ resultsPublished: true });
+      const published = await stream.until((s) => s.includes('FINAL-SPEAKING'));
+      expect(published).not.toContain('OTHER-SPEAKING'); expect(published).not.toContain('PRIVATE-VOICE-VECTOR');
     } finally { await stream.close(); }
   });
   it('メンバー外と失効済みセッションの配信・所属取得を拒否する', async () => {

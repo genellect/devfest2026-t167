@@ -4,7 +4,7 @@ import { groupNumber } from './policy.js';
 /** 新しい複数グループ部屋は索引で絞る。旧形式はグループ省略＝1を維持する。 */
 export async function groupMembers(tx: Transaction, room: DocumentSnapshot, group: number) {
   let query = room.ref.collection('members').where('role', '==', 'participant');
-  if (room.get('schemaVersion') === 2 && room.get('groups') > 1) query = query.where('group', '==', group);
+  if (room.get('schemaVersion') >= 3 || (room.get('schemaVersion') >= 2 && room.get('groups') > 1)) query = query.where('group', '==', group);
   return (await tx.get(query)).docs.filter((member) => groupNumber(member, room.get('groups')) === group);
 }
 export async function groupDocuments(tx: Transaction, room: DocumentSnapshot, collection: string, uids: string[], countsOnly = false) {

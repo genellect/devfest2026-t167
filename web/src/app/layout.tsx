@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./material.css";
 import { LoginGate } from "@/components/LoginGate";
 
-export const metadata: Metadata = { title: "T167 Discussion", description: "AI協調型グループディスカッション支援" };
+export const metadata: Metadata = { title: "Google Discuss", description: "AI協調型グループディスカッション支援" };
 // viewport-fit=cover で、iPhone の下の余白（env(safe-area-inset-*)）を CSS で扱えるようにする
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#eef0ff" };
 

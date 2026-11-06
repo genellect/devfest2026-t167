@@ -27,10 +27,10 @@ it('30人・6グループが同時に事前意見を提出しても欠落や5xx�
   }
   const timings: number[] = [];
   for (let round = 0; round < 3; round++) {
-    const room = db.collection('rooms').doc();
-    await room.set({ schemaVersion: 2, title: '架空の負荷試験', groups: 6, phase: 'collecting' });
+    const room = db.collection('sessions').doc();
+    await room.set({ schemaVersion: 3, title: '架空の負荷試験', groups: 6, phase: 'discussing' });
     const batch = db.batch();
-    students.forEach((student, index) => batch.set(room.collection('members').doc(student.localId), { role: 'participant', group: Math.floor(index / 5) + 1 }));
+    students.forEach((student, index) => batch.set(room.collection('members').doc(student.localId), { uid: student.localId, role: 'participant', group: Math.floor(index / 5) + 1, groupId: String(Math.floor(index / 5) + 1), status: 'active' }));
     await batch.commit();
     const responses = await Promise.all(students.map(async (student, index) => {
       const started = performance.now();

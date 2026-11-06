@@ -7,7 +7,7 @@ for (const path of ["/student", "/join", "/signup", "/host", "/host/new", "/host
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("button", { name: "Googleでログイン", exact: true })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "メニュー" })).toHaveCount(0);
-    await expect(page.getByRole("link", { name: /参加コードを入力/ })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "参加する", exact: true })).toHaveCount(0);
   });
 }
 

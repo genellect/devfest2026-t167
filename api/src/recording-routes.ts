@@ -1,3 +1,4 @@
+import { updateDiscussionSummary } from './discussion-results.js';
 import { createAudioAdmission } from './audio-admission.js';
 import { trackJob } from './job-events.js';
 import express, { type Express } from 'express';
@@ -12,7 +13,7 @@ export function registerRecordingRoutes(app: Express, deps: Dependencies, guards
   const { db, gemini, now } = deps;
   const { authenticate, member, participantOnly } = guards;
   const chain = (...handlers: Handler[]) => handlers;
-  const roomRef = (id: string) => db.doc(`rooms/${id}`);
+  const roomRef = (id: string) => db.doc(`sessions/${id}`);
   const admission = createAudioAdmission();
   const audioBody = express.raw({ type: () => true, limit: MAX_RECORDING_BYTES });
   app.post('/rooms/:roomId/groups/recording', ...chain(authenticate, member, participantOnly, admission.admit, audioBody, admission.handle(async (req, res) => {
@@ -30,6 +31,9 @@ export function registerRecordingRoutes(app: Express, deps: Dependencies, guards
       const room = await tx.get(roomRef(roomId));
       requireOpenRoom(room);
       const group = await participantGroup(tx, room, req.ctx.uid);
+      if (room.get('flowVersion') === 1 && room.get('endedAt') instanceof Timestamp && now() - room.get('endedAt').toMillis() > 5 * 60_000) throw new HttpError(409, 'upload_window_closed', '録音の受付時間を過ぎました。端末の録音を保管してください');
+      const config = await tx.get(room.ref.collection('groups').doc(String(group)));
+      if (config.get('recorderUid') && config.get('recorderUid') !== req.ctx.uid) throw new HttpError(403, 'recording_not_allowed', 'Hostが許可した参加者の端末で録音してください');
       const recording = room.get('groupState')?.[group]?.recording;
       if (recording?.status === 'done' && recording.fingerprint === fingerprint) return recording.receipt;
       if (room.get('recording') === false) throw new HttpError(403, 'recording_disabled', 'この部屋では録音を使用しません');
@@ -43,6 +47,8 @@ export function registerRecordingRoutes(app: Express, deps: Dependencies, guards
       const r = await tx.get(roomRef(roomId));
       requireOpenRoom(r);
       const group = await participantGroup(tx, r, req.ctx.uid);
+      const config = await tx.get(r.ref.collection('groups').doc(String(group)));
+      if (config.get('recorderUid') && config.get('recorderUid') !== req.ctx.uid) throw new HttpError(403, 'recording_not_allowed', 'Hostが許可した参加者の端末で録音してください');
       if (r.get('recording') === false) throw new HttpError(403, 'recording_disabled', 'この部屋では、先生が録音を使わない設定にしています');
       if (!['discussing', 'consensus', 'done'].includes(statusOf(r, group))) throw new HttpError(409, 'wrong_phase', 'グループの議論が始まってから送ってください');
       const rec = r.get('groupState')?.[group]?.recording ?? {};
@@ -74,12 +80,13 @@ export function registerRecordingRoutes(app: Express, deps: Dependencies, guards
     }
     const response = { group, status: 'done', speechDetected: result.speechDetected, totalMinutes: result.totalMinutes, source: gemini.source };
     const saved = await finishIfMine((tx) => {
-      tx.set(db.doc(`rooms/${roomId}/results/flow-g${group}`), {
+      tx.set(db.doc(`sessions/${roomId}/results/flow-g${group}`), {
         group, ...result, durationSec: Math.round(durationSec), source: gemini.source, jobId, consentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
       });
       tx.set(roomRef(roomId), { groupState: { [group]: { recording: { status: 'done', receipt: response } } } }, { merge: true });
     });
     if (!saved) throw new HttpError(409, 'stale_result', '別の送信の分析が始まったため、この結果は破棄しました');
+    await updateDiscussionSummary(deps, roomId);
     res.json(response);
   })));
 

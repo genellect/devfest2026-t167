@@ -9,7 +9,7 @@ export interface SessionView {
   expiresAt: number; revokedAt: number | null; revokeReason: string | null; isSharedDevice: boolean;
   lockedAt: number | null; classEndsAt: number | null;
 }
-export interface PolicyView { idleDays: number; studentLimit: number; teacherLimit: number; adminLimit: number; sharedIdleMinutes: number; endAtClassEnd: boolean; newDeviceNotifications: boolean }
+export interface PolicyView { idleDays: number; maxConcurrentSessions: number; sharedIdleMinutes: number; endAtClassEnd: boolean; newDeviceNotifications: boolean }
 export interface SessionReply { session: SessionView; policy: PolicyView; serverNow: number }
 export type SessionStatus = "loading" | "active" | "locked" | "saving" | "signed-out" | "offline";
 export interface SessionState { status: SessionStatus; user: User | null | undefined; session?: SessionView; policy?: PolicyView; reason?: string; message?: string }

@@ -20,8 +20,7 @@ export function SchoolSecurity() {
     catch { setMessage("設定を保存できませんでした。入力と接続を確認してください。"); }
   }
   const fields = [
-    ["idleDays", "未使用ログアウトまでの日数", 7], ["studentLimit", "生徒の同時ログイン数", 2],
-    ["teacherLimit", "教師の同時ログイン数", 2], ["adminLimit", "管理者の同時ログイン数", 2],
+    ["idleDays", "未使用ログアウトまでの日数", 7], ["maxConcurrentSessions", "全ユーザーの同時ログイン上限", 10],
     ["sharedIdleMinutes", "共用端末の無操作ロック（分）", 15],
   ] as const;
   return <section className="session-device"><h2>学校のセキュリティ設定</h2><p>所属校の管理者だけが変更できます。MVPでは安全側の上限内に限ります。</p>

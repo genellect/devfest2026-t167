@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Timestamp } from 'firebase-admin/firestore';
 import type { DecodedIdToken } from 'firebase-admin/auth';
-import { DEFAULT_SESSION_POLICY, idleMs, roleOf, schoolOf, sessionPolicySchema } from '../../src/session-policy.js';
+import { DEFAULT_SESSION_POLICY, idleMs, sessionLimit, readSessionPolicy, schoolOf, sessionPolicySchema } from '../../src/session-policy.js';
 import { expiryReason, hashSession, isLocked, requireFresh, sessionSecret, type Session } from '../../src/sessions.js';
 import { mayReadResult, wireData } from '../../src/live-routes.js';
 const token = { auth_time: 1000 } as DecodedIdToken;
@@ -25,9 +25,9 @@ describe('セッションポリシー', () => {
     expect(isLocked(make({ isSharedDevice: true, lockedAt: Timestamp.now() }), 1, DEFAULT_SESSION_POLICY)).toBe(true);
   });
   it('学校claim付きの管理者のみ管理者扱い、権限の自己申告は使わない', () => {
-    expect(roleOf({ ...token, schoolAdmin: true })).toBe('student');
-    expect(roleOf({ ...token, schoolAdmin: true, schoolId: 'school' })).toBe('admin');
-    expect(roleOf({ ...token, teacher: true })).toBe('teacher');
+    expect(sessionLimit(DEFAULT_SESSION_POLICY)).toBe(1);
+    expect(readSessionPolicy({ teacherLimit: 2, studentLimit: 1, adminLimit: 2 }).maxConcurrentSessions).toBe(1);
+    expect(sessionPolicySchema.parse({ maxConcurrentSessions: 3 }).maxConcurrentSessions).toBe(3);
     expect(schoolOf({ ...token, schoolId: '../bad' })).toBeNull();
     expect(sessionPolicySchema.safeParse({ studentLimit: 100 }).success).toBe(false);
     expect(sessionPolicySchema.safeParse({ sharedIdleMinutes: 16 }).success).toBe(false);
@@ -41,10 +41,11 @@ describe('セッションポリシー', () => {
     expect(() => requireFresh(token, 1000_000, 1001_000)).toThrow();
   });
   it('グループ別結果を限定し、時刻を再帰的にシリアライズする', () => {
-    expect(mayReadResult('group-1', false, 1)).toBe(true);
+    expect(mayReadResult('group-1', false, 1, true)).toBe(true);
     expect(mayReadResult('flow-g1', false, 2)).toBe(false);
     expect(mayReadResult('summary', false, 1)).toBe(false);
     expect(mayReadResult('summary', true, 0)).toBe(true);
+    expect(mayReadResult('group-1', false, 1)).toBe(false);
     expect(wireData({ at: Timestamp.fromMillis(1), values: [null, 'test'] })).toEqual({ at: { __time: 1 }, values: [null, 'test'] });
   });
 });

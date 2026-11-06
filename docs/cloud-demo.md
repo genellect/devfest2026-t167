@@ -1,5 +1,8 @@
 # クラウドでのデモ準備と確認
 
+> 2026-11-06 MVP仕様変更：全員Googleログイン・共通ホーム。固定の教師/生徒ロールとteacher claimによるHost制限を廃止し、議論のmembers.roleでHost/Participantを判定します。ログイン上限は全員1台です。新仕様・API・移行条件は [MVPロール設計](mvp-roles.md) を参照。以下の旧仕様と相違する場合は新仕様を適用します。
+
+
 デモ本体は既存のFirebase App Hosting → 同一オリジンの/api → Cloud Run → Vertex AI/Firestoreで動かす。利用者の端末にMac・ローカルサーバー・検証用証明書は不要。クラウドサービスや別プロジェクトは追加しない。
 
 このPRを出すことと、反映後のクラウド動作確認は分ける。現在のpreviewは画面だけを差し替え、API・Auth・Firestoreは本番と共有する。新しいAPI・Rulesの動作確認には、同じ版をそろえた反映が必要。previewの成功だけで実AIの動作確認済みとはしない。
@@ -10,26 +13,13 @@
 2. 本番反映の前にYuto Matsuiの承諾と、Rules/infra変更に必要なもう1人のレビューを得る。承諾前はマージ・auto-merge・手動デプロイ・IAM変更をしない。
 3. プロジェクト、Cloud Run/Firestoreの東京、App Hostingの台湾、Vertexのglobal、モデルと6つのGitHub Variablesを既存のinfra/env.shと照合する。WIFを利用し、アプリにサービスアカウント鍵を配置しない。
 4. 管理者がinfra/setup-project.shでCloud Run実行用api-runtimeの権限を確認する。失効確認を行うverifyIdToken(token, true)はFirebase認証バックエンドから利用者を読むため、roles/firebaseauth.viewerが必要。APIにはユーザーやclaimを変更する権限を付けない。
-5. Firebase AuthenticationのGoogleプロバイダーと本番・previewの承認済みドメインを確認する。生徒もGoogleログイン必須。教師claimは次の管理者用コマンドで明示して設定する。画面の役割選択では付与されない。
+5. Firebase AuthenticationのGoogleプロバイダーと本番・previewの承認済みドメインを確認する。全員Googleログイン必須。固定ロール登録は行わず、作成・参加時に役割を付与する。
 
 Firebase認証の読み取り権限は[公式の権限一覧](https://docs.cloud.google.com/iam/docs/roles-permissions/firebaseauth)、失効確認の通信は[公式のセッション管理](https://firebase.google.com/docs/auth/admin/manage-sessions)を参照。Google Docs/写しに残る匿名参加の旧方針との差異はbackend-contract.mdに記載している。正本の変更は担当者が関係する変更と同時に行う。
 
-## 教師claimの確認・付与・解除
+## MVPのHost権限
 
-Yuto Matsui、または任された管理者が、許可されたADCを持つCloud Shell等で行う。通常の利用者・公開API・CIからは実行しない。対象者は先にGoogleでサインインし、FirebaseコンソールでUIDを確認する。UIDやメール・トークンを公開PRのコメントに書かない。
-
-```bash
-source infra/env.sh
-# APIの依存が入ったcheckoutで実行。ADCと認証情報の扱いはdocs/credentials.mdに従う。
-# USER_UIDには対象のFirebase UIDを、管理者の端末内だけで設定する。
-node --import ./api/node_modules/tsx/dist/loader.mjs scripts/teacher-access.mjs \
-  --project "$PROJECT_ID" --uid "$USER_UID" --action inspect
-node --import ./api/node_modules/tsx/dist/loader.mjs scripts/teacher-access.mjs \
-  --project "$PROJECT_ID" --uid "$USER_UID" --action grant
-# 教師権限を外す場合は --action revoke
-```
-
-inspectは読み取りだけ。grantは有効なGoogle連携ユーザーだけを許可し、revokeはteacherだけを削除する。他用途のclaimを保持し、変更後は既存の更新トークンを失効させるので、本人はログアウトしてGoogleで入り直す。途中で失敗した場合は完了扱いせず、管理者がinspectと必要なrevokeを再実行する。実行時はエミュレータの環境変数を解除する。コマンドはUID・メール・鍵・SDKの生の例外を表示しない。
+教師claimの付与は不要。全員Googleでログインし、セッション作成者にだけHost権限をバックエンドで付与する。学校管理者claimは学校ポリシー管理専用。
 
 ## 承諾後の反映とデモ確認
 

@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // 独自セッションを検査できるCloud Runへ集約する。Firebase IDトークンだけで迂回させない。
-    // Admin SDKはRulesを通らないため、APIの本人/所属/教師/グループ検査と結合テストが境界となる。
+    // Admin SDKはRulesを通らないため、APIの本人/所属/セッション内Host/グループ検査と結合テストが境界となる。
     match /{document=**} { allow read, write: if false; }
   }
 }

@@ -11,7 +11,7 @@ import type { Dependencies } from './dependencies.js';
 export function createGroupService(deps: Dependencies) {
   const { db, gemini, now } = deps;
   const serialize = createSerialQueue();
-  const roomRef = (id: string) => db.doc(`rooms/${id}`);
+  const roomRef = (id: string) => db.doc(`sessions/${id}`);
   /** 人数・提出数と状態を同じトランザクションで読み、開始・参加・終了との競合を再検査する。 */
   async function refreshGroup(roomId: string, group: number, opts: { forceStart?: boolean } = {}) {
     const state = await serialize(roomId, () => db.runTransaction(async (tx) => {
@@ -25,7 +25,8 @@ export function createGroupService(deps: Dependencies) {
       ]);
       const opinions = ops.length, submitted = stmts.length;
       const status = statusOf(room, group);
-      const started = nextGroupState(status, uids.size, opinions, opts.forceStart) !== status;
+      const mayStart = room.get('schemaVersion') < 3 || room.get('phase') === 'discussing' || opts.forceStart;
+      const started = !!mayStart && nextGroupState(status, uids.size, opinions, opts.forceStart) !== status;
       const previous = room.get('groupState')?.[group] ?? {};
       if (started || previous.total !== uids.size || previous.opinions !== opinions || previous.submitted !== submitted) {
         tx.set(room.ref, { groupState: { [group]: {
@@ -93,7 +94,7 @@ export function createGroupService(deps: Dependencies) {
     }
     const clusters = cmp.groups.map((c) => ({ label: c.label, count: new Set(c.members).size })).filter((c) => c.count > 0);
     const saved = await finishIfMine((tx) => {
-      tx.set(db.doc(`rooms/${roomId}/results/group-${group}`), {
+      tx.set(db.doc(`sessions/${roomId}/results/group-${group}`), {
         group, respondents: stmts.length, clusters, alignmentRate: alignmentRate(cmp.groups, stmts.length),
         source: gemini.source, jobId, updatedAt: FieldValue.serverTimestamp(),
       });

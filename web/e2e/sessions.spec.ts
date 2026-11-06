@@ -20,7 +20,7 @@ test("別ブラウザの生徒ログインで旧端末が失効し、再読込�
     const other = await second.newPage(); await loginStudent(other);
     await page.reload(); await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("status")).toContainText("別の端末からログインされたため");
-    await expect(other.getByRole("link", { name: "参加コードを入力", exact: true })).toBeVisible();
+    await expect(other.getByRole("link", { name: "参加する", exact: true })).toBeVisible();
   } finally { await second.close(); }
 });
 
@@ -29,19 +29,20 @@ test("共用端末は15分の無操作で再認証画面になり、元画面の
   const end = new Date(Date.now() + 3600_000), local = new Date(end.getTime() - end.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
   await page.getByLabel("授業終了時刻").fill(local);
   await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
-  await page.waitForURL(/\/signup$/); await page.getByRole("button", { name: /^生徒/ }).click(); await page.waitForURL(/\/student$/);
+  await page.waitForURL(/\/home$/);
   await page.clock.install(); await page.clock.fastForward(15 * 60_000 + 1000);
   await expect(page.getByRole("dialog", { name: "再認証" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Googleで本人確認" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "参加コードを入力", exact: true })).toBeHidden();
+  await expect(page.getByRole("link", { name: "参加する", exact: true })).toBeHidden();
 });
 
 test("録音中の失効は音声を保存してからログアウトし、再ログイン後に再生できる", async ({ page, request }) => {
   const teacher = await emulatorGoogleUser("teacher", `recovery-${Date.now()}`);
   await request.post("/api/sessions", { headers: { authorization: `Bearer ${teacher.idToken}` }, data: { deviceLabel: "架空の教師", deviceType: "pc" } });
   const created = await request.post("/api/rooms", { headers: { authorization: `Bearer ${teacher.idToken}` }, data: { title: "録音の保護確認" } });
-  expect(created.status()).toBe(201); const { joinCode } = await created.json();
+  expect(created.status()).toBe(201); const { joinCode, roomId } = await created.json();
   await loginStudent(page); await page.goto(`/join?code=${joinCode}`); await page.getByRole("button", { name: "参加する", exact: true }).click();
+  await request.post(`/api/rooms/${roomId}/phase`, { headers: { authorization: `Bearer ${teacher.idToken}` }, data: { to: "discussing" } });
   await page.getByLabel("あなたの意見").fill("架空の意見"); await page.getByRole("button", { name: "提出する" }).click();
   await page.getByLabel("グループ全員が、録音することに同意しました").check(); await page.getByRole("button", { name: "録音を始める" }).click();
   await expect(page.getByText(/^録音中・議論を続けてください/)).toBeVisible();
@@ -61,7 +62,7 @@ test("録音中の失効は音声を保存してからログアウトし、再�
   await expect(page).toHaveURL(/\/$/); await expect(page.getByRole("status")).toContainText("7日間利用がなかった");
   await page.unroute("**/api/sessions/current");
   await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
-  await page.waitForURL(/\/student$/); await page.goto("/sessions");
+  await page.waitForURL(/\/home$/); await page.goto("/sessions");
   await expect(page.getByText(/保存済み・/)).toBeVisible();
   await page.getByRole("button", { name: "再生・ダウンロード" }).click();
   const audio = page.locator("audio"); await expect(audio).toBeVisible();
@@ -73,8 +74,9 @@ test("端末容量不足では録音を始めず、既存の議論画面に留�
   const teacher = await emulatorGoogleUser("teacher", `quota-${Date.now()}`);
   await request.post("/api/sessions", { headers: { authorization: `Bearer ${teacher.idToken}` }, data: { deviceLabel: "架空の教師", deviceType: "pc" } });
   const created = await request.post("/api/rooms", { headers: { authorization: `Bearer ${teacher.idToken}` }, data: { title: "容量の保護確認" } });
-  const { joinCode } = await created.json();
+  const { joinCode, roomId } = await created.json();
   await loginStudent(page); await page.goto(`/join?code=${joinCode}`); await page.getByRole("button", { name: "参加する", exact: true }).click();
+  await request.post(`/api/rooms/${roomId}/phase`, { headers: { authorization: `Bearer ${teacher.idToken}` }, data: { to: "discussing" } });
   await page.getByLabel("あなたの意見").fill("架空の意見"); await page.getByRole("button", { name: "提出する" }).click();
   await page.evaluate(() => { navigator.storage.estimate = async () => ({ quota: 100, usage: 99 }); });
   await page.getByLabel("グループ全員が、録音することに同意しました").check(); await page.getByRole("button", { name: "録音を始める" }).click();
@@ -92,5 +94,5 @@ test("復元時にAPIが未反映・通信障害でもログイン画面が読�
   await expect(page.getByText("接続できません。録音は端末に残し、接続の回復後に再確認します。")).toBeVisible();
   await page.unroute("**/api/sessions/current");
   await page.getByRole("button", { name: "接続を再確認" }).click();
-  await expect(page).toHaveURL(/\/student$/);
+  await expect(page).toHaveURL(/\/home$/);
 });

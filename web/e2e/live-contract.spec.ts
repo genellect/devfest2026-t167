@@ -6,11 +6,12 @@ test("Googleログイン前の参加を防ぎ、生徒に教師権限を自己�
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByLabel("参加コード")).toHaveCount(0);
   await loginStudent(page);
-  await page.getByRole("link", { name: "参加コードを入力", exact: true }).click();
+  await page.getByRole("link", { name: "参加する", exact: true }).click();
+  await page.getByRole("link", { name: "ゲスト", exact: true }).click();
   await expect(page.getByRole("button", { name: "参加する", exact: true })).toBeEnabled();
   await page.goto("/signup");
-  await expect(page.getByRole("button", { name: /^先生/ })).toBeDisabled();
-  await expect(page.getByRole("button", { name: /^生徒/ })).toBeEnabled();
+  await expect(page).toHaveURL(/\/home$/);
+  await expect(page.locator("main .mvp-actions").getByRole("link", { name: "参加する" })).toBeVisible();
 });
 
 test("APIがHTMLを返す通信障害でも、内部情報を表示せず入力を保持する", async ({ page }) => {

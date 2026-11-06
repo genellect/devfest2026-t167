@@ -11,9 +11,9 @@ initializeApp({ projectId: 'demo-t167' });
 const db = getFirestore();
 const teacher = await emulatorGoogleUser('teacher');
 const student = await emulatorGoogleUser('student');
-await db.doc('rooms/demo').set({ title: '大学における生成AI利用の是非', phase: 'collecting', createdBy: teacher.localId, groups: 1, createdAt: FieldValue.serverTimestamp(), analysis: { status: 'idle' } });
+await db.doc('sessions/demo').set({ title: '大学における生成AI利用の是非', phase: 'collecting', createdBy: teacher.localId, groups: 1, createdAt: FieldValue.serverTimestamp(), schemaVersion: 3, theme: '大学における生成AI利用の是非', minutes: 15, resultsPublished: false, analysis: { status: 'idle' } });
 await db.doc('joinCodes/DEMO01').set({ roomId: 'demo' });
-for (const [uid, role] of [[teacher.localId, 'moderator'], [student.localId, 'participant']]) {
-  await db.doc(`rooms/demo/members/${uid}`).set({ role, ...(role === 'participant' ? { group: 1 } : {}), joinedAt: FieldValue.serverTimestamp() });
+for (const [uid, role] of [[teacher.localId, 'host'], [student.localId, 'participant']]) {
+  await db.doc(`sessions/demo/members/${uid}`).set({ uid, status: 'active', groupId: role === 'host' ? null : '1', role, ...(role === 'participant' ? { group: 1 } : {}), joinedAt: FieldValue.serverTimestamp() });
 }
 console.log('seeded: demo/DEMO01（模擬Google教師・生徒、教師権限は管理側で付与）');

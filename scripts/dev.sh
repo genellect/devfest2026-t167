@@ -4,6 +4,8 @@
 #   bash scripts/dev.sh doctor    ツールと準備の状態を確かめる
 #   bash scripts/dev.sh serve     エミュレータ・テストデータ・API・画面をまとめて起動（Ctrl-C で全部止まる。GEMINI_MOCK=0 で本物の Gemini）
 #   bash scripts/dev.sh check     CI と同じ検査（--quick でエミュレータを使う試験を省く）
+#   bash scripts/dev.sh speaker-setup  ローカル話者モデルとPython環境を準備
+#   bash scripts/dev.sh speaker-check  合成PCMファイル2本を実モデルで検証（SPEAKER_TEST_VOICESを指定）
 #   bash scripts/dev.sh pr        検査・push・PR の作成を1回で行う。auto-merge は付けない（本番反映は Yuto Matsui の承諾の後。--approved で付ける）
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -149,6 +151,22 @@ check() {
   echo; echo "OK: CI と同じ検査がすべて通りました"
 }
 
+
+speaker_check() {
+  export GOOGLE_CLOUD_PROJECT=demo-t167-test-$OFFSET METADATA_SERVER_DETECTION=none T167_REAL_SPEAKER=1
+  export SPEAKER_PYTHON=${SPEAKER_PYTHON:-$PWD/.local-data/speaker-venv/bin/python}
+  export SPEAKER_EMBEDDING_MODEL=${SPEAKER_EMBEDDING_MODEL:-$PWD/.local-data/speaker-models/campplus.onnx}
+  export SPEAKER_VAD_MODEL=${SPEAKER_VAD_MODEL:-$PWD/.local-data/speaker-models/silero-vad.onnx}
+  [ -n "${SPEAKER_TEST_VOICES:-}" ] || { echo 'NG: SPEAKER_TEST_VOICESに16kHz mono PCM16 WAVの合成音声2本（9秒以上）をカンマ区切りで指定してください' >&2; exit 1; }
+  [ -x "$SPEAKER_PYTHON" ] && [ -f "$SPEAKER_EMBEDDING_MODEL" ] && [ -f "$SPEAKER_VAD_MODEL" ] || { echo 'NG: speaker-setupでモデルとPython環境を準備してください' >&2; exit 1; }
+  assert_free_ports
+  local config; config=$(emulator_config)
+  trap 'rm -f "${config:-}"' EXIT
+  "$FB" emulators:exec --config "$config" --project "$GOOGLE_CLOUD_PROJECT" --only auth,firestore \
+    "cd api && npx vitest run test/integration/speaker.test.ts --reporter=verbose"
+  rm -f "$config"; trap - EXIT
+}
+
 # 変えると本番の権限・デプロイに直接効くファイル。これらを含む PR には auto-merge を付けず、レビューを求める
 REVIEW_PATHS='^(firebase/firestore\.rules|firebase\.json|web/apphosting[^/]*\.yaml|\.github/|infra/)'
 
@@ -195,6 +213,8 @@ case "${1:-}" in
   doctor) doctor ;;
   serve) serve ;;
   check) shift; check "$@" ;;
+  speaker-setup) bash scripts/speaker.sh setup ;;
+  speaker-check) speaker_check ;;
   pr) shift; pr "$@" ;;
-  *) sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  *) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac

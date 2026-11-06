@@ -4,7 +4,7 @@ import { HttpError, requireOpenRoom } from './http.js';
 import { ANALYSIS_PHASES, ANALYZE_COOLDOWN_MS, RUNNING_TIMEOUT_MS } from './policy.js';
 import type { Dependencies } from './dependencies.js';
 export function createAnalysisJobs({ db, now }: Dependencies) {
-  const roomRef = (id: string) => db.doc(`rooms/${id}`);
+  const roomRef = (id: string) => db.doc(`sessions/${id}`);
   const analysisPhases = ANALYSIS_PHASES;
   type AnalysisField = keyof typeof analysisPhases;
   async function beginAnalysis(roomId: string, field: AnalysisField) {

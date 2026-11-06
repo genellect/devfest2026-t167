@@ -1,13 +1,13 @@
 "use client";
-import { useEffect, useState } from "react";
+
 import {
-  browserPopupRedirectResolver, GoogleAuthProvider, signInWithCredential, signInWithPopup, reauthenticateWithPopup, type User,
+  browserPopupRedirectResolver, GoogleAuthProvider, signInWithCredential, signInWithPopup, reauthenticateWithPopup,
 } from "firebase/auth";
 import { firebase } from "./firebase";
 import { beginSignIn, endSignIn, establishSession, logoutSession, unlockSession, useAppSession } from "./session";
 import { clearJoinCode } from "./join-code";
 
-/** 先生（司会者）は Google でログインする。教師claimがなければ部屋を作れない（API が 403 を返す） */
+/** 全利用者がGoogleで本人認証する。Host権限はセッション作成時にAPIが付与する */
 export function useHostUser() {
   return useAppSession().user;
 }
@@ -38,15 +38,3 @@ async function testGoogle(kind: "teacher" | "student", options: LoginOptions) {
 export const signInAsTestHost = (options: LoginOptions = { isSharedDevice: false, classEndsAt: null }) => testGoogle("teacher", options);
 export const signInAsTestStudent = (options: LoginOptions = { isSharedDevice: false, classEndsAt: null }) => testGoogle("student", options);
 export async function signOutHost() { await logoutSession(); clearJoinCode(); }
-
-/** 表示用。認可の最終判断はAPIとRulesで行う。 */
-export function useTeacherClaim(user: User | null | undefined) {
-  const [teacher, setTeacher] = useState(false);
-  useEffect(() => {
-    let active = true;
-    setTeacher(false);
-    if (user) user.getIdTokenResult().then((result) => { if (active) setTeacher(result.claims.teacher === true); }).catch(() => {});
-    return () => { active = false; };
-  }, [user]);
-  return teacher;
-}

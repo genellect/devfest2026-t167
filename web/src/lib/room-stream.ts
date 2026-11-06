@@ -43,6 +43,7 @@ async function consume(roomId: string, entry: Entry) {
         }
         throw new Error("接続を確認しています");
       }
+      entry.value = { docs: {}, collections: {} }; entry.listeners.forEach((fn) => fn());
       const reader = response.body.getReader(), decoder = new TextDecoder();
       let buffer = "";
       for (;;) {
