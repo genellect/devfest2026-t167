@@ -189,13 +189,27 @@ function Dashboard({ roomId, room, results, members, onOpen, onFinish, moving }:
   );
 }
 
+/** API の分析中の記録の期限（api/src/app.ts の RUNNING_TIMEOUT_MS と同じ） */
+const ANALYSIS_LOCK_MS = 60_000;
+
 /** AI の分析ボタンと介入提案。提案は先生が承認したものだけが生徒に届く */
 function AiPanel({ roomId, room, insights }: { roomId: string; room: Room; insights: Insight[] }) {
   const [busy, setBusy] = useState(false);
   const [paused, setPaused] = useState("");
   const [wait, setWait] = useState(0);
   const [msg, setMsg] = useState("");
-  const running = busy || room.analysis?.status === "running";
+  // API は分析中の記録を60秒で期限切れにする（途中で止まった分析が残っても、やり直せる）。画面も同じ期限でボタンを戻す
+  const startedAt = room.analysis?.status === "running" ? millis(room.analysis.startedAt) : undefined;
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (startedAt === undefined) return;
+    const left = startedAt + ANALYSIS_LOCK_MS - Date.now();
+    if (left <= 0) return;
+    const t = setTimeout(() => setTick((n) => n + 1), left + 100);
+    return () => clearTimeout(t);
+  }, [startedAt]);
+  const locked = room.analysis?.status === "running" && (startedAt === undefined || Date.now() - startedAt < ANALYSIS_LOCK_MS);
+  const running = busy || locked;
 
   useEffect(() => {
     if (wait <= 0) return;

@@ -15,7 +15,7 @@ let db: Firestore | undefined;
 export function firebase() {
   if (!app) {
     app = getApps()[0] ?? (useEmulators
-      ? initializeApp({ projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, apiKey: "demo-key" }) // submit-allow: エミュレータ専用のダミー
+      ? initializeApp({ projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, apiKey: "demo-key", authDomain: "localhost" }) // submit-allow: エミュレータ専用のダミー。authDomain は「Googleでログイン」のポップアップに要る
       : initializeApp());
     // 匿名のローカル開発では OAuth iframe を先読みせず、外部通信を待たない。
     auth = useEmulators

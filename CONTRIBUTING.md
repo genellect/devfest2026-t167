@@ -23,6 +23,8 @@ bash scripts/dev.sh serve    # エミュレータ・テストデータ・API・�
 
 http://localhost:3000 を開き、参加コード `DEMO01` で参加する。Auth と Firestore はエミュレータ、Gemini はモックで動く。Gemini が失敗したときの動きは `GEMINI_MOCK_FAIL=1 bash scripts/dev.sh serve` で確かめる。
 
+先生の導線は、トップの「テスト用の先生でログイン（エミュレータ）」か、「Googleでログイン」で開く認証のエミュレータの「Add new account」から架空のメールアドレスで確かめる。本物の Google アカウントやパスワードは使わない。部屋を作ったら、表示された参加コードを別のブラウザーのプロファイルかプライベートウィンドウで入力し、架空の意見を出す。先生のダッシュボードで「未検討の論点を探す」を押すと提案が出る（通常の起動は「デモデータ」、`GEMINI_MOCK=0` では「Gemini による推定」）。
+
 終了するときは、起動したターミナルで `Ctrl+C` を押す。Auth・Firestore のエミュレータ、API、画面をまとめて停止する。
 
 本物の Gemini で試すときは、Google Cloud CLI（gcloud。`.devcontainer` と Codespaces には入っていない）を入れ、プロジェクトの編集者の権限で `gcloud auth application-default login` をしてから `GEMINI_MOCK=0 bash scripts/dev.sh serve` で起動する。Firestore と Auth はエミュレータのままで、Vertex AI だけ本番のプロジェクトを使う（`infra/env.sh` の PROJECT_ID・VERTEX_LOCATION・GEMINI_MODEL）。Gemini の接続先は global、Cloud Run と Firestore は東京に分けている。
