@@ -17,8 +17,12 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:3000",
     trace: "retain-on-failure",
-    // ブラウザを別の場所に置いている環境では PW_CHROMIUM_PATH で指定する
-    launchOptions: process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {},
+    launchOptions: {
+      // 録音の E2E で、本物のマイクの代わりに Chromium の擬似マイクを使い、許可の確認も省く
+      args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
+      // ブラウザを別の場所に置いている環境では PW_CHROMIUM_PATH で指定する
+      ...(process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {}),
+    },
   },
   projects: [
     { name: "mobile", use: { ...devices["Pixel 7"] } },

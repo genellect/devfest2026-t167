@@ -6,7 +6,8 @@ import { Header, PhaseSteps, SourceTag, Tag, useGeminiSource, type Phase } from 
 import { callApi } from "@/lib/api";
 import { formatMetric } from "@/lib/format";
 import { getNextGoal, getReflection, saveReflection } from "@/lib/local";
-import { mmss, useRecorder } from "@/lib/recorder";
+import { mmss } from "@/lib/recorder";
+import { MAX_RECORDING_MS, useGroupRecording } from "@/lib/recording";
 import { groupStatus, useDoc, useInsights, useMembers, type GroupResult, type GroupStatus, type Room } from "@/lib/room";
 
 interface Props { roomId: string; room: Room; uid: string; group?: number }
@@ -27,6 +28,9 @@ export function ParticipantRoom({ roomId, room, uid, group }: Props) {
   const closed = room.phase === "closed";
   const showResult = !!result || closed;
   const writing = !showResult && (status === "consensus" || status === "done" || room.phase === "consensus");
+  const discussing = !showResult && !!group && status === "discussing" && room.phase !== "consensus";
+  // 録音は議論の画面を閉じても残し、議論が終わったら送る
+  const recording = useGroupRecording(roomId, discussing);
   return (
     <main className="screen">
       <Header eyebrow={group && (room.groups ?? 1) > 1 ? `あなたはグループ${group}` : undefined} title={room.title} demo={source === "mock"}>
@@ -37,7 +41,8 @@ export function ParticipantRoom({ roomId, room, uid, group }: Props) {
       {!showResult && group && !choosing && status === "opinions" && room.phase !== "consensus" && (
         <OpinionStep roomId={roomId} uid={uid} total={gs?.total} opinions={gs?.opinions} canChange={(room.groups ?? 1) > 1} onChangeGroup={() => setChoosing(true)} />
       )}
-      {!showResult && group && status === "discussing" && room.phase !== "consensus" && <VoiceStep roomId={roomId} />}
+      {discussing && <VoiceStep roomId={roomId} recording={room.recording === false ? null : recording} />}
+      <RecordingStatus upload={recording.upload} onRetry={recording.retry} />
       {writing && group && <ConsensusStep roomId={roomId} uid={uid} title={room.title} submitted={gs?.submitted} total={gs?.total} />}
       {showResult && <ResultStep roomId={roomId} uid={uid} group={group ?? 1} source={source} title={room.title} result={result ?? null} />}
     </main>
@@ -147,54 +152,82 @@ function OpinionStep({ roomId, uid, total, opinions, canChange, onChangeGroup }:
   );
 }
 
+/** 議論のあと、録音の分析の状態を出す。失敗したら、端末に残した録音を送り直せる */
+function RecordingStatus({ upload, onRetry }: { upload: ReturnType<typeof useGroupRecording>["upload"]; onRetry: () => void }) {
+  if (upload.state === "none") return null;
+  const text = {
+    uploading: "録音を送り、議論の流れを分析しています（数分かかります）。そのまま進めてください。",
+    done: upload.message ?? "録音の分析が終わりました。結果の画面の「グループで何が起きたか」で見られます。",
+    failed: `録音を分析できませんでした：${upload.message ?? ""}`,
+  }[upload.state];
+  return (
+    <div className="body body--center" style={{ paddingBottom: 0 }}>
+      <div className={`notice${upload.state === "failed" ? " notice--error" : upload.state === "uploading" ? " notice--warn" : ""}`}
+        role={upload.state === "failed" ? "alert" : "status"} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", justifyContent: "space-between", width: "min(720px, 100%)" }}>
+        <span className="t-label">{text}</span>
+        {upload.state === "failed" && <button className="btn btn--blue btn--small" onClick={onRetry}>もう一度送る</button>}
+      </div>
+    </div>
+  );
+}
+
 /**
- * P3 議論（音声）。グループで1台、または1人1台で録音する。画面を見なくても話し合えるようにする。
- * 録音は端末の中に置くだけで、まだ送信しない（送信と文字起こしはバックエンドで実装予定）。
+ * P3 議論（音声）。録音はグループで1台。グループ全員の同意を確かめてから始め、画面を見なくても話し合えるようにする。
+ * 議論を終えると、録音している端末が音声を API に送り、Gemini が議論の流れを分析する（音声は保存しない）。
+ * recording が null の部屋（先生が録音しないと決めた部屋）では、録音の画面を出さない。
  * 先生が承認した AI の問いかけだけが届く。
  */
-function VoiceStep({ roomId }: { roomId: string }) {
+function VoiceStep({ roomId, recording }: { roomId: string; recording: ReturnType<typeof useGroupRecording> | null }) {
   const insights = useInsights(roomId, true, true);
-  const rec = useRecorder();
+  const rec = recording?.rec;
+  const [consent, setConsent] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [ending, setEnding] = useState(false);
   const [error, setError] = useState("");
   async function endDiscussion() {
     setEnding(true); setError("");
-    try {
-      await rec.stop(); // 録音は端末に残す（送信はバックエンドの実装後）
-      await callApi(`/rooms/${roomId}/groups/end`);
-    } catch (e) { setError((e as Error).message); setEnding(false); }
+    // 議論が終わると、録音している端末が止めて送る（useGroupRecording）
+    try { await callApi(`/rooms/${roomId}/groups/end`); }
+    catch (e) { setError((e as Error).message); setEnding(false); }
   }
-  const scale = 1 + rec.level * 0.45;
-  const status = {
-    idle: "録音を始めると、議論が終わるまで自動で記録します。",
+  const scale = 1 + (rec?.level ?? 0) * 0.45;
+  const state = rec?.state ?? "idle";
+  const status = !rec ? "この部屋では録音しません。そのまま話し合ってください。" : {
+    idle: "録音を始めると、議論が終わるまで（最長30分）記録します。",
     asking: "マイクの使用を許可してください。",
-    recording: "録音中・議論を続けてください",
+    recording: `録音中・議論を続けてください（${mmss(MAX_RECORDING_MS)}で自動で止まります）`,
     paused: "一時停止中",
-    stopped: "録音を終えました",
+    stopped: "録音を終えました。話し合いはそのまま続けられます。",
     denied: "マイクが使えません。ブラウザの設定でマイクを許可してから、もう一度試してください。",
     unsupported: "この端末やブラウザでは録音できません。別の端末で録音するか、そのまま話し合ってください。",
-  }[rec.state];
+  }[state];
 
   return (
-    <div className="body body--tablet" style={{ flexDirection: "row", alignItems: "stretch" }}>
-      <section className="box box--lg pad-lg stack" style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 24, textAlign: "center" }}>
+    // スマホの幅では、録音と「議論を終える」を縦に並べる（横に並べると重なって押せない）
+    <div className="body body--tablet" style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "stretch" }}>
+      <section className="box box--lg pad-lg stack" style={{ flex: "999 1 320px", minWidth: 0, alignItems: "center", justifyContent: "center", gap: 24, textAlign: "center" }}>
         <h2 className="t-lg">グループで話し合いましょう</h2>
         <p className="t-label">議論が終わるまで、画面を見なくても大丈夫です。</p>
-        <div className="voice" data-state={rec.state} aria-hidden="true">
-          <div className="voice__ring" style={{ transform: `scale(${rec.state === "recording" ? scale : 0.82})` }} />
-          <div className="voice__core">{rec.state === "recording" || rec.state === "paused" ? mmss(rec.elapsedMs) : "マイク"}</div>
+        <div className="voice" data-state={state} aria-hidden="true">
+          <div className="voice__ring" style={{ transform: `scale(${state === "recording" ? scale : 0.82})` }} />
+          <div className="voice__core">{rec && (state === "recording" || state === "paused") ? mmss(rec.elapsedMs) : "マイク"}</div>
         </div>
-        <div className={`notice${rec.state === "denied" || rec.state === "unsupported" ? " notice--error" : rec.state === "recording" ? "" : " notice--warn"}`}
-          role="status" style={{ display: "flex", alignItems: "center", gap: 16, width: "min(560px, 100%)", justifyContent: "space-between", textAlign: "left" }}>
+        <div className={`notice${state === "denied" || state === "unsupported" ? " notice--error" : state === "recording" ? "" : " notice--warn"}`}
+          role="status" style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", width: "min(560px, 100%)", justifyContent: "space-between", textAlign: "left" }}>
           <span className="t-label">{status}</span>
-          {(rec.state === "idle" || rec.state === "denied") && <button className="btn btn--blue btn--small" onClick={rec.start}>{rec.state === "denied" ? "もう一度試す" : "録音を始める"}</button>}
-          {rec.state === "recording" && <button className="btn btn--small" onClick={rec.pause}>一時停止</button>}
-          {rec.state === "paused" && <button className="btn btn--blue btn--small" onClick={rec.resume}>再開する</button>}
+          {rec && (state === "idle" || state === "denied") && <button className="btn btn--blue btn--small" onClick={rec.start} disabled={!consent}>{state === "denied" ? "もう一度試す" : "録音を始める"}</button>}
+          {rec && state === "recording" && <button className="btn btn--small" onClick={rec.pause}>一時停止</button>}
+          {rec && state === "paused" && <button className="btn btn--blue btn--small" onClick={rec.resume}>再開する</button>}
         </div>
-        <p className="t-small">録音はこの端末の中にだけ残ります（送信と文字起こしは準備中です）。</p>
+        {rec && (state === "idle" || state === "denied") && (
+          <label className="t-label" style={{ display: "flex", gap: 10, alignItems: "flex-start", width: "min(560px, 100%)", textAlign: "left" }}>
+            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} style={{ width: 24, height: 24, flex: "0 0 auto" }} />
+            <span>グループ全員が、録音することに同意しました</span>
+          </label>
+        )}
+        {rec && <p className="t-small">録音はグループで1台だけ。議論を終えると、録音を Gemini に送って議論の流れを分析します。音声は分析のあと保存せず、だれが話したかも記録しません。録音中に画面を閉じたり、ほかのアプリに切り替えたりすると、録音が止まることがあります。</p>}
       </section>
-      <aside className="stack" style={{ width: 360, flex: "0 0 auto" }}>
+      <aside className="stack" style={{ flex: "1 1 360px", maxWidth: "100%" }}>
         <section className="box box--md box--yellow pad stack">
           <div className="heading-row"><h2 className="t-sm">先生からの問いかけ</h2><Tag>AI の提案</Tag></div>
           {insights.length === 0

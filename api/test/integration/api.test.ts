@@ -293,6 +293,54 @@ describe('グループごとの進行', () => {
   });
 });
 
+describe('録音の分析', () => {
+  const upload = (token: string, roomId: string, q = 'consent=1&durationSec=600', type = 'audio/webm', bytes = 4000) =>
+    request(app).post(`/rooms/${roomId}/groups/recording?${q}`).set('authorization', `Bearer ${token}`).set('content-type', type).send(Buffer.alloc(bytes, 1));
+  async function discussingRoom() {
+    const r = await setupRoom();
+    for (const p of [r.p1, r.p2]) await api(p).post(`/rooms/${r.roomId}/opinion`, { text: '意見' }).expect(200);
+    return r;
+  }
+  it('同意・議論の開始・生徒であることを確かめる', async () => {
+    const { roomId, mod, p1, p2 } = await setupRoom();
+    await upload(p1, roomId).expect(409); // 議論が始まる前
+    for (const p of [p1, p2]) await api(p).post(`/rooms/${roomId}/opinion`, { text: '意見' }).expect(200);
+    await upload(p1, roomId, 'durationSec=600').expect(400); // 同意がない
+    await upload(mod, roomId).expect(403); // 先生は送らない（生徒の端末で録音する）
+    await upload(await anon(), roomId).expect(403); // メンバー外
+    await upload(p1, roomId, 'consent=1&durationSec=600', 'text/plain').expect(415);
+    await upload(p1, roomId, 'consent=1&durationSec=2000').expect(413); // 30分を超える
+    await upload(p1, roomId, 'consent=1&durationSec=600', 'audio/webm', 10).expect(400); // 空
+  });
+  it('分析の結果を results/flow-g{番号} に保存し、グループに1回だけ分析する', async () => {
+    const { roomId, p1, p2 } = await discussingRoom();
+    const r = await upload(p1, roomId, 'consent=1&durationSec=600', 'audio/webm;codecs=opus').expect(200);
+    expect(r.body).toMatchObject({ group: 1, status: 'done', speechDetected: true, totalMinutes: 10, source: 'mock' });
+    const flow = (await db.doc(`rooms/${roomId}/results/flow-g1`).get()).data();
+    expect(flow).toMatchObject({ group: 1, totalMinutes: 10, durationSec: 600, source: 'mock' });
+    expect(flow?.segments.length).toBeGreaterThan(0);
+    expect(flow?.behaviors).toHaveProperty('questions');
+    expect(JSON.stringify(flow)).not.toContain(uidOf(p1)); // 話者を記録しない
+    expect((await db.doc(`rooms/${roomId}`).get()).get('groupState')['1'].recording.status).toBe('done');
+    await upload(p2, roomId).expect(409); // 同じグループの2台目の送信は分析しない
+  });
+  it('Gemini が失敗したら 503 で、同じ録音を送り直せる', async () => {
+    const { roomId, p1 } = await discussingRoom();
+    fail = true;
+    await upload(p1, roomId).expect(503);
+    expect((await db.doc(`rooms/${roomId}`).get()).get('groupState')['1'].recording.status).toBe('failed');
+    fail = false;
+    await upload(p1, roomId).expect(200);
+  });
+  it('先生が録音を使わない設定にした部屋では送れない', async () => {
+    const mod = await named(); const p1 = await anon();
+    const { roomId, joinCode } = (await api(mod).post('/rooms', { title: '録音なし', recording: false }).expect(201)).body;
+    await api(p1).post('/rooms/join', { code: joinCode }).expect(200);
+    await api(p1).post(`/rooms/${roomId}/opinion`, { text: '意見' }).expect(200);
+    await upload(p1, roomId).expect(403);
+  });
+});
+
 describe('承認と合意の検証', () => {
   it('参加者は承認できず、司会者は承認でき、2回目は 409', async () => {
     const { roomId, mod, p1 } = await setupRoom();

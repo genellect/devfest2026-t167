@@ -94,3 +94,23 @@ test('懸念は文字列300字以内なら書ける・それ以外は拒否', as
   await assertFails(setDoc(ref, { text: 'x', agreement: 3, concern: 'あ'.repeat(301), updatedAt: serverTimestamp() }));
   await assertFails(setDoc(ref, { text: 'x', agreement: 3, concern: { big: 'object' }, updatedAt: serverTimestamp() }));
 });
+
+test('グループの結果は、そのグループのメンバーと先生だけが読める', async () => {
+  await env.clearFirestore();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'rooms/roomA'), { title: 'A', phase: 'collecting', groups: 2 });
+    await setDoc(doc(db, 'rooms/roomA/members/mod'), { role: 'moderator' });
+    await setDoc(doc(db, 'rooms/roomA/members/alice'), { role: 'participant', group: 1 });
+    await setDoc(doc(db, 'rooms/roomA/members/bob'), { role: 'participant', group: 2 });
+    for (const id of ['group-1', 'flow-g1', 'summary']) await setDoc(doc(db, `rooms/roomA/results/${id}`), { x: 1 });
+  });
+  await assertSucceeds(getDoc(doc(as('alice'), 'rooms/roomA/results/group-1')));
+  await assertSucceeds(getDoc(doc(as('alice'), 'rooms/roomA/results/flow-g1')));
+  await assertFails(getDoc(doc(as('bob'), 'rooms/roomA/results/group-1')));
+  await assertFails(getDoc(doc(as('bob'), 'rooms/roomA/results/flow-g1')));
+  await assertSucceeds(getDoc(doc(as('bob'), 'rooms/roomA/results/summary')));
+  await assertSucceeds(getDocs(collection(as('mod'), 'rooms/roomA/results')));
+  await assertFails(getDocs(collection(as('alice'), 'rooms/roomA/results')));
+  await assertFails(getDoc(doc(as('carol'), 'rooms/roomA/results/summary')));
+});

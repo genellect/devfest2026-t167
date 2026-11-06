@@ -18,6 +18,7 @@ export default function NewRoom() {
   const [title, setTitle] = useState("");
   const [minutes, setMinutes] = useState(15);
   const [groups, setGroups] = useState(6);
+  const [recording, setRecording] = useState(true);
   const [label, setLabel] = useState("");
   useEffect(() => { setLabel(getProfile()?.className ?? ""); }, []);
   const [error, setError] = useState("");
@@ -27,7 +28,7 @@ export default function NewRoom() {
     e.preventDefault();
     setBusy(true); setError("");
     try {
-      const { roomId } = await callApi<{ roomId: string }>("/rooms", { title: title.trim(), groups });
+      const { roomId } = await callApi<{ roomId: string }>("/rooms", { title: title.trim(), groups, recording });
       setDuration(roomId, minutes);
       if (label.trim()) setRoomLabel(roomId, label.trim());
       addHistory("host", { roomId, title: title.trim() });
@@ -70,6 +71,14 @@ export default function NewRoom() {
             <div className="choices">
               {DURATIONS.map((m) => <button key={m} type="button" className="choice" aria-pressed={minutes === m} onClick={() => setMinutes(m)}>{m}分</button>)}
             </div>
+          </fieldset>
+          <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend className="field__label" style={{ marginBottom: 6 }}>議論の録音</legend>
+            <div className="choices">
+              <button type="button" className="choice" aria-pressed={recording} onClick={() => setRecording(true)}>録音して分析する</button>
+              <button type="button" className="choice" aria-pressed={!recording} onClick={() => setRecording(false)}>録音しない</button>
+            </div>
+            <p className="field__hint">録音はグループごとに1台。グループ全員の同意を画面で確かめてから始め、音声は分析のあと保存しません。</p>
           </fieldset>
           {error && <p className="notice notice--error" role="alert">{error}</p>}
           <button className="btn btn--blue btn--block" type="submit" disabled={busy || !title.trim()}>{busy ? "作っています…" : "部屋を作る"}</button>

@@ -9,8 +9,14 @@ import type { Phase } from "@/components/ui";
 
 export interface Room {
   title: string; phase: Phase; joinCode?: string; createdBy: string; groups?: number;
+  /** 議論を録音して分析するか（既定は録音する）。false の部屋では録音の画面を出さない */
+  recording?: boolean;
   /** グループごとの進行（キーはグループ番号）。生徒が議論を終えると consensus、全員の一文がそろって結果が出ると done */
-  groupState?: Record<string, { status?: GroupStatus; total?: number; opinions?: number; submitted?: number; startedAt?: Timestamp }>;
+  groupState?: Record<string, {
+    status?: GroupStatus; total?: number; opinions?: number; submitted?: number; startedAt?: Timestamp;
+    /** 録音の分析の状態（POST /rooms/{部屋}/groups/recording が書く。本文は含まない） */
+    recording?: { status?: "analyzing" | "done" | "failed" };
+  }>;
   phaseChangedAt?: Partial<Record<Phase, Timestamp>>;
   analysis?: { status: "idle" | "running" | "done" | "failed"; startedAt?: Timestamp; error?: string };
 }
@@ -44,15 +50,19 @@ export interface Progress {
 }
 
 /**
- * 音声の議論の分析結果（グループごと）。rooms/{部屋}/results/flow-g{グループ番号} に API が書く想定。
- * 音声の文字起こしと分析はバックエンドで実装予定。届くまでは、デモのときだけ見本を表示する。
+ * 音声の議論の分析結果（グループごと）。rooms/{部屋}/results/flow-g{グループ番号} に API が書く
+ * （POST /rooms/{部屋}/groups/recording）。届くまでは、デモのときだけ見本を表示する。
  */
 export interface Flow {
+  /** false なら、録音から議論を聞き取れなかった */
+  speechDetected?: boolean;
   totalMinutes: number;
   segments: { topic: string; minutes: number; highlight?: boolean }[];
   flowNote?: string;
   good: { at: string; text: string }[];
   review: { at: string; text: string; question?: string }[];
+  /** 先生向けの指導の提案（個人名を挙げない） */
+  teacherSuggestions?: string[];
   source?: string;
 }
 

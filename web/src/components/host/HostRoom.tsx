@@ -104,6 +104,7 @@ function Lobby({ room, joined, onNext }: { room: Room; joined: number; onNext: (
 }
 
 const STATUS_LABEL = { opinions: "事前の意見", discussing: "話し合い中", consensus: "結論を記入中", done: "結果あり" } as const;
+const RECORDING_LABEL = { analyzing: "分析中", done: "完了", failed: "失敗（生徒の端末から送り直せます）" } as const;
 
 /** S5 ダッシュボード。グループごとの進み具合（事前意見 → 話し合い → 結論の記入 → 結果）と AI の提案 */
 function Dashboard({ roomId, room, results, members, onOpen, onFinish, moving }: {
@@ -166,6 +167,7 @@ function Dashboard({ roomId, room, results, members, onOpen, onFinish, moving }:
                 <p className="t-label">グループ{g}</p>
                 <p className="t-lg">{status === "opinions" && !n ? "メンバー募集中" : STATUS_LABEL[status]}</p>
                 <p className="t-small">{detail}</p>
+                {st?.recording?.status && <p className="t-small">録音の分析：{RECORDING_LABEL[st.recording.status]}</p>}
                 {status === "done" && <button className="btn btn--small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => onOpen(g)}>詳しく見る</button>}
                 {status === "opinions" && n > 0 && (st?.opinions ?? 0) > 0 && (
                   <button className="btn btn--small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => force("start", g)} disabled={busyGroup === g}>
@@ -335,11 +337,13 @@ function GroupResultView({ result, group, roomId, source }: { result: GroupResul
       </section>
       <FlowTimeline flow={flow} />
       <GoodReview flow={flow} />
-      {flow?.review[0]?.question && (
+      {flow && (flow.teacherSuggestions?.length || flow.review[0]?.question) && (
         <section className="box box--lg box--blue pad stack">
           <div className="heading-row"><h2 className="t-label">次の支援の案</h2><SourceTag source={flow.source} /></div>
           <p className="t-md">{clusters.length > 1 ? "結論の目的を、次の議論の最初に確認する" : "見直したい場面を、次の議論の最初に振り返る"}</p>
-          <p className="t-label">問い：{flow.review[0].question}</p>
+          {flow.teacherSuggestions?.length
+            ? <ul className="stack stack--tight" style={{ margin: 0, paddingLeft: 20 }}>{flow.teacherSuggestions.map((t, i) => <li key={i} className="t-label">{t}</li>)}</ul>
+            : <p className="t-label">問い：{flow.review[0].question}</p>}
         </section>
       )}
     </div>

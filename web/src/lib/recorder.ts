@@ -2,9 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * グループの議論を端末のマイクで録音する。
- * いまは録音を端末の中に保持するだけで、送信はしない。
- * 送信と文字起こしはバックエンドで実装する（stop() が返す Blob を API に送る想定）。
+ * グループの議論を端末のマイクで録音する。送信は useGroupRecording（lib/recording.ts）が行う。
+ * 30分の録音が API の上限（15MB）に収まるよう、ビットレートを 32kbps にする（30分で約7MB）。
  */
 export type RecorderState = "idle" | "asking" | "recording" | "paused" | "stopped" | "denied" | "unsupported";
 
@@ -42,7 +41,7 @@ export function useRecorder() {
     try {
       const s = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
       stream.current = s;
-      const r = new MediaRecorder(s);
+      const r = new MediaRecorder(s, { audioBitsPerSecond: 32_000 });
       chunks.current = [];
       r.ondataavailable = (e) => { if (e.data.size) chunks.current.push(e.data); };
       r.start(1000);
@@ -87,17 +86,18 @@ export function useRecorder() {
     setState("recording");
   }, []);
 
-  /** 録音を終える。録った音声を返す（送信はバックエンドの実装後に行う） */
-  const stop = useCallback(async (): Promise<Blob | null> => {
+  /** 録音を終える。録った音声と、一時停止を除いた長さを返す */
+  const stop = useCallback(async (): Promise<{ blob: Blob; durationMs: number } | null> => {
     const r = rec.current;
     if (!r || r.state === "inactive") return null;
+    const durationMs = clock.current.carried + (r.state === "recording" ? Date.now() - clock.current.startedAt : 0);
     const done = new Promise<void>((ok) => { r.onstop = () => ok(); });
     r.stop();
     await done;
     cleanup();
     setLevel(0);
     setState("stopped");
-    return new Blob(chunks.current, { type: r.mimeType || "audio/webm" });
+    return { blob: new Blob(chunks.current, { type: r.mimeType || "audio/webm" }), durationMs };
   }, [cleanup]);
 
   return { state, level, elapsedMs, start, pause, resume, stop };

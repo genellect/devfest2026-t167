@@ -9,6 +9,12 @@ import { alignmentRate, interventionEffectiveness, participationFairness, reflec
 export const PHASES = ['collecting', 'discussing', 'consensus', 'closed'] as const;
 export const ANALYZE_COOLDOWN_MS = 30_000;
 export const MAX_GROUPS = 12;
+/** 録音の上限（チームドキュメント「仕様」F03：MVP は30分）。少し余裕を持たせる */
+export const MAX_RECORDING_SEC = 31 * 60;
+/** 録音の大きさの上限。Gemini へは base64 で送り、Vertex AI のリクエストの上限（20MB）に収めるため。画面は 32kbps で録り、30分で約7MB */
+export const MAX_RECORDING_BYTES = 15 * 1024 * 1024;
+const RECORDING_TIMEOUT_MS = 5 * 60_000;
+const AUDIO_TYPES = ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/aac', 'video/webm', 'video/mp4'];
 const RUNNING_TIMEOUT_MS = 60_000;
 
 type Role = 'moderator' | 'participant';
@@ -79,7 +85,10 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
   // 部屋の作成：匿名でないログインが必要。所属はまだないので所属確認はしない
   app.post('/rooms', ...chain(authenticate, wrap(async (req, res) => {
     if (req.ctx.provider === 'anonymous') throw new HttpError(403, 'moderator_login_required', '司会者は Google でログインしてください');
-    const { title, groups } = parse(z.object({ title: z.string().trim().min(1).max(100), groups: z.number().int().min(1).max(MAX_GROUPS).default(1) }), req.body);
+    // recording：グループの議論を録音して分析するか（録音の権限は先生が持つ。既定は録音する）
+    const { title, groups, recording } = parse(z.object({
+      title: z.string().trim().min(1).max(100), groups: z.number().int().min(1).max(MAX_GROUPS).default(1), recording: z.boolean().default(true),
+    }), req.body);
     const roomId = db.collection('rooms').doc().id;
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -88,7 +97,7 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
         const codeRef = db.doc(`joinCodes/${joinCode}`);
         if ((await tx.get(codeRef)).exists) return false;
         tx.set(codeRef, { roomId });
-        tx.set(roomRef(roomId), { title, groups, phase: 'collecting', joinCode, createdBy: req.ctx.uid, createdAt: FieldValue.serverTimestamp(), analysis: { status: 'idle' } });
+        tx.set(roomRef(roomId), { title, groups, recording, phase: 'collecting', joinCode, createdBy: req.ctx.uid, createdAt: FieldValue.serverTimestamp(), analysis: { status: 'idle' } });
         tx.set(db.doc(`rooms/${roomId}/members/${req.ctx.uid}`), { role: 'moderator', joinedAt: FieldValue.serverTimestamp() });
         return true;
       });
@@ -374,6 +383,56 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
     res.json({ group, ...(await analyzeGroup(roomId, group)) });
   })));
 
+  // グループの議論の録音を送り、Gemini で文字起こしと分析をする（生徒。チームドキュメント「仕様」F03・F04）。
+  // 1グループ1台が前提なので、分析はグループに1回。音声は分析に使うだけで保存しない（結果だけを results/flow-g{番号} に書く）。
+  // 録音への同意（consent=1）がない送信は受け付けない。分析に失敗したら、同じ録音を送り直せる
+  const audioBody = express.raw({ type: () => true, limit: MAX_RECORDING_BYTES });
+  app.post('/rooms/:roomId/groups/recording', ...chain(authenticate, member, participantOnly, audioBody, wrap(async (req, res) => {
+    const roomId = req.params.roomId;
+    if (req.query.consent !== '1') throw new HttpError(400, 'consent_required', '録音することへのグループ全員の同意を確かめてから送ってください');
+    const mimeType = (req.header('content-type') ?? '').split(';')[0].trim().toLowerCase();
+    if (!AUDIO_TYPES.includes(mimeType)) throw new HttpError(415, 'unsupported_audio', 'この形式の録音は分析できません');
+    const audio = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    if (audio.length < 1000) throw new HttpError(400, 'empty_recording', '録音が空です');
+    const durationSec = Number(req.query.durationSec);
+    if (!Number.isFinite(durationSec) || durationSec <= 0) throw new HttpError(400, 'bad_request', '録音の長さ（durationSec）が要ります');
+    if (durationSec > MAX_RECORDING_SEC) throw new HttpError(413, 'recording_too_long', '録音は30分までです');
+    const group = await myGroup(roomId, req.ctx.uid);
+    const jobId = randomUUID();
+    const room = await db.runTransaction(async (tx) => {
+      const r = await tx.get(roomRef(roomId));
+      if (!r.exists) throw new HttpError(404, 'room_not_found', '部屋がありません');
+      if (r.get('recording') === false) throw new HttpError(403, 'recording_disabled', 'この部屋では、先生が録音を使わない設定にしています');
+      if (!['discussing', 'consensus', 'done'].includes(statusOf(r, group))) throw new HttpError(409, 'wrong_phase', 'グループの議論が始まってから送ってください');
+      const rec = r.get('groupState')?.[group]?.recording ?? {};
+      if (rec.status === 'done') throw new HttpError(409, 'already_analyzed', 'このグループの録音は、もう分析が終わっています');
+      const started = rec.startedAt instanceof Timestamp ? rec.startedAt.toMillis() : 0;
+      if (rec.status === 'analyzing' && now() - started < RECORDING_TIMEOUT_MS) throw new HttpError(409, 'analysis_in_progress', 'このグループの録音を分析しています');
+      tx.set(roomRef(roomId), { groupState: { [group]: { recording: { status: 'analyzing', jobId, startedAt: Timestamp.fromMillis(now()) } } } }, { merge: true });
+      return r;
+    });
+    const finishIfMine = (write: (tx: FirebaseFirestore.Transaction) => void) => db.runTransaction(async (tx) => {
+      if ((await tx.get(roomRef(roomId))).get('groupState')?.[group]?.recording?.jobId !== jobId) return false;
+      write(tx);
+      return true;
+    });
+    let result;
+    try {
+      result = await gemini.analyzeDiscussion({ audio, mimeType, durationSec, theme: room.get('title') ?? '' });
+    } catch {
+      await finishIfMine((tx) => tx.set(roomRef(roomId), { groupState: { [group]: { recording: { status: 'failed' } } } }, { merge: true }));
+      throw new HttpError(503, 'gemini_unavailable', 'AI の分析は一時停止中です。少し待ってから、もう一度送ってください');
+    }
+    const saved = await finishIfMine((tx) => {
+      tx.set(db.doc(`rooms/${roomId}/results/flow-g${group}`), {
+        group, ...result, durationSec: Math.round(durationSec), source: gemini.source, jobId, consentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+      });
+      tx.set(roomRef(roomId), { groupState: { [group]: { recording: { status: 'done' } } } }, { merge: true });
+    });
+    if (!saved) throw new HttpError(409, 'stale_result', '別の送信の分析が始まったため、この結果は破棄しました');
+    res.json({ group, status: 'done', speechDetected: result.speechDetected, totalMinutes: result.totalMinutes, source: gemini.source });
+  })));
+
   // グループの結果を出し直す。生徒は自分のグループ（全員そろっているときだけ）、先生は任意のグループを今ある回答で出せる
   app.post('/rooms/:roomId/groups/analyze', ...chain(authenticate, member, wrap(async (req, res) => {
     const roomId = req.params.roomId;
@@ -441,6 +500,10 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
   app.use((_req, _res, next) => next(new HttpError(404, 'not_found', '見つかりません')));
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof HttpError) { res.status(err.status).json({ error: { code: err.code, message: err.message, ...err.extra } }); return; }
+    // 本文の読み取りの失敗（express.json・express.raw）は、利用者に分かる 4xx で返す
+    const type = (err as { type?: string })?.type;
+    if (type === 'entity.too.large') { res.status(413).json({ error: { code: 'too_large', message: '送った内容が大きすぎます（録音は15MB・30分まで）' } }); return; }
+    if (type === 'entity.parse.failed') { res.status(400).json({ error: { code: 'bad_request', message: '送った内容を読み取れません' } }); return; }
     console.error(err);
     res.status(500).json({ error: { code: 'internal', message: 'サーバーでエラーが起きました' } });
   });
