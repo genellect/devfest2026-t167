@@ -25,18 +25,24 @@
 - `main` へのマージから自動デプロイまでを「本番反映」と呼ぶ。本番反映は、Yuto Matsui（GitHub：`genellect`）がその PR の本番反映を事前に承諾したときだけ行う。承諾は本番反映への1回で、マージとデプロイで分けない。実装・push・PR 作成の依頼や、CI・レビュー・プレビューの成功は、承諾の代わりにならない。
 - 提出用リポジトリ（Devfest-Hackathon-2026/df-2026-t167）への commit と push は人が行う。エージェントは `scripts/submit.sh` の実行までにとどめる。
 
-## 手順書を毎回読む
+## チームドキュメントを毎回読む
 
-実装を始める前と PR を出す前に、毎回、チームの手順書を読み、そのとおりに実行する。
+実装を始める前と PR を出す前に、毎回、チームドキュメント（Google Docs）の「インフラ構築手順書」以外のすべてのタブを読み、プロダクトの方向性を理解してから実装に進む。
 
-- 正本はチームドキュメントの「インフラ構築手順書」タブ：https://docs.google.com/document/d/1zHg74msQ1xBgsautfcQNsv-dDlQcO4WqzbV0ZDNnv5A/edit?tab=t.t1975sujc4nn
-- Claude も Codex も、Google Docs の接続で正本を読む。正本と写しの [docs/infra-manual.md](docs/infra-manual.md) が違っていたら、正本に従い、違いを依頼者に知らせる。
-- 正本を読めなかったときだけ写しを読み、そのことを報告する。
-- 正本を変えた人は、関係するコードや運用ルールの変更と同じ PR で、同じ日に `docs/infra-manual.md` も更新する。写しだけを追いつかせる場合は専用 PR にする。メンバーのメールアドレスは写しに入れない。
+- 文書：https://docs.google.com/document/d/1zHg74msQ1xBgsautfcQNsv-dDlQcO4WqzbV0ZDNnv5A/edit
+- Claude も Codex も、Google Docs の接続で読む。子タブと表の中身も含めて全文を読む。対象は、要件定義・アプリの構想・MVPフロー・タブ 14（サービス形態）・UIフィードバックとその子タブ（サーバーフィードバックなど）・市場分析とその子タブ・ディスカッションテーマ例・開発計画・プロダクト・チーム案・【重要】PRの確認から本番反映までの手順と、新しく増えたタブのすべて。
+- 実装案が文書の方向性、特に最新のフィードバックと合っているかを確かめ、PR の説明に「読んだタブと、方向性との対応」を書く。タブどうし、またはタブとコードが食い違うときは、新しいフィードバックを優先し、その判断を PR に書く。作品の目的が変わるような食い違いは、直す前に依頼者に確認する。
+- 文書を読めなかったときは、推測で進めず、そのことを依頼者に報告する。
+- 文書にある個人情報（連絡先・住所など）は、コード・PR・ログに写さない。
+
+「インフラ構築手順書」タブは、既定では読まない。GCP の構築・権限・デプロイ・CI を変えるときだけ読む。
+
+- 写しは [docs/infra-manual.md](docs/infra-manual.md)。正本と写しが違っていたら正本に従い、違いを依頼者に知らせる。
+- 正本を変えた人は、関係するコードや運用ルールの変更と同じ PR で、同じ日に写しも更新する。写しだけを追いつかせる場合は専用 PR にする。メンバーのメールアドレスは写しに入れない。
 
 ## 作業の手順
 
-1. 上の手順書、この文書、[README](README.md)、[CONTRIBUTING](CONTRIBUTING.md)、変更するコードとそのテストを読む。
+1. 上のチームドキュメント、この文書、[README](README.md)、[CONTRIBUTING](CONTRIBUTING.md)、変更するコードとそのテストを読む。
 2. `git status` で未コミットの作業を確かめ、`git fetch origin main` のあと、最新の `origin/main` からブランチを作る。名前は `<種類>/<内容>`（[CONTRIBUTING](CONTRIBUTING.md#ブランチとコミット)）。ツールが名前を決める場合は `claude/`・`codex/` のままでよい。
 3. 並行して動くエージェントとは、別のブランチと `git worktree` を使い、割り当てられたファイルだけを変える。他の人やエージェントが使っている checkout は編集しない。
 4. 1つの PR では1つの目的だけを扱う。次の組は同じ PR で変える。
@@ -47,7 +53,7 @@
    - Gemini のモデル・思考レベル → [CONTRIBUTING](CONTRIBUTING.md#gemini-のモデルと費用) の手順で今の設定と比べた結果を PR に貼る。モデルの変更は依頼者の承認を得てから
 5. `bash scripts/dev.sh check` を通す。CI とまったく同じ検査で、通らなければ PR を出さない。PR は `bash scripts/dev.sh pr --no-merge` で出す（手元の検査、push、PR の作成まで行う）。
 6. PR は[テンプレート](.github/pull_request_template.md)のすべての項目を書く。実行したコマンドと結果を書き、未実施・失敗・残る制約を分けて書く。画面を変えたらスマホ幅のスクリーンショットを貼る。
-7. PR を出す前に、手順書の「開発のルール」と「実装担当の開発 UX（到達条件）」を読み直す。PR を出したら、[PR の確認から本番反映までの手順](docs/contributor-preview-guide.md)に従い、プレビューの結果と本番反映の承諾の依頼を PR に書く。Yuto Matsui がその PR の本番反映を承諾した場合だけ、`bash scripts/dev.sh pr --approved` で auto-merge を付ける（PR がすでにあれば auto-merge だけを付ける）。auto-merge は CI が通った head だけをマージし、後から push すると CI をやり直すので、確かめていないコミットはマージされない。Rules・ワークフロー・構築スクリプトを変えた PR には `--approved` でも auto-merge が付かないので、レビューを待つよう依頼者に伝える。
+7. PR を出す前に、チームドキュメントを読み直して方向性と合っているかを確かめ、[CONTRIBUTING](CONTRIBUTING.md) の開発のルールを読み直す。PR を出したら、[PR の確認から本番反映までの手順](docs/contributor-preview-guide.md)に従い、プレビューの結果と本番反映の承諾の依頼を PR に書く。Yuto Matsui がその PR の本番反映を承諾した場合だけ、`bash scripts/dev.sh pr --approved` で auto-merge を付ける（PR がすでにあれば auto-merge だけを付ける）。auto-merge は CI が通った head だけをマージし、後から push すると CI をやり直すので、確かめていないコミットはマージされない。Rules・ワークフロー・構築スクリプトを変えた PR には `--approved` でも auto-merge が付かないので、レビューを待つよう依頼者に伝える。
 8. 引き継ぎは PR の説明に書く。セッションごとの引き継ぎ文書は作らない。
 
 ## 報告
