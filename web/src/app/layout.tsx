@@ -4,7 +4,14 @@ import "./material.css";
 import "./app.css";
 import { LoginGate } from "@/components/LoginGate";
 
-export const metadata: Metadata = { title: "Discuss", description: "議論の前に全員の考えを集め、話し合いのずれを見つけるグループディスカッション支援" };
+export const metadata: Metadata = {
+  title: "Discuss",
+  description: "議論の前に全員の考えを集め、話し合いのずれを見つけるグループディスカッション支援",
+  applicationName: "Discuss",
+  // ホーム画面に追加したとき、iPhone でもブラウザの枠なしで開く
+  appleWebApp: { capable: true, title: "Discuss", statusBarStyle: "default" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
+};
 // viewport-fit=cover で、iPhone の下の余白（env(safe-area-inset-*)）を CSS で扱えるようにする
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#f8fafd" };
 
