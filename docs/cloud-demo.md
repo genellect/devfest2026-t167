@@ -37,7 +37,13 @@ Firebase認証の読み取り権限は[公式の権限一覧](https://docs.cloud
 
 この版ではFirestore直接購読をAPI配信へ移すため、通常の旧画面だけのPRプレビューでは動かない。独自セッションAPI/Rules/Webをそろえたローカルエミュレータで確認する。既存の自動プレビューは画面だけが更新される。API未反映中のプレビューはログイン・セッション機能の成功確認として扱わず、同一SHAでのAPI/Rules/Web反映をリリース条件とする。
 
-承認後、メンテナンス時間に利用を停止し、同一SHAのAPI/Rules/Webを反映する。Storageバケットが存在する場合は`firebase.json`のstorage.rulesを承認された管理者が`npm --prefix firebase run fb -- deploy --only storage --project <対象プロジェクト>`で適用する。バケット公開IAMと既存署名URLも確認する。TTLのplanは`bash infra/setup-session-security.sh --plan`、適用は承認後の`--apply`。監査閲覧IAMは運用担当に限定する。学校管理者は信頼された管理側がschoolAdmin/schoolIdを設定する。詳細は[認証とセッション](auth-sessions.md)。
+承認後、メンテナンス時間に利用を停止し、同一SHAのAPI/Rules/Webを反映する。配備前に管理者がFirebase Storage管理APIと配備主体の一覧/Rules権限を確認し、`PROJECT_ID=<対象プロジェクト> node infra/deploy-rules.mjs --plan`で登録バケットを読み取り確認する。deployは同じ入口の`--apply`でFirestore/Storage Rulesを配備する。登録がないと確認できた場合だけStorageを省略し、新規バケットを作らない。一覧エラーでは停止する。バケット公開IAMと既存署名URLも確認する。TTLのplanは`bash infra/setup-session-security.sh --plan`、適用は承認後の`--apply`。監査閲覧IAMは運用担当に限定する。学校管理者は信頼された管理側がschoolAdmin/schoolIdを設定する。詳細は[認証とセッション](auth-sessions.md)。
+
+## 本番APIの話者モデル同梱
+
+`api/Dockerfile`はルートcontextからAPIと`speech/`をビルドし、Python仮想環境と固定版推論ライブラリ・チェックサム検証済みモデルを同梱する。起動時にモデルを取得しない。`/app/api/dist/server.js`から既存の相対パスで`/app/speech/worker.py`を呼び、非rootで動かす。API専用Docker ignoreの許可リストは別PRのデモ用コンテナに影響しない。
+
+ワークフローには2 CPU・2GiB・同時8リクエスト・最小0/最大2台を指定する。これは推論を同梱するための初期設定であり、実クラウド性能や費用の保証ではない。管理者は配備前に予算・クォータ・Artifact Registry/外部モデル配布先への接続を確認し、承認された非本番環境でイメージのビルドと話者モデルの起動、6グループの同時処理を確認する。Docker未導入の端末上での構成検査を、コンテナ実行成功とは扱わない。
 
 ## PR用の実Geminiデモ（本番には反映しない）
 
@@ -55,6 +61,8 @@ DEMO_ID=pr34 DEMO_IMAGE=asia-northeast1-docker.pkg.dev/devfest2026-t167/app/pr34
 ```
 
 アプリのGoogleログインと独自セッション認可は通常どおり必要。エミュレータログインや認証を迂回するデモユーザーは公開しない。Geminiは既存global/モデル/LOWを維持し、モックにフォールバックしない。短い音声は実測秒数を伝え、結果の総時間を実測へそろえ、録音外の時刻を根拠として表示しない。
+
+`demo/start.sh`はcleanupを設置してからAPIのhealth正常応答を待ち、その後だけNextの公開ポートを開く。接続失敗/5xxは回数上限まで待ち、起動失敗では停止する。回帰テストは実通信をモック化しており、実コンテナのコールドスタート成功を示さない。`demo/`も構築変更として別メンバーレビューを要求する。
 
 本番以外への実AI接続は今回の依頼で許可された範囲。上の旧手順の「実AI未実行」「IAM未確認」は過去の準備段階の記録であり、このデモの検証結果とは区別する。マージ・本番デプロイは別途承諾が必要。
 

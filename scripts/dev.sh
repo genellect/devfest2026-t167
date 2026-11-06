@@ -138,8 +138,10 @@ check() {
   node --test tests/cloud-demo.test.mjs
   bash tests/config.test.sh
   bash tests/session-security.test.sh
+  node --test tests/deploy-rules.test.mjs
+  node --test tests/speaker-container.test.mjs
   bash tests/demo-deploy.test.sh
-  bash -n demo/*.sh
+  node --test tests/demo-start.test.mjs
   step "ビルド"
   npm --prefix api run build
   npm --prefix web run build
@@ -170,7 +172,7 @@ speaker_check() {
 }
 
 # 変えると本番の権限・デプロイに直接効くファイル。これらを含む PR には auto-merge を付けず、レビューを求める
-REVIEW_PATHS='^(firebase/firestore\.rules|firebase\.json|web/apphosting[^/]*\.yaml|\.github/|infra/)'
+REVIEW_PATHS='^(firebase/(firestore|storage)\.rules|firebase\.json|web/apphosting[^/]*\.yaml|\.github/|infra/|demo/)'
 
 pr() {
   # main へのマージから自動デプロイまでが「本番反映」。始める前に Yuto Matsui の承諾が要るので、既定では auto-merge を付けない。

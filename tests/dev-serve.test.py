@@ -10,7 +10,9 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-OFFSET = int(os.environ.get("T167_TEST_PORT_OFFSET", "0")) + 1000
+base_offset = int(os.environ.get("T167_TEST_PORT_OFFSET", "0"))
+# 上限40000での全検査でも、子プロセス用offsetを対応範囲内に保つ。
+OFFSET = base_offset - 1000 if base_offset >= 39000 else base_offset + 1000
 PORTS = tuple(p + OFFSET for p in (3000, 8080, 8081, 9099))
 STUB = '''#!/usr/bin/env python3
 import os,socket,sys,time

@@ -70,18 +70,19 @@ jobs:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
           service_account: ${{ env.DEPLOYER_SA }}
       - uses: google-github-actions/setup-gcloud@v2
-      - name: 1/3 Firestore rules and indexes
-        run: firebase/node_modules/.bin/firebase deploy --only firestore --project "$PROJECT_ID" --non-interactive
+      - name: 1/3 Firestore and Storage rules, indexes
+        run: node infra/deploy-rules.mjs --apply
       - name: 2/3 API (Cloud Run)
         run: |
           SHA=$(git rev-parse HEAD)
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/app/api:${SHA}"
           gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
-          docker build -t "$IMAGE" api
+          docker build -f api/Dockerfile -t "$IMAGE" .
           docker push "$IMAGE"
           gcloud run deploy api --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE" \
             --service-account "api-runtime@${PROJECT_ID}.iam.gserviceaccount.com" \
             --allow-unauthenticated --labels "commit=${SHA:0:12}" \
+            --cpu 2 --memory 2Gi --concurrency 8 --min-instances 0 --max-instances 2 \
             --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},VERTEX_LOCATION=${VERTEX_LOCATION},GEMINI_MODEL=${GEMINI_MODEL},GEMINI_MOCK=0"
       - name: 3/3 Web (App Hosting)
         run: firebase/node_modules/.bin/firebase deploy --only apphosting:web --project "$PROJECT_ID" --non-interactive
@@ -94,6 +95,6 @@ jobs:
             echo "|---|---|"
             echo "| コミット | $(git rev-parse HEAD) |"
             echo "| API リビジョン | ${REV} |"
-            echo "| Rules・Web | 同じコミットから反映 |"
+            echo "| Firestore/Storage Rules・Web | 同じコミットから反映 |"
             echo "| 実行者 | ${GITHUB_ACTOR}（${GITHUB_EVENT_NAME}） |"
           } >> "$GITHUB_STEP_SUMMARY"

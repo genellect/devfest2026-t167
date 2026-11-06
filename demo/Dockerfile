@@ -21,7 +21,7 @@ ENV API_ORIGIN=http://127.0.0.1:8081 NEXT_PUBLIC_FIREBASE_API_KEY=$FIREBASE_API_
 # next.config.ts is loaded by next start; keep its pinned TypeScript dependency.
 RUN npm run build && chown -R node:node /app/web/.next
 WORKDIR /app
-COPY demo/start.sh ./demo/start.sh
+COPY demo/start.sh demo/wait-for-api.mjs ./demo/
 ENV NODE_ENV=production SPEAKER_PYTHON=/app/speaker-venv/bin/python SPEAKER_EMBEDDING_MODEL=/app/.local-data/speaker-models/campplus.onnx SPEAKER_VAD_MODEL=/app/.local-data/speaker-models/silero-vad.onnx
 USER node
 CMD ["bash", "/app/demo/start.sh"]

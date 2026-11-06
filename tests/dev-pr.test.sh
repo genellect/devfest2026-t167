@@ -56,11 +56,13 @@ if run --approved; then
 else ng "--approved の PR（$(cat "$T/out")）"; fi
 run --merge-now && ng "知らない指定は止まる" || ok "知らない指定は止まる"
 
-fresh
-(cd "$T/w" && git switch -qc fix/rules && mkdir -p firebase && echo x > firebase/firestore.rules && G add -A && G commit -qm "fix(firebase): Rules")
-if run --approved; then
-  ! grep -q "^pr merge" "$GH_LOG" && grep -q "auto-merge を付けません" "$T/out" && ok "Rules の変更には承諾後でも auto-merge を付けない（レビューが要る）" || ng "Rules の変更"
-else ng "Rules の PR（$(cat "$T/out")）"; fi
+for rules_path in firebase/firestore.rules firebase/storage.rules demo/deploy.sh; do
+  fresh
+  (cd "$T/w" && git switch -qc fix/rules && mkdir -p "$(dirname "$rules_path")" && echo x > "$rules_path" && G add -A && G commit -qm "fix(infra): protected configuration")
+  if run --approved; then
+    ! grep -q "^pr merge" "$GH_LOG" && grep -q "auto-merge を付けません" "$T/out" && ok "$rules_path の変更には承諾後でも auto-merge を付けない（レビューが要る）" || ng "$rules_path の変更"
+  else ng "Rules の PR（$(cat "$T/out")）"; fi
+done
 
 fresh
 (cd "$T/w" && git switch -qc feat/b && echo x > b.txt && G add -A && G commit -qm "feat: b")
