@@ -11,8 +11,10 @@ export const ANALYZE_COOLDOWN_MS = 30_000;
 export const MAX_GROUPS = 12;
 /** 録音の上限（チームドキュメント「仕様」F03：MVP は30分）。少し余裕を持たせる */
 export const MAX_RECORDING_SEC = 31 * 60;
-/** 録音の大きさの上限。Gemini へは base64 で送り、Vertex AI のリクエストの上限（20MB）に収めるため。画面は 32kbps で録り、30分で約7MB */
-export const MAX_RECORDING_BYTES = 15 * 1024 * 1024;
+/** 録音の大きさの上限。Gemini へは base64（約4/3倍）で送り、Vertex AI のリクエストの上限（20MB）に収めるため。画面は 32kbps で録り、30分で約7MB */
+export const MAX_RECORDING_BYTES = 12 * 1024 * 1024;
+/** 録音の分析は、グループごとに3回まで。失敗のあとは30秒あける（Gemini の費用の上限。打ち切っても Vertex 側の課金は止まらないため） */
+export const MAX_RECORDING_ATTEMPTS = 3;
 const RECORDING_TIMEOUT_MS = 5 * 60_000;
 const AUDIO_TYPES = ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/aac', 'video/webm', 'video/mp4'];
 const RUNNING_TIMEOUT_MS = 60_000;
@@ -408,7 +410,12 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
       if (rec.status === 'done') throw new HttpError(409, 'already_analyzed', 'このグループの録音は、もう分析が終わっています');
       const started = rec.startedAt instanceof Timestamp ? rec.startedAt.toMillis() : 0;
       if (rec.status === 'analyzing' && now() - started < RECORDING_TIMEOUT_MS) throw new HttpError(409, 'analysis_in_progress', 'このグループの録音を分析しています');
-      tx.set(roomRef(roomId), { groupState: { [group]: { recording: { status: 'analyzing', jobId, startedAt: Timestamp.fromMillis(now()) } } } }, { merge: true });
+      const attempts = typeof rec.attempts === 'number' ? rec.attempts : 0;
+      if (attempts >= MAX_RECORDING_ATTEMPTS) throw new HttpError(429, 'too_many_attempts', `録音の分析は、グループごとに${MAX_RECORDING_ATTEMPTS}回までです`);
+      const failed = rec.failedAt instanceof Timestamp ? rec.failedAt.toMillis() : 0;
+      const wait = rec.status === 'failed' ? ANALYZE_COOLDOWN_MS - (now() - failed) : 0;
+      if (wait > 0) throw new HttpError(429, 'cooldown', `あと ${Math.ceil(wait / 1000)} 秒待ってから送ってください`, { retryAfterSec: Math.ceil(wait / 1000) });
+      tx.set(roomRef(roomId), { groupState: { [group]: { recording: { status: 'analyzing', jobId, startedAt: Timestamp.fromMillis(now()), attempts: attempts + 1 } } } }, { merge: true });
       return r;
     });
     const finishIfMine = (write: (tx: FirebaseFirestore.Transaction) => void) => db.runTransaction(async (tx) => {
@@ -420,7 +427,7 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
     try {
       result = await gemini.analyzeDiscussion({ audio, mimeType, durationSec, theme: room.get('title') ?? '' });
     } catch {
-      await finishIfMine((tx) => tx.set(roomRef(roomId), { groupState: { [group]: { recording: { status: 'failed' } } } }, { merge: true }));
+      await finishIfMine((tx) => tx.set(roomRef(roomId), { groupState: { [group]: { recording: { status: 'failed', failedAt: Timestamp.fromMillis(now()) } } } }, { merge: true }));
       throw new HttpError(503, 'gemini_unavailable', 'AI の分析は一時停止中です。少し待ってから、もう一度送ってください');
     }
     const saved = await finishIfMine((tx) => {
@@ -502,7 +509,7 @@ export function createApp(deps: { db: Firestore; auth: Auth; gemini: Gemini; now
     if (err instanceof HttpError) { res.status(err.status).json({ error: { code: err.code, message: err.message, ...err.extra } }); return; }
     // 本文の読み取りの失敗（express.json・express.raw）は、利用者に分かる 4xx で返す
     const type = (err as { type?: string })?.type;
-    if (type === 'entity.too.large') { res.status(413).json({ error: { code: 'too_large', message: '送った内容が大きすぎます（録音は15MB・30分まで）' } }); return; }
+    if (type === 'entity.too.large') { res.status(413).json({ error: { code: 'too_large', message: '送った内容が大きすぎます（録音は12MB・30分まで）' } }); return; }
     if (type === 'entity.parse.failed') { res.status(400).json({ error: { code: 'bad_request', message: '送った内容を読み取れません' } }); return; }
     console.error(err);
     res.status(500).json({ error: { code: 'internal', message: 'サーバーでエラーが起きました' } });

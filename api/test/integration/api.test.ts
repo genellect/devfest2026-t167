@@ -324,13 +324,33 @@ describe('録音の分析', () => {
     expect((await db.doc(`rooms/${roomId}`).get()).get('groupState')['1'].recording.status).toBe('done');
     await upload(p2, roomId).expect(409); // 同じグループの2台目の送信は分析しない
   });
-  it('Gemini が失敗したら 503 で、同じ録音を送り直せる', async () => {
+  it('Gemini が失敗したら 503 で、30秒あけて同じ録音を送り直せる。分析はグループごとに3回まで', async () => {
     const { roomId, p1 } = await discussingRoom();
     fail = true;
     await upload(p1, roomId).expect(503);
     expect((await db.doc(`rooms/${roomId}`).get()).get('groupState')['1'].recording.status).toBe('failed');
+    const wait = await upload(p1, roomId).expect(429); // 失敗の直後
+    expect(wait.body.error).toMatchObject({ code: 'cooldown' });
+    expect(wait.body.error.retryAfterSec).toBeGreaterThan(0);
+    clock += 31_000;
+    await upload(p1, roomId).expect(503); // 2回目
+    clock += 31_000;
     fail = false;
-    await upload(p1, roomId).expect(200);
+    await upload(p1, roomId).expect(200); // 3回目
+    expect((await db.doc(`rooms/${roomId}`).get()).get('groupState')['1'].recording.attempts).toBe(3);
+  });
+  it('3回失敗したグループは、それ以上 Gemini を呼ばない', async () => {
+    const { roomId, p1 } = await discussingRoom();
+    fail = true;
+    for (let i = 0; i < 3; i++) { await upload(p1, roomId).expect(503); clock += 31_000; }
+    fail = false;
+    const r = await upload(p1, roomId).expect(429);
+    expect(r.body.error).toMatchObject({ code: 'too_many_attempts' });
+  });
+  it('大きすぎる録音は 413', async () => {
+    const { roomId, p1 } = await discussingRoom();
+    const r = await upload(p1, roomId, 'consent=1&durationSec=600', 'audio/webm', 12 * 1024 * 1024 + 1).expect(413);
+    expect(r.body.error).toMatchObject({ code: 'too_large' });
   });
   it('先生が録音を使わない設定にした部屋では送れない', async () => {
     const mod = await named(); const p1 = await anon();

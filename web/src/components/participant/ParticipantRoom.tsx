@@ -30,12 +30,16 @@ export function ParticipantRoom({ roomId, room, uid, group }: Props) {
   const writing = !showResult && (status === "consensus" || status === "done" || room.phase === "consensus");
   const discussing = !showResult && !!group && status === "discussing" && room.phase !== "consensus";
   // 録音は議論の画面を閉じても残し、議論が終わったら送る
-  const recording = useGroupRecording(roomId, discussing);
+  const recording = useGroupRecording(roomId, discussing, gs?.recording?.status);
+  // 録音中・未送信の録音があるときにホームへ戻ると、録音が消える。確かめてから戻る
+  const confirmLeave = (e: React.MouseEvent) => {
+    if (recording.unsaved && !window.confirm("録音がまだ送られていません。ホームに戻ると、録音は消えます。戻りますか？")) e.preventDefault();
+  };
   return (
     <main className="screen">
       <Header eyebrow={group && (room.groups ?? 1) > 1 ? `あなたはグループ${group}` : undefined} title={room.title} demo={source === "mock"}>
         <PhaseSteps phase={closed ? "closed" : STEP_OF[showResult ? "done" : writing ? "consensus" : status]} />
-        <Link className="btn btn--small" href="/student">ホーム</Link>
+        <Link className="btn btn--small" href="/student" onClick={confirmLeave}>ホーム</Link>
       </Header>
       {!showResult && (!group || choosing) && <GroupSelect roomId={roomId} room={room} current={group} onDone={() => setChoosing(false)} />}
       {!showResult && group && !choosing && status === "opinions" && room.phase !== "consensus" && (
@@ -44,7 +48,12 @@ export function ParticipantRoom({ roomId, room, uid, group }: Props) {
       {discussing && <VoiceStep roomId={roomId} recording={room.recording === false ? null : recording} />}
       <RecordingStatus upload={recording.upload} onRetry={recording.retry} />
       {writing && group && <ConsensusStep roomId={roomId} uid={uid} title={room.title} submitted={gs?.submitted} total={gs?.total} />}
-      {showResult && <ResultStep roomId={roomId} uid={uid} group={group ?? 1} source={source} title={room.title} result={result ?? null} />}
+      {showResult && group && <ResultStep roomId={roomId} uid={uid} group={group} source={source} title={room.title} result={result ?? null} />}
+      {showResult && !group && (
+        <div className="body body--center">
+          <p className="box box--md pad t-label">この授業は終わりました。グループに入っていなかったので、結果はありません。</p>
+        </div>
+      )}
     </main>
   );
 }
@@ -157,12 +166,13 @@ function RecordingStatus({ upload, onRetry }: { upload: ReturnType<typeof useGro
   if (upload.state === "none") return null;
   const text = {
     uploading: "録音を送り、議論の流れを分析しています（数分かかります）。そのまま進めてください。",
+    waiting: upload.message ?? "グループの別の送信を分析しています。",
     done: upload.message ?? "録音の分析が終わりました。結果の画面の「グループで何が起きたか」で見られます。",
     failed: `録音を分析できませんでした：${upload.message ?? ""}`,
   }[upload.state];
   return (
     <div className="body body--center" style={{ paddingBottom: 0 }}>
-      <div className={`notice${upload.state === "failed" ? " notice--error" : upload.state === "uploading" ? " notice--warn" : ""}`}
+      <div className={`notice${upload.state === "failed" ? " notice--error" : upload.state === "uploading" || upload.state === "waiting" ? " notice--warn" : ""}`}
         role={upload.state === "failed" ? "alert" : "status"} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", justifyContent: "space-between", width: "min(720px, 100%)" }}>
         <span className="t-label">{text}</span>
         {upload.state === "failed" && <button className="btn btn--blue btn--small" onClick={onRetry}>もう一度送る</button>}

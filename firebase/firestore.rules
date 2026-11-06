@@ -76,13 +76,13 @@ service cloud.firestore {
         allow delete: if false;
       }
 
-      // 結果：先生はすべて読める。グループごとの結果（group-{番号}・flow-g{番号}）は、そのグループのメンバーだけが読める
-      // （チームドキュメント「タブ 14」：メンバー向けの結果は、参加したグループの分だけ）。部屋全体の結果は、部屋のメンバーが読める
+      // 結果（チームドキュメント「タブ 14」：メンバー向けの結果は参加したグループの分だけ、先生は自分の部屋のすべて）。
+      // グループの結果（group-{番号}・flow-g{番号}）は、そのグループのメンバーと先生だけが読める。グループを選んでいない生徒は読めない
+      // （グループが1つの部屋では、参加のときに API が group: 1 を書く）。クラス全体の結果（summary・coverage）は先生だけが読む
       match /results/{resultId} {
         allow read: if isModerator(roomId)
-          || (isMember(roomId) && !resultId.matches('^(group-|flow-g)[0-9]+$'))
           || (isMember(roomId) && resultId.matches('^(group-|flow-g)[0-9]+$')
-              && int(resultId.replace('^(group-|flow-g)', '')) == get(memberPath(roomId)).data.get('group', 1));
+              && int(resultId.replace('^(group-|flow-g)', '')) == get(memberPath(roomId)).data.get('group', 0));
         allow write: if false;
       }
     }

@@ -31,20 +31,33 @@ const CompareSchema = z.object({
   addressedInsightIds: z.array(z.string()).max(50),
 });
 
-const AT = z.string().regex(/^\d{1,3}:\d{2}$/);
-const MomentSchema = z.object({ at: AT, text: z.string().min(1).max(200) });
-const DiscussionSchema = z.object({
+/** 録音の経過時間を "m:ss" にそろえる（"1:02:03" は分にまとめる）。形が違えばそのまま残す（画面はそのまま出す） */
+export function normalizeAt(at: string): string {
+  const t = at.trim();
+  const hms = /^(\d{1,2}):(\d{2}):(\d{2})$/.exec(t);
+  if (hms) return `${Number(hms[1]) * 60 + Number(hms[2])}:${hms[3]}`;
+  return t.slice(0, 20);
+}
+// Gemini の出力が多すぎる・長すぎるときは、拒否せずに切り詰める（temperature 0 なので、拒否すると送り直しても同じく失敗する）
+const text = (max: number) => z.string().min(1).transform((s) => s.slice(0, max));
+const list = <T extends z.ZodTypeAny>(item: T, max: number) => z.array(item).transform((a) => a.slice(0, max));
+const minutes = z.number().transform((n) => Math.min(Math.max(n, 0), 120));
+const AT = z.string().min(1).transform(normalizeAt);
+const MomentSchema = z.object({ at: AT, text: text(200) });
+/** 出力の件数の上限。プロンプトと responseSchema にも同じ数を書く */
+export const DISCUSSION_LIMITS = { segments: 12, good: 6, review: 6, behaviors: 8, teacherSuggestions: 5 } as const;
+export const DiscussionSchema = z.object({
   speechDetected: z.boolean(),
-  totalMinutes: z.number().min(0).max(120),
-  segments: z.array(z.object({ topic: z.string().min(1).max(40), minutes: z.number().min(0).max(120), highlight: z.boolean().optional() })).max(12),
-  flowNote: z.string().max(300),
-  good: z.array(MomentSchema).max(6),
-  review: z.array(MomentSchema.extend({ question: z.string().max(200).optional() })).max(6),
+  totalMinutes: minutes,
+  segments: list(z.object({ topic: text(40), minutes, highlight: z.boolean().optional() }), DISCUSSION_LIMITS.segments),
+  flowNote: z.string().transform((s) => s.slice(0, 300)),
+  good: list(MomentSchema, DISCUSSION_LIMITS.good),
+  review: list(MomentSchema.extend({ question: z.string().transform((s) => s.slice(0, 200)).optional() }), DISCUSSION_LIMITS.review),
   behaviors: z.object({
-    questions: z.array(MomentSchema).max(8), responses: z.array(MomentSchema).max(8),
-    reasoning: z.array(MomentSchema).max(8), collaboration: z.array(MomentSchema).max(8),
+    questions: list(MomentSchema, DISCUSSION_LIMITS.behaviors), responses: list(MomentSchema, DISCUSSION_LIMITS.behaviors),
+    reasoning: list(MomentSchema, DISCUSSION_LIMITS.behaviors), collaboration: list(MomentSchema, DISCUSSION_LIMITS.behaviors),
   }),
-  teacherSuggestions: z.array(z.string().min(1).max(200)).max(5),
+  teacherSuggestions: list(text(200), DISCUSSION_LIMITS.teacherSuggestions),
 });
 
 const TIMEOUT_MS = 20_000;
@@ -77,18 +90,19 @@ export function vertexGemini(project: string, location: string, model: string): 
     return parse.parse(JSON.parse(res.text ?? '{}'));
   }
   const moment = { type: Type.OBJECT, properties: { at: { type: Type.STRING }, text: { type: Type.STRING } }, required: ['at', 'text'] };
-  const moments = { type: Type.ARRAY, items: moment };
+  const L = DISCUSSION_LIMITS;
+  const moments = (max: number) => ({ type: Type.ARRAY, items: moment, maxItems: String(max) });
   const discussionSchema = {
     type: Type.OBJECT,
     properties: {
       speechDetected: { type: Type.BOOLEAN },
       totalMinutes: { type: Type.NUMBER },
-      segments: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { topic: { type: Type.STRING }, minutes: { type: Type.NUMBER }, highlight: { type: Type.BOOLEAN } }, required: ['topic', 'minutes'] } },
+      segments: { type: Type.ARRAY, maxItems: String(L.segments), items: { type: Type.OBJECT, properties: { topic: { type: Type.STRING }, minutes: { type: Type.NUMBER }, highlight: { type: Type.BOOLEAN } }, required: ['topic', 'minutes'] } },
       flowNote: { type: Type.STRING },
-      good: moments,
-      review: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { at: { type: Type.STRING }, text: { type: Type.STRING }, question: { type: Type.STRING } }, required: ['at', 'text'] } },
-      behaviors: { type: Type.OBJECT, properties: { questions: moments, responses: moments, reasoning: moments, collaboration: moments }, required: ['questions', 'responses', 'reasoning', 'collaboration'] },
-      teacherSuggestions: { type: Type.ARRAY, items: { type: Type.STRING } },
+      good: moments(L.good),
+      review: { type: Type.ARRAY, maxItems: String(L.review), items: { type: Type.OBJECT, properties: { at: { type: Type.STRING }, text: { type: Type.STRING }, question: { type: Type.STRING } }, required: ['at', 'text'] } },
+      behaviors: { type: Type.OBJECT, properties: { questions: moments(L.behaviors), responses: moments(L.behaviors), reasoning: moments(L.behaviors), collaboration: moments(L.behaviors) }, required: ['questions', 'responses', 'reasoning', 'collaboration'] },
+      teacherSuggestions: { type: Type.ARRAY, maxItems: String(L.teacherSuggestions), items: { type: Type.STRING } },
     },
     required: ['speechDetected', 'totalMinutes', 'segments', 'flowNote', 'good', 'review', 'behaviors', 'teacherSuggestions'],
   };
@@ -109,6 +123,7 @@ export function vertexGemini(project: string, location: string, model: string): 
         '- 成績や点数をつけない。',
         '- segments は話題ごとの区切りで、minutes の合計が totalMinutes とおおむね一致する。テーマから離れた区切りは highlight を true にする。',
         '- teacherSuggestions は、先生が次の授業で確かめるとよい点（役割の交代、問いかけ方など）。個人を名指ししない。',
+        `- 件数は、segments ${DISCUSSION_LIMITS.segments}・good ${DISCUSSION_LIMITS.good}・review ${DISCUSSION_LIMITS.review}・behaviors の各項目 ${DISCUSSION_LIMITS.behaviors}・teacherSuggestions ${DISCUSSION_LIMITS.teacherSuggestions} まで。大事なものから選ぶ。text は100字以内、topic は20字以内。`,
         '- 会話がほとんど聞き取れない場合は speechDetected を false にし、ほかの項目は空にする。',
         '- すべて日本語で書く。',
       ].join('\n');

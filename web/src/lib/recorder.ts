@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * グループの議論を端末のマイクで録音する。送信は useGroupRecording（lib/recording.ts）が行う。
- * 30分の録音が API の上限（15MB）に収まるよう、ビットレートを 32kbps にする（30分で約7MB）。
+ * 30分の録音が API の上限（12MB）に収まるよう、ビットレートを 32kbps にする（30分で約7MB）。
  */
 export type RecorderState = "idle" | "asking" | "recording" | "paused" | "stopped" | "denied" | "unsupported";
 
