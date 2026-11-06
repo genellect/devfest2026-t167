@@ -46,9 +46,3 @@ export const saveProfile = (p: Profile) => write("t167.profile", p);
 /** 部屋ごとの「クラス・授業名」（ヘッダーの小さな表示に使う） */
 export const getRoomLabel = (roomId: string) => read<string>(`t167.roomLabel.${roomId}`, "");
 export const setRoomLabel = (roomId: string, label: string) => write(`t167.roomLabel.${roomId}`, label);
-
-/** アカウントの役割（初回ログインのときに本人が選ぶ）。この端末にだけ保存する */
-export type Role = "host" | "student";
-export const getRole = (uid: string) => read<Role | null>(`t167.role.${uid}`, null);
-export const setRole = (uid: string, role: Role) => write(`t167.role.${uid}`, role);
-export const homeOf = (role: Role) => (role === "host" ? "/host" : "/student");

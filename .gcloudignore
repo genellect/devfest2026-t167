@@ -1,0 +1,15 @@
+.git
+**/node_modules
+**/.next
+**/dist
+**/coverage
+**/test-results
+**/playwright-report
+.local-data
+.env
+.env.*
+**/.env
+**/.env.*
+*.log
+**/*.log
+**/__pycache__

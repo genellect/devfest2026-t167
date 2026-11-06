@@ -1,2 +1,2 @@
-import { redirect } from 'next/navigation';
-export default function LegacyEntry() { redirect('/home'); }
+import { redirect } from "next/navigation";
+export default function StudentHome() { redirect("/home"); }

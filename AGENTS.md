@@ -1,6 +1,7 @@
 # T167 エージェント向け指示
 
-> 今回のユーザー指示はGoogle DocsのMVPフローを基準とする。全員Googleログイン・共通ホーム・議論ごとのHost/Guestを使用し、実装と検証の条件は[デモ操作手順](docs/mvp-demo.md)を確認する。旧匿名参加・固定教師/生徒の仕様と異なる部分は新MVPへ適用しない。開発・検査・承諾のルールは以下を守る。
+> 2026-11-06 MVP仕様変更：全員Googleログイン・共通ホーム。固定の教師/生徒ロールとteacher claimによるHost制限を廃止し、議論のmembers.roleでHost/Participantを判定します。ログイン上限は全員1台です。新仕様・API・移行条件は [MVPロール設計](docs/mvp-roles.md) を参照。以下の旧仕様と相違する場合は新仕様を適用します。
+
 
 このリポジトリで作業する AI エージェント（Claude Code、Codex など）への指示。開発の進め方の正本は [CONTRIBUTING](CONTRIBUTING.md) で、この文書はそれをエージェントの手順にしたもの。GCP の構築手順はチームドキュメントの「インフラ構築手順書」にあり、その写しが [docs/infra-manual.md](docs/infra-manual.md) にある。いま依頼している開発インフラとクラウドの構築は [docs/codex-handoff.md](docs/codex-handoff.md) にまとめている。文書どうしやコードと食い違う場合は、コードと設定で事実を確かめ、直す前に依頼者に確認する。
 

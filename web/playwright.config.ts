@@ -4,15 +4,16 @@ import { defineConfig, devices } from "@playwright/test";
 const emulatorEnv = {
   FIRESTORE_EMULATOR_HOST: process.env.FIRESTORE_EMULATOR_HOST ?? "127.0.0.1:8080",
   FIREBASE_AUTH_EMULATOR_HOST: process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "127.0.0.1:9099",
-  GOOGLE_CLOUD_PROJECT: "demo-t167",
-  GEMINI_MOCK: "1",
+  GOOGLE_CLOUD_PROJECT: process.env.GOOGLE_CLOUD_PROJECT ?? "demo-t167",
+  GEMINI_MOCK: process.env.T167_REAL_GEMINI === "1" ? "0" : "1",
   PORT: process.env.T167_API_PORT ?? "8081",
 };
 
 export default defineConfig({
   testDir: "e2e",
-  timeout: 90_000,
-  workers: 1,
+  globalSetup: "./e2e/setup.ts",
+  timeout: 60_000,
+  workers: 1, // 固定の模擬Googleユーザーを使うため、セッション上限が別テストを失効させないよう直列化する。
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {

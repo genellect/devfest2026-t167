@@ -18,3 +18,8 @@ firebase-debug.log
 firestore-debug.log
 ui-debug.log
 .firebase/
+
+# Local quality reports
+api/coverage/
+.local-data/
+__pycache__/

@@ -436,9 +436,22 @@ textarea.input { resize: vertical; min-height: 96px; }
 @media (prefers-reduced-motion: reduce) {
   .voice__ring { transition: none; }
 }
-/* MVPもFigma由来の既存トークンとコンポーネントを使う。 */
-.mvp-session-link { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; color: inherit; text-decoration: none; }
-.mvp-qr { max-width: 100%; height: auto; border-radius: 12px; }
-.mvp-code { letter-spacing: .25em; font-size: 28px; text-transform: uppercase; }
-.mvp-settings summary { cursor: pointer; min-height: 44px; font-weight: 700; }
-.mvp-settings form { padding-top: 16px; }
+
+/* 認証ダイアログは既存画面と分離し、キーボード・狭い画面でもスクロールできる。 */
+.session-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 24px; overflow: auto; background: #f8fafd; color: #1f1f1f; }
+.session-card { width: min(100%, 480px); padding: 32px; border: 1px solid #dadce0; border-radius: 24px; background: white; display: grid; gap: 20px; }
+.session-card h1 { font-size: 24px; line-height: 1.4; }
+.session-device { border: 1px solid #dadce0; border-radius: 16px; padding: 20px; display: grid; gap: 12px; overflow-wrap: anywhere; }
+.session-list { display: grid; gap: 16px; }
+@media(max-width: 480px) { .session-overlay { padding: 16px; } .session-card { padding: 24px; } }
+
+/* セッション設定は落ち着いたWorkspace風の白いカードと丸いボタンにする。 */
+.session-screen { background: #f8fafd; color: #1f1f1f; font-family: Arial, "Noto Sans JP", sans-serif; font-weight: 400; }
+.session-screen .header { background: #fff; border-bottom: 1px solid #dadce0; box-shadow: none; }
+.session-screen .header__name { font-size: 22px; font-weight: 500; }
+.session-screen .t-md, .session-screen h2 { font-size: 20px; font-weight: 500; }
+.session-screen h3 { font-size: 18px; font-weight: 500; }
+.session-screen .session-device { background: #fff; }
+.session-screen .btn { min-height: 44px; border: 1px solid #dadce0; border-radius: 24px; box-shadow: none; color: #1967d2; background: #fff; font-weight: 500; }
+.session-screen .btn:hover { background: #e8f0fe; box-shadow: none; transform: none; }
+.session-screen input:not([type=checkbox]) { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid #dadce0; border-radius: 8px; font: inherit; }

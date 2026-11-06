@@ -22,7 +22,7 @@ const DEMO_FLOW: Flow = {
 
 /** グループの議論の分析。本物があればそれを、なければデモのときだけ見本を返す */
 export function useFlow(roomId: string, group: number | undefined, geminiSource: string | undefined) {
-  const { data } = useDoc<Flow>(group ? `rooms/${roomId}/results/flow-g${group}` : undefined);
+  const { data } = useDoc<Flow>(group ? `sessions/${roomId}/results/flow-g${group}` : undefined);
   if (data) return { flow: data, demo: false };
   if (geminiSource === "mock") return { flow: DEMO_FLOW, demo: true };
   return { flow: null, demo: false };

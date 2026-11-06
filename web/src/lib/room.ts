@@ -1,14 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
-import {
-  collection, doc, onSnapshot, orderBy, query, where,
-  type DocumentData, type Query, type DocumentReference, type Timestamp,
-} from "firebase/firestore";
-import { ensureSignedIn, firebase } from "./firebase";
+import type { Timestamp } from "firebase/firestore";
+import { ensureSignedIn } from "./firebase";
+import { useRoomFeed } from "./room-stream";
 import type { Phase } from "@/components/ui";
 
 export interface Room {
-  title: string; phase: Phase; joinCode?: string; createdBy: string; groups?: number;
+  title: string; flowVersion?: 1; startedAt?: Timestamp; endsAt?: Timestamp; endedAt?: Timestamp; endReason?: "host" | "timeout"; publishOnEnd?: boolean; participantView?: { theme: boolean; timer: boolean; members: boolean; speaking?: boolean }; theme?: string; minutes?: number; groupSelection?: "host" | "participant"; resultsPublished?: boolean; phase: Phase; joinCode?: string; createdBy: string; groups?: number;
   /** 議論を録音して分析するか（既定は録音する）。false の部屋では録音の画面を出さない */
   recording?: boolean;
   /** グループごとの進行（キーはグループ番号）。生徒が議論を終えると consensus、全員の一文がそろって結果が出ると done */
@@ -22,7 +20,7 @@ export interface Room {
 }
 export interface Message { id: string; uid: string; text: string; createdAt?: Timestamp }
 export interface Insight { id: string; summary: string; status: "pending" | "approved"; source?: string; approvedAt?: Timestamp }
-export interface Member { id: string; role: "moderator" | "participant"; group?: number }
+export interface Member { id: string; role: "host" | "participant"; displayName?: string; ready?: boolean; attendees?: { id: string; displayName: string; voiceRegistered: boolean }[]; group?: number }
 export interface Coverage { total: number; discussed: number; reflectionRate: number | null; source?: string }
 export interface Summary {
   respondents: number;
@@ -38,11 +36,9 @@ export const groupStatus = (room: Room, g: number): GroupStatus => room.groupSta
 
 /** グループの結果（rooms/{部屋}/results/group-{番号}） */
 export interface GroupResult { group: number; respondents: number; clusters: { label: string; count: number }[]; alignmentRate: number | null; source?: string }
-/** 部屋のすべてのグループの結果を購読する */
+/** 部屋内の認可済み結果を同じ1接続から受け取る。 */
 export const useGroupResults = (roomId: string, on: boolean) =>
-  useQuery<GroupResult & { id: string }>(on ? `gr:${roomId}` : undefined, () => collection(db(), `rooms/${roomId}/results`))
-    .filter((r) => r.id.startsWith("group-"))
-    .sort((a, b) => a.group - b.group);
+  useRoomFeed(on ? roomId : undefined).collections[`sessions/${roomId}/results`]?.filter((r) => r.id.startsWith("group-")).map((r) => r as unknown as GroupResult & { id: string }).sort((a, b) => a.group - b.group) ?? [];
 
 export interface Progress {
   participants: number; opinions: number; statements: number;
@@ -69,44 +65,22 @@ export interface Flow {
 /** ログイン後の uid（匿名を含む） */
 export function useUid() {
   const [uid, setUid] = useState<string>();
-  useEffect(() => { ensureSignedIn().then((u) => setUid(u.uid)); }, []);
+  useEffect(() => { ensureSignedIn().then((u) => setUid(u.uid)).catch(() => { window.location.replace("/"); }); }, []);
   return uid;
 }
 
-/** 1つのドキュメントを購読する。path が undefined の間は何もしない */
+/** クライアントからFirestoreを直接読まず、同じ部屋の配信を共有する。 */
 export function useDoc<T>(path: string | undefined) {
-  const [data, setData] = useState<T | null | undefined>(undefined);
-  const [error, setError] = useState<string>();
-  useEffect(() => {
-    if (!path) return;
-    const ref = doc(firebase().db, path) as DocumentReference<DocumentData>;
-    return onSnapshot(ref, (s) => setData(s.exists() ? (s.data() as T) : null), (e) => setError(e.message));
-  }, [path]);
-  return { data, error };
+  const roomId = path?.match(/^sessions\/([^/]+)/)?.[1];
+  const feed = useRoomFeed(roomId);
+  const value = path ? feed.docs[path] : undefined;
+  const parts = path?.split("/");
+  const collection = parts && parts.length === 4 ? feed.collections[parts.slice(0, 3).join("/")] : undefined;
+  return { data: (value !== undefined ? value : collection?.find((v) => v.id === parts?.[3])) as T | null | undefined, error: feed.error };
 }
-
-/** コレクションのクエリを購読する。key が変わったときだけ購読し直す */
-export function useQuery<T>(key: string | undefined, build: () => Query<DocumentData>) {
-  const [items, setItems] = useState<T[]>([]);
-  useEffect(() => {
-    if (!key) return;
-    return onSnapshot(build(), (s) => setItems(s.docs.map((d) => ({ id: d.id, ...d.data() }) as T)), () => setItems([]));
-    // build は key で決まるので依存に入れない
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-  return items;
-}
-
-const db = () => firebase().db;
-export const useMessages = (roomId: string, on: boolean) =>
-  useQuery<Message>(on ? `m:${roomId}` : undefined, () => query(collection(db(), `rooms/${roomId}/messages`), orderBy("createdAt")));
-export const useMembers = (roomId: string, on: boolean) =>
-  useQuery<Member>(on ? `mem:${roomId}` : undefined, () => collection(db(), `rooms/${roomId}/members`));
-/** 司会者はすべての提案、参加者は承認済みだけ（Rules と同じ条件で問い合わせる） */
-export const useInsights = (roomId: string, on: boolean, approvedOnly: boolean) =>
-  useQuery<Insight>(on ? `i:${roomId}:${approvedOnly}` : undefined, () => approvedOnly
-    ? query(collection(db(), `rooms/${roomId}/insights`), where("status", "==", "approved"))
-    : collection(db(), `rooms/${roomId}/insights`));
+export const useMessages = (roomId: string, on: boolean) => (useRoomFeed(on ? roomId : undefined).collections[`sessions/${roomId}/messages`] ?? []) as Message[];
+export const useMembers = (roomId: string, on: boolean) => (useRoomFeed(on ? roomId : undefined).collections[`sessions/${roomId}/members`] ?? []) as Member[];
+export const useInsights = (roomId: string, on: boolean, approvedOnly: boolean) => ((useRoomFeed(on ? roomId : undefined).collections[`sessions/${roomId}/insights`] ?? []) as Insight[]).filter((r) => !approvedOnly || r.status === "approved");
 
 /** Firestore の時刻をミリ秒に（書き込み直後でまだ時刻がないときは undefined） */
 export const millis = (t?: Timestamp) => (t && typeof t.toMillis === "function" ? t.toMillis() : undefined);
@@ -120,3 +94,6 @@ export function useCountdown(startMs: number | undefined, minutes: number) {
   const s = Math.ceil(left / 1000);
   return { text: `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`, over: left === 0 };
 }
+
+export interface GroupConfig { id: string; groupId: string; name: string; number: number; recorderUid?: string | null }
+export const useGroups = (roomId: string) => (useRoomFeed(roomId).collections[`sessions/${roomId}/groups`] ?? []) as unknown as GroupConfig[];

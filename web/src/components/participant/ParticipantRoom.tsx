@@ -1,4 +1,5 @@
 "use client";
+import { GuidedGuest } from "./GuidedGuest";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { FlowTimeline, GoodReview, useFlow } from "@/components/flow";
@@ -7,7 +8,9 @@ import { callApi } from "@/lib/api";
 import { formatMetric } from "@/lib/format";
 import { getNextGoal, getReflection, saveReflection } from "@/lib/local";
 import { mmss } from "@/lib/recorder";
+import { useAppSession } from "@/lib/session";
 import { MAX_RECORDING_MS, useGroupRecording } from "@/lib/recording";
+import { recordingPhase } from "@/lib/recording-phase";
 import { groupStatus, useDoc, useInsights, useMembers, type GroupResult, type GroupStatus, type Room } from "@/lib/room";
 
 interface Props { roomId: string; room: Room; uid: string; group?: number }
@@ -15,7 +18,7 @@ interface Props { roomId: string; room: Room; uid: string; group?: number }
 const STEP_OF: Record<GroupStatus, Phase> = { opinions: "collecting", discussing: "discussing", consensus: "consensus", done: "closed" };
 
 /**
- * 生徒（タブレット横向き）の画面。グループはそれぞれのペースで進む：
+ * 参加者（タブレット横向き）の画面。グループはそれぞれのペースで進む：
  * グループを選ぶ → 事前の意見（全員そろうまで待つ）→ 議論 → 結論の一文（全員そろうまで待つ）→ 結果と振り返り
  */
 export function ParticipantRoom({ roomId, room, uid, group }: Props) {
@@ -24,31 +27,39 @@ export function ParticipantRoom({ roomId, room, uid, group }: Props) {
   const status = group ? groupStatus(room, group) : "opinions";
   const gs = group ? room.groupState?.[String(group)] : undefined;
   // グループの結果。全員の一文がそろうと API が書く
-  const result = useDoc<GroupResult>(group ? `rooms/${roomId}/results/group-${group}` : undefined).data;
+  const result = useDoc<GroupResult>(group ? `sessions/${roomId}/results/group-${group}` : undefined).data;
   const closed = room.phase === "closed";
-  const showResult = !!result || closed;
-  const writing = !showResult && (status === "consensus" || status === "done" || room.phase === "consensus");
-  const discussing = !showResult && !!group && status === "discussing" && room.phase !== "consensus";
+  const showResult = !!result || closed || status === "done";
+  const writing = !showResult && (status === "consensus" || room.phase === "consensus");
+  const discussing = recordingPhase(room, group, status, showResult);
   // 録音は議論の画面を閉じても残し、議論が終わったら送る
-  const recording = useGroupRecording(roomId, discussing, gs?.recording?.status);
+  const groupConfig = useDoc<{ recorderUid?: string | null; name?: string }>(group ? `sessions/${roomId}/groups/${group}` : undefined).data;
+  const canRecord = groupConfig !== undefined && (!groupConfig?.recorderUid || groupConfig.recorderUid === uid);
+  const recording = useGroupRecording(roomId, discussing && canRecord, gs?.recording?.status);
   // 録音中・未送信の録音があるときにホームへ戻ると、録音が消える。確かめてから戻る
   const confirmLeave = (e: React.MouseEvent) => {
     if (recording.unsaved && !window.confirm("録音がまだ送られていません。ホームに戻ると、録音は消えます。戻りますか？")) e.preventDefault();
   };
+  if (room.flowVersion === 1) return <GuidedGuest roomId={roomId} room={room} uid={uid} group={group} recording={recording} canRecord={canRecord} />;
   return (
     <main className="screen">
       <Header eyebrow={group && (room.groups ?? 1) > 1 ? `あなたはグループ${group}` : undefined} title={room.title} demo={source === "mock"}>
         <PhaseSteps phase={closed ? "closed" : STEP_OF[showResult ? "done" : writing ? "consensus" : status]} />
         <Link className="btn btn--small" href="/student" onClick={confirmLeave}>ホーム</Link>
       </Header>
-      {!showResult && (!group || choosing) && <GroupSelect roomId={roomId} room={room} current={group} onDone={() => setChoosing(false)} />}
+      {!showResult && room.groupSelection !== "host" && (!group || choosing) && <GroupSelect roomId={roomId} room={room} current={group} onDone={() => setChoosing(false)} />}
+      {!group && room.groupSelection === "host" && <p className="notice" role="status">Hostによるグループの割り当てを待っています。</p>}
+      {groupConfig?.name && <p className="notice">所属：{groupConfig.name}</p>}
+      {room.theme && <p className="notice">テーマ：{room.theme}・制限時間：{room.minutes ?? 15}分</p>}
       {!showResult && group && !choosing && status === "opinions" && room.phase !== "consensus" && (
-        <OpinionStep roomId={roomId} uid={uid} total={gs?.total} opinions={gs?.opinions} canChange={(room.groups ?? 1) > 1} onChangeGroup={() => setChoosing(true)} />
+        <OpinionStep roomId={roomId} uid={uid} total={gs?.total} opinions={gs?.opinions} canChange={room.groupSelection !== "host" && (room.groups ?? 1) > 1} onChangeGroup={() => setChoosing(true)} />
       )}
-      {discussing && <VoiceStep roomId={roomId} recording={room.recording === false ? null : recording} />}
+      {discussing && <VoiceStep roomId={roomId} recording={room.recording === false || !canRecord ? null : recording} />}
+      {recording.rec.saveError && <p className="notice notice--error" role="alert">{recording.rec.saveError}</p>}
       <RecordingStatus upload={recording.upload} onRetry={recording.retry} />
       {writing && group && <ConsensusStep roomId={roomId} uid={uid} title={room.title} submitted={gs?.submitted} total={gs?.total} />}
-      {showResult && group && <ResultStep roomId={roomId} uid={uid} group={group} source={source} title={room.title} result={result ?? null} />}
+      {showResult && group && !room.resultsPublished && <p className="notice" role="status">分析結果はHostの公開後に表示されます。</p>}
+      {showResult && group && room.resultsPublished && <ResultStep roomId={roomId} uid={uid} group={group} source={source} title={room.title} result={result ?? null} />}
       {showResult && !group && (
         <div className="body body--center">
           <p className="box box--md pad t-label">この授業は終わりました。グループに入っていなかったので、結果はありません。</p>
@@ -73,7 +84,7 @@ function GroupSelect({ roomId, room, current, onDone }: { roomId: string; room: 
     <div className="body body--tablet">
       <div className="stack stack--tight">
         <h2 className="t-lg">あなたのグループを選んでください</h2>
-        <p className="t-label">先生に言われたグループを選びます。議論が始まる前なら、あとから変えられます。</p>
+        <p className="t-label">Hostに言われたグループを選びます。議論が始まる前なら、あとから変えられます。</p>
       </div>
       {error && <p className="notice notice--error" role="alert">{error}</p>}
       <div className="grid-auto">
@@ -100,7 +111,7 @@ function GroupSelect({ roomId, room, current, onDone }: { roomId: string; room: 
 function OpinionStep({ roomId, uid, total, opinions, canChange, onChangeGroup }: {
   roomId: string; uid: string; total?: number; opinions?: number; canChange: boolean; onChangeGroup: () => void;
 }) {
-  const mine = useDoc<{ text: string }>(`rooms/${roomId}/privateOpinions/${uid}`).data;
+  const mine = useDoc<{ text: string }>(`sessions/${roomId}/privateOpinions/${uid}`).data;
   const [goal, setGoal] = useState("");
   const [opinion, setOpinion] = useState("");
   const [sent, setSent] = useState(false);
@@ -145,7 +156,7 @@ function OpinionStep({ roomId, uid, total, opinions, canChange, onChangeGroup }:
           <label className="field__label" htmlFor="opinion">あなたの意見（本人だけが見られます）</label>
           <textarea id="opinion" className="input" value={opinion} maxLength={1000} rows={3} placeholder="例：飲食のバイトで、人と話す力がつくと思う"
             onChange={(e) => { setOpinion(e.target.value); setSent(false); }} />
-          <p className="field__hint">先生にもほかの人にも本文は見えません。AI が、まだ話されていない論点を見つけるためだけに使います。</p>
+          <p className="field__hint">Hostにもほかの人にも本文は見えません。AI が、まだ話されていない論点を見つけるためだけに使います。</p>
         </div>
         {error && <p className="notice notice--error" role="alert">{error}</p>}
         <button className="btn btn--blue btn--block" type="submit" disabled={!opinion.trim()}>{mine ? "書き直して提出する" : "提出する"}</button>
@@ -184,12 +195,13 @@ function RecordingStatus({ upload, onRetry }: { upload: ReturnType<typeof useGro
 /**
  * P3 議論（音声）。録音はグループで1台。グループ全員の同意を確かめてから始め、画面を見なくても話し合えるようにする。
  * 議論を終えると、録音している端末が音声を API に送り、Gemini が議論の流れを分析する（音声は保存しない）。
- * recording が null の部屋（先生が録音しないと決めた部屋）では、録音の画面を出さない。
- * 先生が承認した AI の問いかけだけが届く。
+ * recording が null の部屋（Hostが録音しないと決めた部屋）では、録音の画面を出さない。
+ * Hostが承認した AI の問いかけだけが届く。
  */
 function VoiceStep({ roomId, recording }: { roomId: string; recording: ReturnType<typeof useGroupRecording> | null }) {
   const insights = useInsights(roomId, true, true);
   const rec = recording?.rec;
+  const lockMinutes = useAppSession().policy?.sharedIdleMinutes ?? 15;
   const [consent, setConsent] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [ending, setEnding] = useState(false);
@@ -235,13 +247,13 @@ function VoiceStep({ roomId, recording }: { roomId: string; recording: ReturnTyp
             <span>グループ全員が、録音することに同意しました</span>
           </label>
         )}
-        {rec && <p className="t-small">録音はグループで1台だけ。議論を終えると、録音を Gemini に送って議論の流れを分析します。音声は分析のあと保存せず、だれが話したかも記録しません。録音中に画面を閉じたり、ほかのアプリに切り替えたりすると、録音が止まることがあります。</p>}
+        {rec && <p className="t-small">録音はグループで1台だけ。議論を終えると、録音を Gemini に送って議論の流れを分析します。音声はサーバーには保存しません。このブラウザには保管するので、「端末とセッション」で確認して削除してください。だれが話したかは記録しません。共用端末は{lockMinutes}分無操作で録音を停止・保存し、画面をロックします。録音中に画面を閉じたり、ほかのアプリに切り替えたりすると、録音が止まることがあります。</p>}
       </section>
       <aside className="stack" style={{ flex: "1 1 360px", maxWidth: "100%" }}>
         <section className="box box--md box--yellow pad stack">
-          <div className="heading-row"><h2 className="t-sm">先生からの問いかけ</h2><Tag>AI の提案</Tag></div>
+          <div className="heading-row"><h2 className="t-sm">Hostからの問いかけ</h2><Tag>AI の提案</Tag></div>
           {insights.length === 0
-            ? <p className="t-note">まだ話されていない論点が見つかると、先生がここに出します。</p>
+            ? <p className="t-note">まだ話されていない論点が見つかると、Hostがここに出します。</p>
             : insights.map((i) => <p key={i.id} className="t-sm" style={{ borderTop: "3px solid #000", paddingTop: 8 }}>{i.summary}</p>)}
         </section>
         <section className="box box--md pad stack">
@@ -269,7 +281,7 @@ const AGREEMENT = ["まったく納得していない", "あまり納得して�
 
 /** P4 結論の理解を入力。本人だけが読み書きできる */
 function ConsensusStep({ roomId, uid, title, submitted, total }: { roomId: string; uid: string; title: string; submitted?: number; total?: number }) {
-  const mine = useDoc<{ text: string; agreement: number; concern?: string }>(`rooms/${roomId}/consensusStatements/${uid}`).data;
+  const mine = useDoc<{ text: string; agreement: number; concern?: string }>(`sessions/${roomId}/consensusStatements/${uid}`).data;
   const [text, setText] = useState("");
   const [agreement, setAgreement] = useState(0);
   const [concern, setConcern] = useState("");
@@ -330,8 +342,8 @@ const SPOKE = ["言えた", "一部言えた", "言えなかった", "特にな�
 
 /** P4-2 認識のちがい ＋ P5 振り返り。グループの結果は全員に、振り返りはこの端末にだけ残す */
 function ResultStep({ roomId, uid, group, source, title, result }: { roomId: string; uid: string; group: number; source?: string; title: string; result: GroupResult | null }) {
-  const mine = useDoc<{ text: string }>(`rooms/${roomId}/consensusStatements/${uid}`).data;
-  const opinion = useDoc<{ text: string }>(`rooms/${roomId}/privateOpinions/${uid}`).data;
+  const mine = useDoc<{ text: string }>(`sessions/${roomId}/consensusStatements/${uid}`).data;
+  const opinion = useDoc<{ text: string }>(`sessions/${roomId}/privateOpinions/${uid}`).data;
   const [r, setR] = useState(() => getReflection(roomId));
   const [saved, setSaved] = useState(false);
   const set = (patch: Partial<typeof r>) => { setR({ ...r, ...patch }); setSaved(false); };

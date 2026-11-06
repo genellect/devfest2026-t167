@@ -1,4 +1,7 @@
-import Link from 'next/link';
-import { MvpGate } from '@/components/mvp/MvpGate';
-import { Header } from '@/components/ui';
-export default function Participate() { return <MvpGate><main className="screen"><Header title="参加する"><Link className="btn" href="/home">ホーム</Link></Header><div className="body grid-auto"><section className="box box--blue pad-lg stack"><h2>Host</h2><p>議論を作成し、設定・開始・終了と結果の公開を行います。</p><Link className="btn btn--yellow" href="/host/new">ホスト</Link></section><section className="box box--yellow pad-lg stack"><h2>Guest</h2><p>コードかQRから参加し、表示名と声を登録します。</p><Link className="btn btn--blue" href="/join">ゲスト</Link></section></div></main></MvpGate>; }
+import Link from "next/link";
+export default function Participate() {
+  return <main className="screen"><div className="body"><h1>このセッションでの役割</h1><p>役割はセッションごとに選びます。</p><div className="mvp-actions">
+    <section className="box pad-lg stack"><h2>ホスト</h2><p>セッションを作成し、設定・グループ・開始・終了を管理します。</p><Link className="btn btn--blue" href="/host/new">ホスト</Link></section>
+    <section className="box pad-lg stack"><h2>ゲスト</h2><p>コードまたはQRで参加し、表示名と音声を登録します。</p><Link className="btn btn--yellow" href="/join">ゲスト</Link></section>
+  </div><Link href="/home" className="btn">ホームに戻る</Link></div></main>;
+}

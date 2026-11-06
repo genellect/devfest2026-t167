@@ -8,7 +8,7 @@ pass=0 fail=0
 ok() { pass=$((pass+1)); echo "PASS $1"; }
 ng() { fail=$((fail+1)); echo "FAIL $1"; }
 same() { [ "$2" = "$3" ] && ok "$1" || ng "$1（期待: $2 / 実際: $3）"; }
-sorted() { sed 's/・/ /g' | tr ' ,' '\n' | sed '/^$/d' | sort -u | tr '\n' ' ' | sed 's/ $//'; }
+sorted() { tr ' ,・' '\n' | sed '/^$/d' | sort -u | tr '\n' ' ' | sed 's/ $//'; }
 
 DEPLOY="$ROOT/.github/workflows/deploy.yml"
 # GitHub の Variables：deploy.yml が読む名前を基準に、ほかの場所と一致するか

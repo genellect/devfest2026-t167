@@ -5,8 +5,6 @@ const apiOrigin = process.env.API_ORIGIN;
 if (!apiOrigin) throw new Error("API_ORIGIN が未設定です（ローカルは .env.local、App Hosting は apphosting.<環境名>.yaml）");
 
 const nextConfig: NextConfig = {
-  // App HostingのWeb設定をブラウザへ渡す。FirebaseのWeb設定は公開用で、SA鍵ではない。
-  env: { NEXT_PUBLIC_FIREBASE_CONFIG: process.env.FIREBASE_WEBAPP_CONFIG ?? '' },
   experimental: {
     // 録音の分析（POST /api/rooms/{部屋}/groups/recording）は数分かかる。転送の既定（30秒）で切らない。API 側の上限は5分
     proxyTimeout: 300_000,

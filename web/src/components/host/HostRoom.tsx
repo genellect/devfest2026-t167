@@ -1,6 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
+import { HostSpeaking } from "@/components/Speaking";
+import { GuidedHostResults } from "./GuidedHostResults";
+import { SessionSettings } from "./SessionSettings";
 import { FlowTimeline, GoodReview, useFlow } from "@/components/flow";
 import { Header, SourceTag, Tag, useGeminiSource } from "@/components/ui";
 import { ApiError, callApi } from "@/lib/api";
@@ -8,31 +11,37 @@ import { formatMetric } from "@/lib/format";
 import Link from "next/link";
 import { getDuration, getRoomLabel } from "@/lib/local";
 import {
-  groupStatus, millis, useDoc, useGroupResults, useInsights, useMembers,
+  groupStatus, millis, useGroups, useCountdown, useDoc, useGroupResults, useInsights, useMembers,
   type Coverage, type GroupResult, type Insight, type Room, type Summary,
 } from "@/lib/room";
 
 interface Props { roomId: string; room: Room }
 
 /**
- * 先生（PC）の画面。グループはそれぞれのペースで進むので、先生は一斉に開かない。
- * 参加コードの表示 ⇄ ダッシュボード（グループの進み具合と結果）→ 授業を終える → クラス全体の結果
+ * Host（PC）の画面。グループはそれぞれのペースで進むので、Hostは一斉に開かない。
+ * 参加コードの表示 ⇄ ダッシュボード（グループの進み具合と結果）→ セッションを終える → セッション全体の結果
  */
 export function HostRoom({ roomId, room }: Props) {
   const source = useGeminiSource();
-  const summary = useDoc<Summary>(room.phase === "consensus" || room.phase === "closed" ? `rooms/${roomId}/results/summary` : undefined).data;
+  const clock = useCountdown(millis(room.startedAt), room.minutes ?? 15);
+  useEffect(() => { if (room.flowVersion === 1 && clock.over && room.phase === "discussing" && !room.endedAt) void callApi(`/rooms/${roomId}/check-time`).catch(() => {}); }, [room.flowVersion, clock.over, room.phase, room.endedAt, roomId]);
+  const summary = useDoc<Summary>(room.phase === "consensus" || room.phase === "closed" ? `sessions/${roomId}/results/summary` : undefined).data;
   const results = useGroupResults(roomId, true);
   const members = useMembers(roomId, true).filter((m) => m.role === "participant");
   const [phaseError, setPhaseError] = useState("");
   const [moving, setMoving] = useState(false);
-  const [view, setView] = useState<"code" | "dashboard" | "class" | number>(members.length ? "dashboard" : "code");
+  const [view, setView] = useState<"code" | "dashboard" | "class" | number>("dashboard");
 
-  /** 授業を終える。部屋のフェーズを closed まで1つずつ進める */
+  /** セッションを終える。部屋のフェーズを closed まで1つずつ進める */
   async function finish() {
     setMoving(true); setPhaseError("");
     try {
+      if (room.flowVersion === 1) { await callApi(`/rooms/${roomId}/finish`); setView("class"); return; }
       const order: Room["phase"][] = ["collecting", "discussing", "consensus", "closed"];
-      for (const p of order.slice(order.indexOf(room.phase) + 1)) await callApi(`/rooms/${roomId}/phase`, { to: p });
+      for (const p of order.slice(order.indexOf(room.phase) + 1)) {
+        if (p === "closed") await callApi(`/rooms/${roomId}/consensus/analyze`);
+        await callApi(`/rooms/${roomId}/phase`, { to: p });
+      }
       setView("class");
     } catch (e) { setPhaseError((e as Error).message); }
     finally { setMoving(false); }
@@ -40,26 +49,30 @@ export function HostRoom({ roomId, room }: Props) {
 
   const [label, setLabel] = useState("");
   useEffect(() => { setLabel(getRoomLabel(roomId)); }, [roomId]);
-  const closed = room.phase === "closed";
+  const closed = room.phase === "closed" || !!room.endedAt;
   const current = closed && (view === "dashboard" || view === "code") ? "class" : view;
   const eyebrow = typeof current === "number"
-    ? `クラス全体 ＞ グループ${current}`
-    : `${label ? `${label}　` : ""}${current === "class" ? "クラス全体の結果" : `参加コード ${room.joinCode ?? ""}`}`;
+    ? `セッション全体 ＞ グループ${current}`
+    : `${label ? `${label}　` : ""}${current === "class" ? "セッション全体の結果" : `参加コード ${room.joinCode ?? ""}`}`;
   const back = typeof current === "number" ? (closed ? "class" : "dashboard") : current === "class" && !closed ? "dashboard" : current === "code" ? "dashboard" : undefined;
   return (
     <main className="screen">
       <Header eyebrow={eyebrow} title={typeof current === "number" ? `グループ${current}の話し合い` : room.title} demo={source === "mock"}>
-        {back && <button className="btn btn--small" onClick={() => setView(back)}>{back === "class" ? "クラス全体に戻る" : "ダッシュボード"}</button>}
+        {back && <button className="btn btn--small" onClick={() => setView(back)}>{back === "class" ? "セッション全体に戻る" : "ダッシュボード"}</button>}
         {current === "dashboard" && <button className="btn btn--small" onClick={() => setView("code")}>参加コードを表示</button>}
-        {current === "dashboard" && results.length > 0 && <button className="btn btn--small" onClick={() => setView("class")}>クラス全体の結果</button>}
+        {current === "dashboard" && results.length > 0 && <button className="btn btn--small" onClick={() => setView("class")}>セッション全体の結果</button>}
         <Link className="btn btn--small" href="/host">ホーム</Link>
       </Header>
+      <SessionSettings roomId={roomId} room={room} />
+      {room.flowVersion === 1 && current !== "code" && <HostSpeaking roomId={roomId} />}
+      {room.flowVersion === 1 && room.phase === "discussing" && !room.endedAt && <p className="notice" role="timer">残り時間 {clock.text}</p>}
       {phaseError && <p className="notice notice--error notice--inset" role="alert">{phaseError}</p>}
-      {!closed && current === "code" && <Lobby room={room} joined={members.length} onNext={() => setView("dashboard")} />}
+      {!closed && current === "code" && <Lobby room={room} joined={members.reduce((n, m) => n + (m.attendees?.length || 1), 0)} onNext={() => setView("dashboard")} />}
       {!closed && current === "dashboard" && (
         <Dashboard roomId={roomId} room={room} results={results} members={members} onOpen={setView} onFinish={finish} moving={moving} />
       )}
-      {current === "class" && <ClassResult roomId={roomId} room={room} results={results} summary={summary ?? null} onOpen={setView} />}
+      {current === "class" && room.flowVersion === 1 && <GuidedHostResults roomId={roomId} room={room} />}
+      {current === "class" && room.flowVersion !== 1 && <ClassResult roomId={roomId} room={room} results={results} summary={summary ?? null} onOpen={setView} />}
       {typeof current === "number" && (
         <GroupResultView result={results.find((r) => r.group === current) ?? null} group={current} roomId={roomId} source={source} />
       )}
@@ -67,7 +80,7 @@ export function HostRoom({ roomId, room }: Props) {
   );
 }
 
-/** S3 参加コード・QR の表示。生徒は参加したあと、自分でグループを選ぶ */
+/** S3 参加コード・QR の表示。参加者は参加したあと、自分でグループを選ぶ */
 function Lobby({ room, joined, onNext }: { room: Room; joined: number; onNext: () => void }) {
   const [qr, setQr] = useState<string>();
   const code = room.joinCode ?? "";
@@ -104,23 +117,25 @@ function Lobby({ room, joined, onNext }: { room: Room; joined: number; onNext: (
 }
 
 const STATUS_LABEL = { opinions: "事前の意見", discussing: "話し合い中", consensus: "結論を記入中", done: "結果あり" } as const;
-const RECORDING_LABEL = { analyzing: "分析中", done: "完了", failed: "失敗（生徒の端末から送り直せます）" } as const;
+const RECORDING_LABEL = { analyzing: "分析中", done: "完了", failed: "失敗（参加者の端末から送り直せます）" } as const;
 
 /** S5 ダッシュボード。グループごとの進み具合（事前意見 → 話し合い → 結論の記入 → 結果）と AI の提案 */
 function Dashboard({ roomId, room, results, members, onOpen, onFinish, moving }: {
-  roomId: string; room: Room; results: GroupResult[]; members: { id: string; group?: number }[];
+  roomId: string; room: Room; results: GroupResult[]; members: { id: string; group?: number; ready?: boolean; attendees?: { voiceRegistered?: boolean }[] }[];
   onOpen: (g: number) => void; onFinish: () => void; moving: boolean;
 }) {
+  const configurations = useGroups(roomId);
   const insights = useInsights(roomId, true, false);
-  const coverage = useDoc<Coverage>(`rooms/${roomId}/results/coverage`).data;
+  const coverage = useDoc<Coverage>(`sessions/${roomId}/results/coverage`).data;
   const [confirm, setConfirm] = useState(false);
   const [busyGroup, setBusyGroup] = useState<number>();
   const [error, setError] = useState("");
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 15000); return () => clearInterval(t); }, []);
   const groupCount = room.groups ?? 1;
-  const minutes = getDuration(roomId);
-  const unassigned = members.filter((m) => !m.group && groupCount > 1).length;
+  const seats = (list: typeof members) => list.reduce((n, m) => n + (m.attendees?.length || 1), 0);
+  const minutes = room.minutes ?? getDuration(roomId);
+  const unassigned = seats(members.filter((m) => !m.group && groupCount > 1));
 
   async function force(path: "start" | "analyze", g: number) {
     setBusyGroup(g); setError("");
@@ -137,11 +152,11 @@ function Dashboard({ roomId, room, results, members, onOpen, onFinish, moving }:
           <p className="t-xl">結果が出たグループ {results.length}/{groupCount}</p>
         </div>
         <div className="stack stack--tight progress-hero__meta">
-          <p className="t-label">参加 {members.length}人{unassigned ? `・グループ未選択 ${unassigned}人` : ""}</p>
+          <p className="t-label">参加 {seats(members)}人{unassigned ? `・グループ未選択 ${unassigned}人` : ""}</p>
           {coverage && <p className="t-label">事前意見の論点の反映率 {formatMetric(coverage.reflectionRate, coverage.source === "mock" ? "mock" : "gemini")}</p>}
         </div>
         {!confirm
-          ? <button className="btn btn--yellow" onClick={() => setConfirm(true)} disabled={moving}>授業を終える</button>
+          ? <button className="btn btn--yellow" onClick={() => setConfirm(true)} disabled={moving}>セッションを終える</button>
           : (
             <div className="stack stack--tight">
               <button className="btn btn--yellow" onClick={onFinish} disabled={moving}>{moving ? "終えています…" : "終えて結果を見る"}</button>
@@ -156,16 +171,17 @@ function Dashboard({ roomId, room, results, members, onOpen, onFinish, moving }:
             const st = room.groupState?.[String(g)];
             const result = results.find((r) => r.group === g);
             const status = result ? "done" : groupStatus(room, g);
-            const n = st?.total ?? members.filter((m) => (m.group ?? (groupCount <= 1 ? 1 : 0)) === g).length;
+            const peers = members.filter((m) => m.group === g);
+            const n = room.flowVersion === 1 ? seats(peers) : st?.total ?? members.filter((m) => (m.group ?? (groupCount <= 1 ? 1 : 0)) === g).length;
             const started = millis(st?.startedAt);
-            const detail = status === "opinions" ? (n ? `提出 ${st?.opinions ?? 0}/${n}人` : "まだだれもいません")
+            const detail = status === "opinions" ? (n ? room.flowVersion === 1 ? `音声登録済み ${peers.reduce((sum, m) => sum + (m.attendees?.filter((a) => a.voiceRegistered).length ?? 0), 0)}/${n}人` : `提出 ${st?.opinions ?? 0}/${n}人` : "まだだれもいません")
               : status === "discussing" ? `${n}人${started ? `・${Math.max(0, Math.floor((now - started) / 60000))}/${minutes}分` : ""}`
               : status === "consensus" ? `提出 ${st?.submitted ?? 0}/${n}人`
               : `${result?.respondents ?? n}人${result && result.clusters.length > 1 ? `・理解が${result.clusters.length}通り` : ""}`;
             return (
               <section key={g} className={`box box--md group-card${status === "done" ? " box--tint" : status === "consensus" || status === "opinions" && n ? " box--yellow" : ""}`}>
-                <p className="t-label">グループ{g}</p>
-                <p className="t-lg">{status === "opinions" && !n ? "メンバー募集中" : STATUS_LABEL[status]}</p>
+                <p className="t-label">{configurations.find((c) => c.number === g)?.name ?? `グループ${g}`}</p>
+                <p className="t-lg">{status === "opinions" && !n ? "メンバー募集中" : room.flowVersion === 1 && status === "opinions" ? "参加準備中" : STATUS_LABEL[status]}</p>
                 <p className="t-small">{detail}</p>
                 {st?.recording?.status && <p className="t-small">録音の分析：{RECORDING_LABEL[st.recording.status]}</p>}
                 {status === "done" && <button className="btn btn--small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => onOpen(g)}>詳しく見る</button>}
@@ -183,7 +199,7 @@ function Dashboard({ roomId, room, results, members, onOpen, onFinish, moving }:
             );
           })}
         </div>
-        <AiPanel roomId={roomId} room={room} insights={insights} />
+        {room.flowVersion !== 1 && <AiPanel roomId={roomId} room={room} insights={insights} />}
       </div>
     </div>
   );
@@ -192,7 +208,7 @@ function Dashboard({ roomId, room, results, members, onOpen, onFinish, moving }:
 /** API の分析中の記録の期限（api/src/app.ts の RUNNING_TIMEOUT_MS と同じ） */
 const ANALYSIS_LOCK_MS = 60_000;
 
-/** AI の分析ボタンと介入提案。提案は先生が承認したものだけが生徒に届く */
+/** AI の分析ボタンと介入提案。提案はHostが承認したものだけが参加者に届く */
 function AiPanel({ roomId, room, insights }: { roomId: string; room: Room; insights: Insight[] }) {
   const [busy, setBusy] = useState(false);
   const [paused, setPaused] = useState("");
@@ -239,7 +255,7 @@ function AiPanel({ roomId, room, insights }: { roomId: string; room: Room; insig
   return (
     <section className="stack" style={{ gap: 20 }}>
       <div className="box box--md pad stack">
-        <div className="heading-row"><h2 className="t-sm">AIからの介入提案</h2><Tag>先生だけに表示</Tag></div>
+        <div className="heading-row"><h2 className="t-sm">AIからの介入提案</h2><Tag>Hostだけに表示</Tag></div>
         <p className="t-note">事前の意見と今の議論を照らし合わせ、まだ話されていない論点を探します。</p>
         <button className="btn btn--blue btn--block" onClick={analyze} disabled={running || wait > 0}>
           {running ? "分析中…" : wait > 0 ? `あと ${wait} 秒で再分析できます` : "未検討の論点を探す"}
@@ -269,9 +285,9 @@ function AiPanel({ roomId, room, insights }: { roomId: string; room: Room; insig
 const describeGap = (clusters: { count: number }[] | undefined) =>
   !clusters || clusters.length === 0 ? "回答なし" : clusters.length === 1 ? "大きなちがいなし" : `理解が${clusters.length}通り`;
 
-/** T1 クラス全体の結果。グループの結果を並べて比べる。指標は分かるものだけ出す */
+/** T1 セッション全体の結果。グループの結果を並べて比べる。指標は分かるものだけ出す */
 function ClassResult({ roomId, room, results, summary, onOpen }: { roomId: string; room: Room; results: GroupResult[]; summary: Summary | null; onOpen: (g: number) => void }) {
-  const coverage = useDoc<Coverage>(`rooms/${roomId}/results/coverage`).data;
+  const coverage = useDoc<Coverage>(`sessions/${roomId}/results/coverage`).data;
   const respondents = results.reduce((a, r) => a + r.respondents, 0);
   const largest = results.reduce((a, r) => a + Math.max(0, ...r.clusters.map((c) => c.count)), 0);
   const split = results.filter((r) => r.clusters.length > 1).length;

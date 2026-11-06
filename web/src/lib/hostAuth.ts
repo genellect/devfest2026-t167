@@ -1,33 +1,40 @@
 "use client";
-import { useEffect, useState } from "react";
+
 import {
-  browserPopupRedirectResolver, GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut, type User,
+  browserPopupRedirectResolver, GoogleAuthProvider, signInWithCredential, signInWithPopup, reauthenticateWithPopup,
 } from "firebase/auth";
 import { firebase } from "./firebase";
+import { beginSignIn, endSignIn, establishSession, logoutSession, unlockSession, useAppSession } from "./session";
+import { clearJoinCode } from "./join-code";
 
-/** 先生（司会者）は Google でログインする。匿名のままでは部屋を作れない（API が 403 を返す） */
+/** 全利用者がGoogleで本人認証する。Host権限はセッション作成時にAPIが付与する */
 export function useHostUser() {
-  const [user, setUser] = useState<User | null | undefined>(undefined);
-  useEffect(() => onAuthStateChanged(firebase().auth, (u) => setUser(u && !u.isAnonymous ? u : null)), []);
-  return user;
+  return useAppSession().user;
 }
-
-export async function signInAsHost() {
-  // ローカルの Auth は先読みを省いて初期化しているので、ポップアップの仕組みをここで渡す
-  await signInWithPopup(firebase().auth, new GoogleAuthProvider(), browserPopupRedirectResolver);
+export interface LoginOptions { isSharedDevice: boolean; classEndsAt: number | null }
+async function login(how: () => Promise<unknown>, options: LoginOptions) {
+  beginSignIn();
+  try { await how(); await establishSession(options); }
+  finally { endSignIn(); }
 }
-
-/** エミュレータで動かしているときだけ使う。firebase/seed.mjs のテスト用の先生でログインする */
+export async function signInAsHost(options: LoginOptions = { isSharedDevice: false, classEndsAt: null }) {
+  const provider = new GoogleAuthProvider(); provider.setCustomParameters({ prompt: "select_account" });
+  await login(() => signInWithPopup(firebase().auth, provider, browserPopupRedirectResolver), options);
+}
+export async function reauthenticateSession() {
+  const user = firebase().auth.currentUser;
+  if (!user) throw new Error("Googleでログインしてください");
+  const provider = new GoogleAuthProvider(); provider.setCustomParameters({ prompt: "select_account", login_hint: user.email ?? "" });
+  await unlockSession(() => reauthenticateWithPopup(user, provider, browserPopupRedirectResolver));
+}
+/** エミュレータで動かしているときだけ使う。権限はseedの管理側付与に従う。 */
 export const canUseTestHost = process.env.NEXT_PUBLIC_USE_EMULATORS === "1";
-export async function signInAsTestHost() {
-  await signInWithEmailAndPassword(firebase().auth, "mod@example.com", "password"); // submit-allow: エミュレータ専用のダミー
+async function testGoogle(kind: "teacher" | "student", options: LoginOptions) {
+  if (!canUseTestHost) throw new Error("このログインはエミュレータ専用です");
+  await login(() => signInWithCredential(firebase().auth, GoogleAuthProvider.credential(JSON.stringify({
+    sub: `local-${kind}`, email: `local-${kind}@example.com`, email_verified: true, name: kind,
+  }))), options);
 }
-
-/** エミュレータで動かしているときだけ使う。firebase/seed.mjs のテスト用の生徒でログインする */
-export async function signInAsTestStudent() {
-  await signInWithEmailAndPassword(firebase().auth, "p1@example.com", "password"); // submit-allow: エミュレータ専用のダミー
-}
-
-export async function signOutHost() {
-  await signOut(firebase().auth);
-}
+export const signInAsTestHost = (options: LoginOptions = { isSharedDevice: false, classEndsAt: null }) => testGoogle("teacher", options);
+export const signInAsTestStudent = (options: LoginOptions = { isSharedDevice: false, classEndsAt: null }) => testGoogle("student", options);
+export async function signOutHost() { await logoutSession(); clearJoinCode(); }

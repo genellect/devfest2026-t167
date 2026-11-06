@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useHostUser } from "@/lib/hostAuth";
-import { getRole } from "@/lib/local";
+
 
 export type NavRole = "host" | "student";
 type IconName = "home" | "create" | "help" | "settings" | "join";
@@ -10,7 +10,7 @@ type IconName = "home" | "create" | "help" | "settings" | "join";
 const TABS: Record<NavRole, { href: string; label: string; icon: IconName }[]> = {
   host: [
     { href: "/home", label: "ホーム", icon: "home" },
-    { href: "/host/new", label: "部屋を作る", icon: "create" },
+    { href: "/participate", label: "参加", icon: "join" },
     { href: "/about", label: "使い方", icon: "help" },
     { href: "/host/profile", label: "設定", icon: "settings" },
   ],
@@ -26,12 +26,13 @@ const TABS: Record<NavRole, { href: string; label: string; icon: IconName }[]> =
  * スマホでは画面の下に固定し、幅 768px 以上ではヘッダーの2段目に並べる（globals.css の .tabbar）。
  * 議論中の部屋の画面には出さない（ヘッダーの「ホーム」だけにして、流れの邪魔をしない）。
  */
-export function TabBar({ role }: { role: NavRole }) {
+export function TabBar(_props: { role: NavRole }) {
+  void _props;
   const pathname = usePathname();
   return (
     <nav className="tabbar" aria-label="メニュー">
       <ul className="tabbar__list">
-        {TABS[role].map((t) => (
+        {TABS.host.map((t) => (
           <li key={t.href}>
             <Link className="tabbar__item" href={t.href} aria-current={pathname === t.href ? "page" : undefined}>
               <Icon name={t.icon} />
@@ -44,11 +45,11 @@ export function TabBar({ role }: { role: NavRole }) {
   );
 }
 
-/** 先生と生徒の両方が開く画面（使い方）用。先生としてログインしていれば先生の、それ以外は生徒のタブを出す */
+/** 使い方のタブはログイン後だけ表示する。 */
 export function AutoTabBar() {
   const user = useHostUser();
-  if (user === undefined) return null; // ログインの状態が分かるまで出さない（先生に生徒のタブが一瞬出ないように）
-  return <TabBar role={user && getRole(user.uid) === "host" ? "host" : "student"} />;
+  if (!user) return null;
+  return <TabBar role="host" />;
 }
 
 /** タブの絵。文字の色（currentColor）の太い線で描く。意味はラベルの文字で伝えるので、読み上げからは外す */

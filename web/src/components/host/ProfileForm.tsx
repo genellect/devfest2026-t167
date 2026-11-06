@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { getProfile, saveProfile } from "@/lib/local";
 
-/** 先生のプロフィールの入力。この端末にだけ保存する */
+/** Hostのプロフィールの入力。この端末にだけ保存する */
 export function ProfileForm({ defaultName, submitLabel, onSaved }: { defaultName: string; submitLabel: string; onSaved: () => void }) {
   const [name, setName] = useState(defaultName);
   const [school, setSchool] = useState("");
@@ -22,7 +22,7 @@ export function ProfileForm({ defaultName, submitLabel, onSaved }: { defaultName
     <form className="stack" onSubmit={submit}>
       <div className="field">
         <label className="field__label" htmlFor="pname">表示する名前</label>
-        <input id="pname" className="input" value={name} maxLength={30} placeholder="例：佐藤先生" onChange={(e) => setName(e.target.value)} />
+        <input id="pname" className="input" value={name} maxLength={30} placeholder="例：佐藤Host" onChange={(e) => setName(e.target.value)} />
       </div>
       <div className="row">
         <div className="field">
@@ -34,7 +34,7 @@ export function ProfileForm({ defaultName, submitLabel, onSaved }: { defaultName
           <input id="cls" className="input" value={className} maxLength={40} placeholder="例：2年3組 探究の授業" onChange={(e) => setClassName(e.target.value)} />
         </div>
       </div>
-      <p className="field__hint">プロフィールはこの端末にだけ保存します。生徒には表示しません。</p>
+      <p className="field__hint">プロフィールはこの端末にだけ保存します。参加者には表示しません。</p>
       <button className="btn btn--blue btn--block" type="submit" disabled={!name.trim()}>{submitLabel}</button>
     </form>
   );

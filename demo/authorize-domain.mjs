@@ -1,0 +1,17 @@
+import { createRequire } from 'node:module';
+const require = createRequire(new URL('../api/package.json', import.meta.url));
+const { GoogleAuth } = require('google-auth-library');
+const demoId = process.env.DEMO_ID;
+if (!/^pr[0-9]+$/.test(demoId ?? '')) throw new Error('DEMO_IDを指定してください');
+const project = 'devfest2026-t167', client = await new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] }).getClient();
+client.quotaProjectId = project;
+const { data: service } = await client.request({ url: `https://run.googleapis.com/v2/projects/${project}/locations/asia-east1/services/web-preview` });
+const tagged = service.trafficStatuses?.find((t) => t.tag === `${demoId}-demo`);
+if (!tagged?.uri) throw new Error('先に通常トラフィック0のデモタグを作成してください');
+const domain = new URL(tagged.uri).hostname;
+if (!domain.startsWith(`${demoId}-demo---web-preview-`) || !domain.endsWith('.a.run.app')) throw new Error('デモタグのホストを検証できません');
+const url = `https://identitytoolkit.googleapis.com/admin/v2/projects/${project}/config`;
+const { data: config } = await client.request({ url });
+const domains = config.authorizedDomains ?? [];
+if (!domains.includes(domain)) await client.request({ url: url + '?updateMask=authorizedDomains', method: 'PATCH', data: { authorizedDomains: [...domains, domain] } });
+console.log(JSON.stringify({ demoUrl: tagged.uri, authorizedDomainAdded: !domains.includes(domain), existingDomainsPreserved: true }));

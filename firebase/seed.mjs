@@ -1,27 +1,19 @@
 // エミュレータに共有テストデータを入れる（本物のプロジェクトには接続しない）
 // 使い方: エミュレータ起動中に npm --prefix firebase run seed
 import { initializeApp } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
-process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
-process.env.FIREBASE_AUTH_EMULATOR_HOST ??= '127.0.0.1:9099';
-initializeApp({ projectId: 'demo-t167' });
-const auth = getAuth();
-const db = getFirestore();
-
-const users = [
-  { uid: 'mod', email: 'mod@example.com', password: 'password', role: 'moderator' }, // submit-allow: エミュレータ専用のダミー
-  { uid: 'p1', email: 'p1@example.com', password: 'password', role: 'participant' }, // submit-allow: エミュレータ専用のダミー
-  { uid: 'p2', email: 'p2@example.com', password: 'password', role: 'participant' }, // submit-allow: エミュレータ専用のダミー
-  { uid: 'p3', email: 'p3@example.com', password: 'password', role: 'participant' }, // submit-allow: エミュレータ専用のダミー
-];
-for (const u of users) {
-  await auth.createUser({ uid: u.uid, email: u.email, password: u.password }).catch((e) => {
-    if (e.code !== 'auth/uid-already-exists') throw e;
-  });
+import { emulatorGoogleUser } from './emulator-auth.mjs';
+for (const key of ['FIRESTORE_EMULATOR_HOST', 'FIREBASE_AUTH_EMULATOR_HOST']) {
+  if (!/^(127\.0\.0\.1|localhost):\d+$/.test(process.env[key] ?? '')) throw new Error(`${key}に専用エミュレータを指定してください`);
 }
-await db.doc('rooms/demo').set({ title: '大学における生成AI利用の是非', phase: 'collecting', createdBy: 'mod', createdAt: FieldValue.serverTimestamp(), analysis: { status: 'idle' } });
+initializeApp({ projectId: 'demo-t167' });
+const db = getFirestore();
+const teacher = await emulatorGoogleUser('teacher');
+const student = await emulatorGoogleUser('student');
+await db.doc('sessions/demo').set({ title: '大学における生成AI利用の是非', phase: 'collecting', createdBy: teacher.localId, groups: 1, createdAt: FieldValue.serverTimestamp(), schemaVersion: 3, theme: '大学における生成AI利用の是非', minutes: 15, resultsPublished: false, analysis: { status: 'idle' } });
 await db.doc('joinCodes/DEMO01').set({ roomId: 'demo' });
-for (const u of users) await db.doc(`rooms/demo/members/${u.uid}`).set({ role: u.role, joinedAt: FieldValue.serverTimestamp() });
-console.log('seeded: room=demo joinCode=DEMO01 users=mod/p1/p2/p3 (password: password)');
+for (const [uid, role] of [[teacher.localId, 'host'], [student.localId, 'participant']]) {
+  await db.doc(`sessions/demo/members/${uid}`).set({ uid, status: 'active', groupId: role === 'host' ? null : '1', role, ...(role === 'participant' ? { group: 1 } : {}), joinedAt: FieldValue.serverTimestamp() });
+}
+console.log('seeded: demo/DEMO01（模擬Google教師・生徒、教師権限は管理側で付与）');
