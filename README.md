@@ -188,6 +188,8 @@ Node.jsは22.12以上の22系を使う（`.nvmrc`は22）。Vitest 5の実行要
 
 ## テスト
 
+`web`の`typecheck`はアプリとE2Eを別の設定で検査する。App Hostingのアプリビルドには`web/`外のエミュレータ用補助ファイルを含めず、E2Eの型検査はリポジトリ全体を取得するCIで実施する。
+
 `bash scripts/dev.sh check` が、CI と同じ次の検査を実行する。PR と `main` への push のたびに GitHub Actions が実行し、同じ検査を手元でも実行できる（実行環境による差は別途確認する）。
 
 | 検査 | 件数 | 内容 |
