@@ -1,1 +1,6 @@
-{ "indexes": [], "fieldOverrides": [] }
+{
+  "indexes": [{ "collectionGroup": "members", "queryScope": "COLLECTION", "fields": [
+    { "fieldPath": "role", "order": "ASCENDING" }, { "fieldPath": "group", "order": "ASCENDING" }
+  ] }],
+  "fieldOverrides": []
+}

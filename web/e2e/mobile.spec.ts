@@ -3,14 +3,6 @@ import { expect, test, type Page } from "@playwright/test";
 // スマホの幅（playwright.config.ts の mobile プロジェクト）で、ホーム・参加・使い方などの画面が横にはみ出さず、
 // 画面の下に固定したタブメニューに、役割に合ったタブが出ること。
 
-/** テスト用ログインのボタン（firebase/seed.mjs と同じアカウント）を、エミュレータに用意する。すでにあれば何もしない */
-async function ensureTestAccount(email: string) {
-  await fetch(`http://${process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "127.0.0.1:9099"}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake`, {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, password: "password", returnSecureToken: true }), // submit-allow: エミュレータ専用のダミー
-  });
-}
-
 async function expectNoHorizontalScroll(page: Page, label: string) {
   const { scroll, width } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: window.innerWidth }));
   expect(scroll, `${label} の横幅`).toBeLessThanOrEqual(width);
@@ -38,6 +30,8 @@ test("スマホの幅で、参加と使い方の画面に生徒のタブが出�
   // 6マスの入力欄は1つの入力欄として動く（貼り付けた小文字・記号もそろえる）
   await page.getByLabel("参加コード").fill("ab-12 cd");
   await expect(page.getByLabel("参加コード")).toHaveValue("AB12CD");
+  await expect(page.getByRole("button", { name: "参加する" })).toBeDisabled();
+  await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
   await expect(page.getByRole("button", { name: "参加する" })).toBeEnabled();
 
   await page.getByRole("navigation", { name: "メニュー" }).getByRole("link", { name: "使い方" }).click();
@@ -47,7 +41,6 @@ test("スマホの幅で、参加と使い方の画面に生徒のタブが出�
 });
 
 test("テスト用の生徒でログインすると、生徒のホームにタブが出て、横にはみ出さない", async ({ page }) => {
-  await ensureTestAccount("p1@example.com"); // submit-allow: エミュレータ専用のダミー
   await page.goto("/");
   await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
   await page.getByRole("button", { name: /^生徒/ }).click();
@@ -58,7 +51,6 @@ test("テスト用の生徒でログインすると、生徒のホームにタ�
 });
 
 test("テスト用の先生でログインすると、先生の画面にタブが出て、横にはみ出さない", async ({ page }) => {
-  await ensureTestAccount("mod@example.com"); // submit-allow: エミュレータ専用のダミー
   await page.goto("/");
   await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
   await page.getByRole("button", { name: /^先生/ }).click();

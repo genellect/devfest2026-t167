@@ -1,17 +1,36 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() { return request.auth != null; }
+    function signedIn() { return request.auth != null && request.auth.token.firebase.sign_in_provider == 'google.com'; }
     function memberPath(roomId) {
       return /databases/$(database)/documents/rooms/$(roomId)/members/$(request.auth.uid);
     }
     function isMember(roomId) { return signedIn() && exists(memberPath(roomId)); }
     function isModerator(roomId) {
-      return isMember(roomId) && get(memberPath(roomId)).data.role == 'moderator';
+      return isMember(roomId) && request.auth.token.get('teacher', false) == true && get(memberPath(roomId)).data.role == 'moderator';
     }
     function phase(roomId) {
       return get(/databases/$(database)/documents/rooms/$(roomId)).data.phase;
     }
+    function participantGroup(roomId) {
+      let room = get(/databases/$(database)/documents/rooms/$(roomId)).data;
+      return get(memberPath(roomId)).data.get('group', room.get('groups', 1) <= 1 ? 1 : 0);
+    }
+    function groupedParticipant(roomId) {
+      return isMember(roomId) && get(memberPath(roomId)).data.role == 'participant'
+        && participantGroup(roomId) >= 1
+        && participantGroup(roomId) <= get(/databases/$(database)/documents/rooms/$(roomId)).data.get('groups', 1);
+    }
+    function groupStatus(roomId) {
+      return get(/databases/$(database)/documents/rooms/$(roomId)).data.get('groupState', {})
+        .get(string(participantGroup(roomId)), {}).get('status', 'opinions');
+    }
+    function statementUnlocked(roomId) {
+      let room = get(/databases/$(database)/documents/rooms/$(roomId)).data;
+      return !(room.get('consensusAnalysis', {}).get('status', 'idle') in ['running', 'done'])
+        && room.get('groupState', {}).get(string(participantGroup(roomId)), {}).get('analysis', {}).get('running', false) != true;
+    }
+    function roomOpen(roomId) { return phase(roomId) in ['collecting', 'discussing', 'consensus']; }
 
     // 部屋・参加者・結果はメンバーだけが読める。書き込みはすべて API（Admin SDK）経由
     match /rooms/{roomId} {
@@ -26,8 +45,8 @@ service cloud.firestore {
       // 非公開の事前意見：本人だけが読み書きできる（司会者も読めない）
       match /privateOpinions/{uid} {
         allow read: if isMember(roomId) && request.auth.uid == uid;
-        allow create, update: if isMember(roomId) && request.auth.uid == uid
-          && phase(roomId) == 'collecting'
+        allow create, update: if groupedParticipant(roomId) && request.auth.uid == uid
+          && roomOpen(roomId) && groupStatus(roomId) == 'opinions'
           && request.resource.data.keys().hasOnly(['text', 'updatedAt'])
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
@@ -60,8 +79,10 @@ service cloud.firestore {
       // 合意内容の一文：本人だけが読み書きできる。ずれの分析結果は results に API が書く
       match /consensusStatements/{uid} {
         allow read: if isMember(roomId) && request.auth.uid == uid;
-        allow create, update: if isMember(roomId) && request.auth.uid == uid
-          && phase(roomId) == 'consensus'
+        allow create, update: if groupedParticipant(roomId) && request.auth.uid == uid
+          && roomOpen(roomId)
+          && groupStatus(roomId) != 'done' && statementUnlocked(roomId)
+        && (phase(roomId) == 'consensus' || groupStatus(roomId) == 'consensus')
           && request.resource.data.keys().hasOnly(['text', 'agreement', 'concern', 'updatedAt'])
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0

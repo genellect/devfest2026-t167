@@ -7,7 +7,7 @@ import { TabBar } from "@/components/nav";
 import { Header } from "@/components/ui";
 import { callApi } from "@/lib/api";
 import { ensureSignedIn, firebase } from "@/lib/firebase";
-import { signOutHost } from "@/lib/hostAuth";
+import { signOutHost, signInAsHost, signInAsTestStudent, canUseTestHost, useHostUser } from "@/lib/hostAuth";
 
 const CODE_LENGTH = 6;
 /** 参加コードは英大文字と数字の6文字。小文字・空白・ハイフン入りの貼り付けもそろえる */
@@ -16,6 +16,7 @@ const normalize = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice
 /** P1 参加コード入力。QR コードからは ?code=XXXXXX 付きで開く */
 function JoinForm() {
   const router = useRouter();
+  const user = useHostUser();
   const params = useSearchParams();
   const input = useRef<HTMLInputElement>(null);
   const [code, setCode] = useState(() => normalize(params.get("code") ?? ""));
@@ -41,19 +42,19 @@ function JoinForm() {
     }
   }
 
-  /** 先生のアカウントからログアウトし、ログインなし（匿名）の生徒として参加し直す */
+  /** 先生のアカウントからログアウトし、別のGoogleアカウントで入り直す */
   async function joinAsStudent() {
     setBusy(true);
     await signOutHost();
-    await join();
+    router.push("/");
   }
 
   if (ownRoom) {
     return (
       <div className="box box--lg card card--narrow" role="alert">
         <h2 className="card__title">この部屋を作った先生のアカウントです</h2>
-        <p className="t-label">このまま進むと、先生の画面が開きます。生徒の画面を試すときは、ログアウトして生徒として参加するか、別の端末やシークレットウィンドウで開いてください。</p>
-        <button className="btn btn--blue btn--block" onClick={joinAsStudent} disabled={busy}>{busy ? "参加しています…" : "ログアウトして生徒として参加する"}</button>
+        <p className="t-label">このまま進むと、先生の画面が開きます。生徒の画面を試すときは、ログアウトしてGoogleアカウントを切り替えるか、別の端末やシークレットウィンドウで開いてください。</p>
+        <button className="btn btn--blue btn--block" onClick={joinAsStudent} disabled={busy}>{busy ? "参加しています…" : "ログアウトしてGoogleアカウントを切り替える"}</button>
         <Link className="btn btn--block" href={`/rooms/${ownRoom}`}>先生の画面を開く</Link>
       </div>
     );
@@ -63,6 +64,11 @@ function JoinForm() {
   return (
     <form className="box box--lg card card--narrow" onSubmit={join} noValidate>
       <h2 className="card__title">参加コードを入力</h2>
+      {!user && <div className="stack stack--tight">
+        <p>Googleでログインしてから参加してください。</p>
+        <button type="button" className="btn btn--blue" onClick={() => signInAsHost().catch((e) => setError((e as Error).message))}>Googleでログイン</button>
+        {canUseTestHost && <button type="button" className="btn" onClick={() => signInAsTestStudent().catch((e) => setError((e as Error).message))}>テスト用の生徒でログイン（エミュレータ）</button>}
+      </div>}
       <div className="field">
         <label className="field__label" htmlFor="code">参加コード</label>
         {/* 見た目は6マス。入力欄は透明な1つだけなので、貼り付け・自動入力・読み上げはふつうの入力欄と同じに動く */}
@@ -79,10 +85,10 @@ function JoinForm() {
             onChange={(e) => { setCode(normalize(e.target.value)); setError(""); }}
             onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} />
         </div>
-        <p id="code-hint" className="field__hint">先生の画面に表示されている英字と数字の6文字です。小文字で入れても大丈夫です。登録やログインはいりません。</p>
+        <p id="code-hint" className="field__hint">先生の画面に表示されている英字と数字の6文字です。小文字で入れても大丈夫です。Googleログインが必要です。</p>
       </div>
       {error && <p id="code-error" className="notice notice--error" role="alert">{error}</p>}
-      <button className="btn btn--blue btn--block" type="submit" disabled={busy || code.length !== CODE_LENGTH}>
+      <button className="btn btn--blue btn--block" type="submit" disabled={busy || !user || code.length !== CODE_LENGTH}>
         {busy ? "参加しています…" : "参加する"}
       </button>
     </form>

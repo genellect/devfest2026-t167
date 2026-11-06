@@ -3,13 +3,14 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Header, Loading } from "@/components/ui";
 import { ProfileForm } from "@/components/host/ProfileForm";
-import { signOutHost, useHostUser } from "@/lib/hostAuth";
+import { signOutHost, useHostUser, useTeacherClaim } from "@/lib/hostAuth";
 import { setRole, type Role } from "@/lib/local";
 
 /** 初回ログインのあと：生徒か先生かを選ぶ。先生はプロフィールも登録する */
 export default function Signup() {
   const router = useRouter();
   const user = useHostUser();
+  const teacher = useTeacherClaim(user);
   const [role, choose] = useState<Role>();
   useEffect(() => { if (user === null) router.replace("/"); }, [user, router]);
   if (!user) return <Loading />;
@@ -34,9 +35,9 @@ export default function Signup() {
                 <span className="t-lg">生徒</span>
                 <span className="t-note">参加コードで議論に参加し、自分の振り返りと次の目標を残します。</span>
               </button>
-              <button className="box box--lg box--yellow pad-lg stack" style={{ textAlign: "left", cursor: "pointer", gap: 12 }} onClick={() => pick("host")}>
+              <button className="box box--lg box--yellow pad-lg stack" style={{ textAlign: "left", cursor: "pointer", gap: 12 }} disabled={!teacher} onClick={() => pick("host")}>
                 <span className="t-lg">先生</span>
-                <span className="t-note">テーマとグループの数を決めて部屋を作り、議論の様子と結果を見ます。</span>
+                <span className="t-note">管理者が承認した教師アカウントで、部屋を作成し議論の様子と結果を見ます。</span>
               </button>
             </div>
           </div>

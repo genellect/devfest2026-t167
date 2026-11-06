@@ -124,6 +124,7 @@ check() {
   npm --prefix web test
   npm --prefix api run typecheck
   npm --prefix api test
+  node scripts/mutation-check.mjs
   bash -n scripts/*.sh infra/*.sh tests/*.sh
   bash tests/submit.test.sh
   bash tests/ci-changes.test.sh
@@ -139,7 +140,7 @@ check() {
   local config; config=$(emulator_config)
   trap 'rm -f "${config:-}"' EXIT
   "$FB" emulators:exec --config "$config" --project "$EMU_PROJECT" --only auth,firestore \
-    "npm --prefix firebase test && npm --prefix api run test:integration && npm --prefix web run e2e"
+    "npm --prefix firebase test && npm --prefix api run test:coverage && npm --prefix api run test:performance && npm --prefix web run e2e"
   rm -f "$config"; trap - EXIT
   echo; echo "OK: CI と同じ検査がすべて通りました"
 }

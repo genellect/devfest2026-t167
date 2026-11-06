@@ -69,7 +69,7 @@ export interface Flow {
 /** ログイン後の uid（匿名を含む） */
 export function useUid() {
   const [uid, setUid] = useState<string>();
-  useEffect(() => { ensureSignedIn().then((u) => setUid(u.uid)); }, []);
+  useEffect(() => { ensureSignedIn().then((u) => setUid(u.uid)).catch(() => { window.location.replace("/"); }); }, []);
   return uid;
 }
 

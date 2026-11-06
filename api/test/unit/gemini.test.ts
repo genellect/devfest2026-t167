@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Vertex AI には接続しない。GoogleGenAI を、渡された設定を記録する偽物に差し替える
+let responseBody: unknown;
+beforeEach(() => { responseBody = undefined; });
 const calls: { init: unknown; req: { model: string; config: Record<string, unknown> } }[] = [];
 vi.mock('@google/genai', async (importOriginal) => {
   const real = await importOriginal<typeof import('@google/genai')>();
@@ -9,7 +11,7 @@ vi.mock('@google/genai', async (importOriginal) => {
     models = {
       generateContent: async (req: { model: string; config: Record<string, unknown> }) => {
         calls.push({ init: this.init, req });
-        return { text: JSON.stringify({ points: [{ summary: '論点', discussed: false }] }) };
+        return { text: JSON.stringify(responseBody ?? { points: [{ summary: '論点', discussed: false }] }) };
       },
     };
   }
@@ -62,6 +64,35 @@ describe('録音の分析の出力の検証', () => {
   });
   it('必須の項目がない応答は拒否する', () => {
     expect(() => DiscussionSchema.parse({ speechDetected: true })).toThrow();
+  });
+});
+
+describe('AI応答の参照整合性', () => {
+  it('範囲外・重複・欠落・不明な提案IDを拒否する', async () => {
+    const { validateComparison } = await import('../../src/gemini.js');
+    const comparison = (members: number[], ids: string[] = []) => ({ groups: [{ label: '合意', members }], addressedInsightIds: ids });
+    expect(validateComparison(comparison([0, 1], ['ok']), 2, ['ok'])).toBeDefined();
+    for (const value of [comparison([0, 2]), comparison([0, 0]), comparison([0]), comparison([0, 1], ['unknown']), comparison([0, 1], ['ok', 'ok'])]) {
+      expect(() => validateComparison(value, 2, ['ok'])).toThrow();
+    }
+  });
+});
+
+describe('実SDK接続部分のモック検査', () => {
+  it('合意分析の入力と出力の対応を検査する', async () => {
+    responseBody = { groups: [{ label: '同じ意味', members: [0] }], addressedInsightIds: ['known'] };
+    const result = await vertexGemini('p', 'global', 'gemini-3.5-flash').compare(['一文'], [{ id: 'known', summary: '論点' }], ['発言']);
+    expect(result).toMatchObject(responseBody);
+    expect(calls.at(-1)!.req.config).toMatchObject({ httpOptions: { retryOptions: { attempts: 1 } } });
+    responseBody = { groups: [{ label: '不正', members: [9] }], addressedInsightIds: [] };
+    await expect(vertexGemini('p', 'global', 'gemini-3.5-flash').compare(['一文'], [], [])).rejects.toThrow('invalid_comparison_partition');
+  });
+  it('音声のSDK要求と応答スキーマをモックで確認する', async () => {
+    const { mockGemini } = await import('../../src/gemini.js');
+    responseBody = await mockGemini().analyzeDiscussion({ audio: Buffer.alloc(1), mimeType: 'audio/wav', durationSec: 60, theme: '架空のテーマ' });
+    const result = await vertexGemini('p', 'global', 'gemini-3.5-flash').analyzeDiscussion({ audio: Buffer.alloc(1), mimeType: 'audio/wav', durationSec: 60, theme: '架空のテーマ' });
+    expect(result).toMatchObject(responseBody);
+    expect(calls.at(-1)!.req.config.abortSignal).toBeInstanceOf(AbortSignal);
   });
 });
 

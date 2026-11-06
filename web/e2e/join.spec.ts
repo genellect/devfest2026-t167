@@ -1,12 +1,9 @@
 import { expect, test } from "@playwright/test";
 
 // 司会者が部屋を作り、参加者がスマホで参加コードを入れて参加し、非公開の意見を出せるところまで
+import { emulatorGoogleUser } from "../../firebase/emulator-auth.mjs";
 async function moderatorToken(): Promise<string> {
-  const r = await fetch(`http://${process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "127.0.0.1:9099"}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake`, {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email: `mod${Date.now()}@example.com`, password: "password", returnSecureToken: true }), // submit-allow: エミュレータ専用のダミー
-  });
-  return (await r.json()).idToken;
+  return (await emulatorGoogleUser("teacher", `e2e-${Date.now()}`)).idToken;
 }
 
 test("/api は Cloud Run 役の API に転送される", async ({ request }) => {
@@ -28,6 +25,7 @@ test("参加コードで参加し、非公開の意見を出すと、グルー�
   await page.goto("/");
   await page.getByRole("link", { name: "参加コードを入力" }).click();
   await page.getByLabel("参加コード").fill(joinCode);
+  await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
   await page.getByRole("button", { name: "参加する" }).click();
 
   await expect(page.getByRole("heading", { name: "大学における生成AI利用の是非" })).toBeVisible();
@@ -45,6 +43,7 @@ test("全員の同意を確かめて録音し、議論を終えると録音が�
   });
   const { joinCode } = await created.json();
   await page.goto(`/join?code=${joinCode}`);
+  await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
   await page.getByRole("button", { name: "参加する" }).click();
   await page.getByLabel("あなたの意見").fill("練習の質を上げれば短くてもよい");
   await page.getByRole("button", { name: "提出する" }).click();
@@ -75,7 +74,7 @@ test("QR コードの URL では参加コードが入力済みになる", async 
 });
 
 test("誤った参加コードではエラーが出る", async ({ page }) => {
-  // 匿名のエミュレータ認証は、外部の Google スクリプトなしで完了する。
+  // 模擬Googleのエミュレータ認証は、外部の Google スクリプトなしで完了する。
   let externalAuthRequests = 0;
   await page.route("https://apis.google.com/**", route => {
     externalAuthRequests++;
@@ -83,6 +82,7 @@ test("誤った参加コードではエラーが出る", async ({ page }) => {
   });
   await page.goto("/join");
   await page.getByLabel("参加コード").fill("ZZZZZZ");
+  await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
   await page.getByRole("button", { name: "参加する" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "参加コード" })).toContainText("参加コードが見つかりません");
   expect(externalAuthRequests, "エミュレータ認証が外部通信に依存していない").toBe(0);

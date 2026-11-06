@@ -23,7 +23,9 @@ bash scripts/dev.sh serve    # エミュレータ・テストデータ・API・�
 
 http://localhost:3000 を開き、参加コード `DEMO01` で参加する。Auth と Firestore はエミュレータ、Gemini はモックで動く。Gemini が失敗したときの動きは `GEMINI_MOCK_FAIL=1 bash scripts/dev.sh serve` で確かめる。
 
-先生の導線は、トップの「テスト用の先生でログイン（エミュレータ）」か、「Googleでログイン」で開く認証のエミュレータの「Add new account」から架空のメールアドレスで確かめる。本物の Google アカウントやパスワードは使わない。部屋を作ったら、表示された参加コードを別のブラウザーのプロファイルかプライベートウィンドウで入力し、架空の意見を出す。先生のダッシュボードで「未検討の論点を探す」を押すと提案が出る（通常の起動は「デモデータ」、`GEMINI_MOCK=0` では「Gemini による推定」）。
+先生の導線は、トップの「テスト用の先生でログイン（エミュレータ）」か、「Googleでログイン」で開く認証のエミュレータの「Add new account」から架空のメールアドレスで確かめる。本物の Google アカウントやパスワードは使わない。模擬教師の権限はseedが管理側で付与する。任意の架空Googleアカウントは教師権限を持たない。部屋を作ったら、表示された参加コードを別のブラウザーのプロファイルかプライベートウィンドウで入力し、架空の意見を出す。先生のダッシュボードで「未検討の論点を探す」を押すと提案が出る（通常の起動は「デモデータ」、`GEMINI_MOCK=0` では「Gemini による推定」）。
+
+別checkoutのプレビューを起動したまま検査する場合は `T167_TEST_PORT_OFFSET=10000 bash scripts/dev.sh check` を使う。web=13000、API=18081、Firestore=18080、Auth=19099と検査専用DB名を使う。必要なら別のオフセット（0〜40000）を選ぶ。既存プロセスは停止せず、ポート使用中なら検査が停止する。カバレッジ・変異検査・同時提出の負荷測定も含む。依存更新後はlockfileをそろえ、全検査を行う。詳細は [backend-contract](docs/backend-contract.md)。
 
 終了するときは、起動したターミナルで `Ctrl+C` を押す。Auth・Firestore のエミュレータ、API、画面をまとめて停止する。
 
@@ -31,13 +33,15 @@ http://localhost:3000 を開き、参加コード `DEMO01` で参加する。Aut
 
 クラウドの Claude Code では環境のセットアップスクリプトに `bash .claude/cloud-setup.sh` を、Codex では `bash .codex/setup.sh` を登録する。
 
+## 同じ端末で複数の作業を動かす
+
+`T167_TEST_PORT_OFFSET=20000 bash scripts/dev.sh check` で画面・API・Auth/Firestore等のポートをまとめてずらす。検査用DBは `demo-t167-test-20000` になり、通常のプレビューから分離する。0〜40000の整数を指定でき、既存ポートが使用中なら起動前に停止する。既存のサーバーを検査に流用しない。通常の起動にも `T167_TEST_PORT_OFFSET=10000 bash scripts/dev.sh serve` を使える。並行する作業では異なる値を指定する。検査用コピーを作らず、対象ブランチのまま全検査を実行できる。macOSのBash・awkでもPR本文の生成と構成検査が動くようにしている。
+
+
 ## 依存を更新する
 
 依存の修正版を選び、package.jsonとlockfileを同じ変更で更新する。メジャー更新では型・入力検証・既定値が維持されるかを確認する。`npm ci`、開発依存を含む`npm audit`、`bash scripts/dev.sh check`を実行し、実APIを使わない検査と実接続の確認を区別して報告する。依存更新に認証・画面・データ構造等の機能変更を混ぜない。固定版とoverridesの用途はREADMEの「依存ライブラリの管理」を参照。
 
-## 同じ端末で複数の作業を動かす
-
-`T167_TEST_PORT_OFFSET=20000 bash scripts/dev.sh check` で画面・API・Auth/Firestore等のポートをまとめてずらす。検査用DBは `demo-t167-test-20000` になり、通常のプレビューから分離する。0〜40000の整数を指定でき、既存ポートが使用中なら起動前に停止する。既存のサーバーを検査に流用しない。通常の起動にも `T167_TEST_PORT_OFFSET=10000 bash scripts/dev.sh serve` を使える。並行する作業では異なる値を指定する。検査用コピーを作らず、対象ブランチのまま全検査を実行できる。macOSのBash・awkでもPR本文の生成と構成検査が動くようにしている。
 
 ## 開発の流れ
 
@@ -84,7 +88,7 @@ PR の CI は、同じブランチの新しい実行が古い実行を取り消�
 | 開き方 | PR の画面の「View deployment」、または Actions の `preview` のサマリー。どの PR・コミットが出ているかもサマリーに書かれる |
 | 出るとき | `web/` を変えた PR に push したとき（ビルドに数分かかる）。ほかのブランチを出したいときは Actions → `preview` → Run workflow でブランチ名を入れる |
 | API とデータ | **本番と共有**する（画面だけを差し替える）。試すときは試験用の部屋を作り、本番の部屋は使わない |
-| ログイン | 匿名参加も Google ログインも使える（URL は `infra/setup-preview.sh` が承認済みドメインに加える） |
+| ログイン | 生徒・教師とも Google ログインが必須。教師操作には管理者設定の teacher claim も必要（URL は `infra/setup-preview.sh` が承認済みドメインに加える） |
 
 プレビューを出すワークフローとスクリプトは、`main` にあるものが動く。PR からは `web/` のファイルだけを使うので、`preview.yml` や `infra/` を変える PR は、マージされるまでプレビューに効かない（PR のコードが GCP の認証で動かないようにするため）。
 

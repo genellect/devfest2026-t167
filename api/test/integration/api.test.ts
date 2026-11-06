@@ -1,17 +1,22 @@
 // エミュレータ上で API の認可・フェーズ・分析の排他・指標を確かめる。
 // 実行: リポジトリ直下で npm --prefix firebase run fb -- emulators:exec --project demo-t167 --only auth,firestore "npm --prefix api run test:integration"
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
+import { wave } from '../fixtures/audio.js';
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { createApp } from '../../src/app.js';
+import { emulatorGoogleUser } from '../../../firebase/emulator-auth.mjs';
 import { mockGemini } from '../../src/gemini.js';
 
 const PROJECT = process.env.GOOGLE_CLOUD_PROJECT ?? 'demo-t167';
 if (!PROJECT.startsWith('demo-')) throw new Error('試験はデモ用プロジェクトだけで実行できます');
 process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
 process.env.FIREBASE_AUTH_EMULATOR_HOST ??= '127.0.0.1:9099';
+for (const key of ['FIRESTORE_EMULATOR_HOST', 'FIREBASE_AUTH_EMULATOR_HOST']) {
+  if (!/^(127\.0\.0\.1|localhost):\d+$/.test(process.env[key] ?? '')) throw new Error('試験には専用のローカルエミュレータを指定してください');
+}
 initializeApp({ projectId: PROJECT });
 const db = getFirestore();
 let fail = false; let delay = 0; let clock = Date.now();
@@ -23,9 +28,10 @@ async function signUp(body: object): Promise<string> {
   });
   return (await r.json()).idToken;
 }
-const anon = () => signUp({});
+const anonymous = () => signUp({});
+const anon = async () => (await emulatorGoogleUser('student', `s-${Date.now()}-${n++}`)).idToken;
 let n = 0;
-const named = () => signUp({ email: `u${Date.now()}${n++}@example.com`, password: 'password' }); // submit-allow: エミュレータ専用のダミー
+const named = async () => (await emulatorGoogleUser('teacher', `t-${Date.now()}-${n++}`)).idToken;
 const uidOf = (t: string) => JSON.parse(Buffer.from(t.split('.')[1], 'base64url').toString()).user_id as string;
 const api = (token?: string) => ({
   post: (path: string, body: object = {}) => {
@@ -33,6 +39,21 @@ const api = (token?: string) => ({
     return token ? r.set('authorization', `Bearer ${token}`) : r;
   },
 });
+
+function gate() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+function blocked(method: 'findPoints' | 'compare') {
+  const entered = gate(), release = gate(), base = mockGemini();
+  const gemini = { ...base };
+  if (method === 'findPoints') gemini.findPoints = async (...args) => { entered.resolve(); await release.promise; return base.findPoints(...args); };
+  else gemini.compare = async (...args) => { entered.resolve(); await release.promise; return base.compare(...args); };
+  const target = createApp({ db, auth: getAuth(), gemini, now: () => clock });
+  const post = (token: string, path: string, body: object = {}) => request(target).post(path).set('authorization', `Bearer ${token}`).send(body);
+  return { entered, release, post };
+}
 
 async function clear() {
   await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
@@ -63,7 +84,8 @@ describe('認証と所属', () => {
   it('トークンなしは 401', async () => {
     await api().post('/rooms', { title: 'x' }).expect(401);
   });
-  it('匿名ユーザーは部屋を作れない（403）、名前付きユーザーは作れる', async () => {
+  it('匿名・Google生徒は部屋を作れず、教師claimがあるGoogle教師は作れる', async () => {
+    await api(await anonymous()).post('/rooms', { title: 'x' }).expect(403);
     await api(await anon()).post('/rooms', { title: 'x' }).expect(403);
     const r = await api(await named()).post('/rooms', { title: 'x' }).expect(201);
     expect(r.body.joinCode).toMatch(/^[A-Z0-9]{6}$/);
@@ -118,19 +140,21 @@ describe('未検討論点の分析', () => {
   it('分析中の二重実行は 409', async () => {
     const { roomId, mod } = await setupRoom();
     await toDiscussing(mod, roomId, ['透明性'], []);
-    delay = 800;
-    const first = api(mod).post(`/rooms/${roomId}/analyze`).then((r) => r);
-    await new Promise((r) => setTimeout(r, 300));
-    await api(mod).post(`/rooms/${roomId}/analyze`).expect(409);
+    const { entered, release, post } = blocked('findPoints');
+    const first = post(mod, `/rooms/${roomId}/analyze`).then((r) => r);
+    await entered.promise;
+    try { await post(mod, `/rooms/${roomId}/analyze`).expect(409); }
+    finally { release.resolve(); }
     expect((await first).status).toBe(200);
   });
   it('遅れて返った古い結果は保存しない', async () => {
     const { roomId, mod } = await setupRoom();
     await toDiscussing(mod, roomId, ['透明性'], []);
-    delay = 800;
-    const first = api(mod).post(`/rooms/${roomId}/analyze`).then((r) => r);
-    await new Promise((r) => setTimeout(r, 300));
-    await db.doc(`rooms/${roomId}`).update({ 'analysis.jobId': 'newer-job' });
+    const { entered, release, post } = blocked('findPoints');
+    const first = post(mod, `/rooms/${roomId}/analyze`).then((r) => r);
+    await entered.promise;
+    try { await db.doc(`rooms/${roomId}`).update({ 'analysis.jobId': 'newer-job' }); }
+    finally { release.resolve(); }
     const r = await first;
     expect(r.status).toBe(409);
     expect(r.body.error.code).toBe('stale_result');
@@ -263,11 +287,11 @@ describe('グループごとの進行', () => {
     const { roomId, mod, p1, p2 } = await discussing();
     await api(p1).post(`/rooms/${roomId}/groups/end`).expect(200);
     await api(p1).post(`/rooms/${roomId}/statement`, { text: 'a', agreement: 3 }).expect(200);
-    expect((await api(p2).post(`/rooms/${roomId}/statement`, { text: 'b', agreement: 3 }).expect(200)).body.analyzed).toBe(true);
+    await api(p2).post(`/rooms/${roomId}/statement`, { text: "b", agreement: 3 }).expect(200);
     const first = (await db.doc(`rooms/${roomId}/results/group-1`).get()).get('jobId');
     clock += 31_000;
     // 一文の送り直しと出し直しでは、Gemini を呼ばない
-    expect((await api(p2).post(`/rooms/${roomId}/statement`, { text: 'c', agreement: 3 }).expect(200)).body).toMatchObject({ analyzed: false, skipped: 'done' });
+    await api(p2).post(`/rooms/${roomId}/statement`, { text: "変更", agreement: 3 }).expect(409);
     expect((await api(p2).post(`/rooms/${roomId}/groups/analyze`).expect(200)).body).toMatchObject({ analyzed: false, skipped: 'done' });
     expect((await db.doc(`rooms/${roomId}/results/group-1`).get()).get('jobId')).toBe(first);
     // 先生は出し直せるが、続けては出せない
@@ -278,14 +302,16 @@ describe('グループごとの進行', () => {
     const { roomId, mod, p1, p2 } = await discussing();
     await api(p1).post(`/rooms/${roomId}/groups/end`).expect(200);
     await api(p1).post(`/rooms/${roomId}/statement`, { text: 'a', agreement: 3 }).expect(200);
-    delay = 300;
-    const [auto, manual] = await Promise.all([
-      api(p2).post(`/rooms/${roomId}/statement`, { text: 'b', agreement: 3 }),
-      new Promise((r) => setTimeout(r, 100)).then(() => api(mod).post(`/rooms/${roomId}/groups/analyze`, { group: 1 })),
-    ]);
+    const { entered, release, post } = blocked('compare');
+    const pending = post(p2, `/rooms/${roomId}/statement`, { text: 'b', agreement: 3 }).then((r) => r);
+    await entered.promise;
+    let manual;
+    try { manual = await post(mod, `/rooms/${roomId}/groups/analyze`, { group: 1 }); }
+    finally { release.resolve(); }
+    const auto = await pending;
     expect(auto.body.analyzed).toBe(true);
-    expect(manual.status).toBe(200);
-    expect(manual.body).toMatchObject({ analyzed: false, skipped: 'running' });
+    expect(manual!.status).toBe(200);
+    expect(manual!.body).toMatchObject({ analyzed: false, skipped: 'running' });
   });
   it('存在しないグループ番号は受け付けない', async () => {
     const { roomId, mod } = await setupRoom(); // グループは1つ
@@ -295,8 +321,8 @@ describe('グループごとの進行', () => {
 });
 
 describe('録音の分析', () => {
-  const upload = (token: string, roomId: string, q = 'consent=1&durationSec=600', type = 'audio/webm', bytes = 4000) =>
-    request(app).post(`/rooms/${roomId}/groups/recording?${q}`).set('authorization', `Bearer ${token}`).set('content-type', type).send(Buffer.alloc(bytes, 1));
+  const upload = (token: string, roomId: string, q = 'consent=1&durationSec=600', type = 'audio/wav', bytes = 4000) =>
+    request(app).post(`/rooms/${roomId}/groups/recording?${q}`).set('authorization', `Bearer ${token}`).set('content-type', type).send(bytes === 4000 ? wave() : Buffer.alloc(bytes, 1));
   async function discussingRoom() {
     const r = await setupRoom();
     for (const p of [r.p1, r.p2]) await api(p).post(`/rooms/${r.roomId}/opinion`, { text: '意見' }).expect(200);
@@ -315,7 +341,7 @@ describe('録音の分析', () => {
   });
   it('分析の結果を results/flow-g{番号} に保存し、グループに1回だけ分析する', async () => {
     const { roomId, p1, p2 } = await discussingRoom();
-    const r = await upload(p1, roomId, 'consent=1&durationSec=600', 'audio/webm;codecs=opus').expect(200);
+    const r = await upload(p1, roomId, 'consent=1&durationSec=600', 'audio/wav').expect(200);
     expect(r.body).toMatchObject({ group: 1, status: 'done', speechDetected: true, totalMinutes: 10, source: 'mock' });
     const flow = (await db.doc(`rooms/${roomId}/results/flow-g1`).get()).data();
     expect(flow).toMatchObject({ group: 1, totalMinutes: 10, durationSec: 600, source: 'mock' });
@@ -391,6 +417,242 @@ describe('承認と合意の検証', () => {
       { label: expect.any(String), count: 1 }, { label: expect.any(String), count: 1 },
     ] }]);
   });
+});
+
+describe('P1: 非公開情報と状態変更の回帰', () => {
+  const postTo = (target: ReturnType<typeof createApp>, token: string, path: string, body: object = {}) =>
+    request(target).post(path).set('authorization', `Bearer ${token}`).send(body);
+  const deferred = () => {
+    let resolve!: () => void;
+    const promise = new Promise<void>((done) => { resolve = done; });
+    return { promise, resolve };
+  };
+  async function consensusRoom() {
+    const r = await setupRoom();
+    await db.doc(`rooms/${r.roomId}`).update({ phase: 'consensus', groupState: { '1': { status: 'consensus' } } });
+    for (const p of [r.p1, r.p2]) await db.doc(`rooms/${r.roomId}/consensusStatements/${uidOf(p)}`).set({ text: '合成の結論', agreement: 3 });
+    return r;
+  }
+
+  it('JSON解析失敗と予期しないDBエラーでも、本文・トークンをログや応答に出さない', async () => {
+    const { mod, roomId } = await setupRoom();
+    const marker = 'synthetic-private-error-marker';
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const bad = await request(app).post('/rooms').set('content-type', 'application/json').send(`{"text":"${marker}"`);
+      expect(bad.status).toBe(400);
+      expect(log).not.toHaveBeenCalled();
+      const failingDb = new Proxy(db, { get(target, key) {
+        if (key === 'doc') return () => { throw Object.assign(new Error(marker), { body: marker }); };
+        const value = Reflect.get(target, key);
+        return typeof value === 'function' ? value.bind(target) : value;
+      } });
+      const target = createApp({ db: failingDb, auth: getAuth(), gemini: mockGemini() });
+      const failed = await postTo(target, mod, `/rooms/${roomId}/phase`, { to: 'discussing' }).expect(500);
+      expect(log).toHaveBeenCalledWith('api_internal_error');
+      expect(JSON.stringify([log.mock.calls, bad.body, failed.body])).not.toContain(marker);
+      expect(JSON.stringify(log.mock.calls)).not.toContain(mod);
+    } finally { log.mockRestore(); }
+  });
+
+  it('Geminiの生の例外文を、部屋のanalysis.errorへ保存しない', async () => {
+    const { roomId, mod } = await setupRoom();
+    const target = createApp({ db, auth: getAuth(), gemini: { ...mockGemini(), findPoints: async () => { throw new Error('synthetic-private-provider-error'); } } });
+    await postTo(target, mod, `/rooms/${roomId}/analyze`).expect(503);
+    const room = (await db.doc(`rooms/${roomId}`).get()).data();
+    expect(room?.analysis).toMatchObject({ status: 'failed', error: 'gemini_unavailable' });
+    expect(JSON.stringify(room)).not.toContain('synthetic-private-provider-error');
+  });
+
+  it('1グループの議論開始後は、新しい参加者を自動割当しない。既存メンバーは再参加できる', async () => {
+    const { roomId, mod, p1, p2, joinCode } = await setupRoom();
+    for (const p of [p1, p2]) await api(p).post(`/rooms/${roomId}/opinion`, { text: '合成の意見' }).expect(200);
+    const newcomer = await anon();
+    await api(newcomer).post('/rooms/join', { code: joinCode }).expect(409);
+    expect((await db.doc(`rooms/${roomId}/members/${uidOf(newcomer)}`).get()).exists).toBe(false);
+    await api(p1).post('/rooms/join', { code: joinCode }).expect(200);
+    await api(mod).post('/rooms/join', { code: joinCode }).expect(200);
+    expect((await db.doc(`rooms/${roomId}`).get()).get('groupState')['1'].total).toBe(2);
+  });
+
+  it('グループ選択と開始を同時に行っても、開始時の人数と所属が一致する', async () => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const mod = await named(); const p1 = await anon(); const p2 = await anon();
+      const { roomId, joinCode } = (await api(mod).post('/rooms', { title: '競合試験', groups: 2 }).expect(201)).body;
+      for (const p of [p1, p2]) await api(p).post('/rooms/join', { code: joinCode }).expect(200);
+      await api(p1).post(`/rooms/${roomId}/groups/choose`, { group: 1 }).expect(200);
+      await api(p2).post(`/rooms/${roomId}/groups/choose`, { group: 2 }).expect(200);
+      const [moved, started] = await Promise.all([
+        api(p1).post(`/rooms/${roomId}/groups/choose`, { group: 2 }),
+        api(mod).post(`/rooms/${roomId}/groups/start`, { group: 2 }),
+      ]);
+      expect(started.status).toBe(200);
+      expect([200, 409]).toContain(moved.status);
+      const members = await db.collection(`rooms/${roomId}/members`).where('group', '==', 2).get();
+      expect(started.body.total).toBe(members.size);
+      expect((await db.doc(`rooms/${roomId}`).get()).get('groupState')['2']).toMatchObject({ status: 'discussing', total: members.size });
+    }
+  }, 30_000); // Firestoreの競合時バックオフを含む3回の同時操作を検査する。
+
+  it('closed後は、回答・グループ開始/終了/移動・分析・録音を受け付けず、状態を変えない', async () => {
+    const { roomId, mod, p1 } = await setupRoom();
+    const ref = db.doc(`rooms/${roomId}`);
+    await ref.update({ phase: 'closed', groupState: { '1': { status: 'consensus', total: 2 } } });
+    const before = (await ref.get()).data();
+    for (const [token, suffix, body] of [
+      [p1, 'opinion', { text: '締切後' }], [p1, 'statement', { text: '締切後', agreement: 3 }],
+      [p1, 'groups/end', {}], [p1, 'groups/choose', { group: 1 }],
+      [mod, 'groups/start', { group: 1 }], [mod, 'groups/analyze', { group: 1 }],
+      [p1, 'groups/analyze', {}], [mod, 'consensus/analyze', {}],
+    ] as [string, string, object][]) await api(token).post(`/rooms/${roomId}/${suffix}`, body).expect(409);
+    await request(app).post(`/rooms/${roomId}/groups/recording?consent=1&durationSec=10`)
+      .set('authorization', `Bearer ${p1}`).set('content-type', 'audio/wav').send(wave(10, 8000)).expect(409);
+    expect((await ref.get()).data()).toEqual(before);
+    expect((await db.doc(`rooms/${roomId}/consensusStatements/${uidOf(p1)}`).get()).exists).toBe(false);
+  });
+
+  it('部屋全体の合意分析も、同時実行を409・30秒以内を429で拒否する', async () => {
+    const { roomId, mod } = await consensusRoom();
+    const entered = deferred(); const release = deferred(); const base = mockGemini();
+    const compare = vi.fn(async (...args: Parameters<typeof base.compare>) => { entered.resolve(); await release.promise; return base.compare(...args); });
+    const target = createApp({ db, auth: getAuth(), gemini: { ...base, compare }, now: () => clock });
+    const first = postTo(target, mod, `/rooms/${roomId}/consensus/analyze`).then((r) => r);
+    await entered.promise;
+    try { await postTo(target, mod, `/rooms/${roomId}/consensus/analyze`).expect(409); }
+    finally { release.resolve(); }
+    expect((await first).status).toBe(200);
+    expect(compare).toHaveBeenCalledTimes(1);
+    const limited = await postTo(target, mod, `/rooms/${roomId}/consensus/analyze`).expect(429);
+    expect(limited.body.error.retryAfterSec).toBe(30);
+    clock += 31_000;
+    await postTo(target, mod, `/rooms/${roomId}/consensus/analyze`).expect(200);
+  });
+
+  it('合意分析の期限切れ後に新しい結果が出ても、古い処理は上書きできない', async () => {
+    const { roomId, mod } = await consensusRoom();
+    const entered = deferred(); const release = deferred(); const base = mockGemini(); let calls = 0;
+    const compare: typeof base.compare = async () => {
+      const first = calls++ === 0;
+      if (first) { entered.resolve(); await release.promise; }
+      return { groups: [{ label: first ? '古い結果' : '新しい結果', members: [0, 1] }], addressedInsightIds: [] };
+    };
+    const target = createApp({ db, auth: getAuth(), gemini: { ...base, compare }, now: () => clock });
+    const old = postTo(target, mod, `/rooms/${roomId}/consensus/analyze`).then((r) => r);
+    await entered.promise; clock += 61_000;
+    try { await postTo(target, mod, `/rooms/${roomId}/consensus/analyze`).expect(200); }
+    finally { release.resolve(); }
+    expect((await old).status).toBe(409);
+    expect((await db.doc(`rooms/${roomId}/results/summary`).get()).get('groups')[0].label).toBe('新しい結果');
+  });
+
+  it('合意分析が失敗しても固定コードを保存し、30秒後に再試行できる', async () => {
+    const { roomId, mod } = await consensusRoom(); fail = true;
+    await api(mod).post(`/rooms/${roomId}/consensus/analyze`).expect(503);
+    expect((await db.doc(`rooms/${roomId}`).get()).get('consensusAnalysis.status')).toBe('failed');
+    await api(mod).post(`/rooms/${roomId}/consensus/analyze`).expect(429);
+    fail = false; clock += 31_000;
+    await api(mod).post(`/rooms/${roomId}/consensus/analyze`).expect(200);
+  });
+
+  it.each(['groups/analyze', 'consensus/analyze', 'groups/recording'])('%sの実行中にclosedになったら、結果を書き戻さない', async (suffix) => {
+    const { roomId, mod, p1 } = await consensusRoom();
+    const entered = deferred(); const release = deferred(); const base = mockGemini();
+    const target = createApp({ db, auth: getAuth(), now: () => clock, gemini: {
+      ...base,
+      compare: async (...args) => { entered.resolve(); await release.promise; return base.compare(...args); },
+      analyzeDiscussion: async (...args) => { entered.resolve(); await release.promise; return base.analyzeDiscussion(...args); },
+    } });
+    const recording = suffix === 'groups/recording';
+    const pending = recording
+      ? request(target).post(`/rooms/${roomId}/${suffix}?consent=1&durationSec=10`).set('authorization', `Bearer ${p1}`).set('content-type', 'audio/wav').send(wave(10, 8000)).then((r) => r)
+      : postTo(target, mod, `/rooms/${roomId}/${suffix}`, { group: 1 }).then((r) => r);
+    await entered.promise;
+    try { await api(mod).post(`/rooms/${roomId}/phase`, { to: 'closed' }).expect(200); }
+    finally { release.resolve(); }
+    const response = await pending;
+    if (suffix === 'groups/analyze') expect(response.body).toMatchObject({ analyzed: false, skipped: 'stale' });
+    else expect(response.status).toBe(409);
+    const resultId = suffix === 'groups/analyze' ? 'group-1' : recording ? 'flow-g1' : 'summary';
+    expect((await db.doc(`rooms/${roomId}/results/${resultId}`).get()).exists).toBe(false);
+    expect((await db.doc(`rooms/${roomId}`).get()).get('phase')).toBe('closed');
+  });
+});
+
+describe('認証・入力攻撃・再送の境界', () => {
+  it('Google以外の参加と、教師権限の自己申告を拒否する', async () => {
+    const { roomId, joinCode, p1 } = await setupRoom();
+    await api(await anonymous()).post('/rooms/join', { code: joinCode }).expect(403);
+    const password = await signUp({ email: `password-${Date.now()}@example.com`, password: 'password' }); // submit-allow: エミュレータ専用のダミー
+    await api(password).post('/rooms/join', { code: joinCode }).expect(403);
+    await api(p1).post('/rooms', { title: '自称教師', teacher: true, role: 'moderator' }).expect(403);
+    await db.doc(`rooms/${roomId}/members/${uidOf(p1)}`).update({ role: 'moderator' });
+    await api(p1).post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(403);
+    await api(p1).post(`/rooms/${roomId}/groups/analyze`, { group: 1 }).expect(403);
+  });
+  it('無効化されたアカウントと改ざんトークンを拒否する', async () => {
+    const token = await anon(); await getAuth().updateUser(uidOf(token), { disabled: true });
+    await api(token).post('/rooms/join', { code: 'DEMO01' }).expect(401);
+    await api('not.a.token').post('/rooms', { title: 'x' }).expect(401);
+  });
+  it('参加コード総当たりは利用者単位に制限し、窓が過ぎたら復帰する', async () => {
+    const token = await anon();
+    for (let i = 0; i < 30; i++) await api(token).post('/rooms/join', { code: 'ZZZZZZ' }).expect(404);
+    const response = await api(token).post('/rooms/join', { code: 'ZZZZZZ' }).expect(429);
+    expect(response.headers['retry-after']).toBe('60');
+    clock += 60_000; await api(token).post('/rooms/join', { code: 'ZZZZZZ' }).expect(404);
+  });
+  it('同じ録音を同じ利用者が再送しても結果・試行回数を重複させない', async () => {
+    const { roomId, mod, p1 } = await setupRoom();
+    await api(mod).post(`/rooms/${roomId}/groups/start`, { group: 1 }).expect(200);
+    const send = () => request(app).post(`/rooms/${roomId}/groups/recording?consent=1&durationSec=2`)
+      .set('authorization', `Bearer ${p1}`).set('content-type', 'audio/wav').send(wave(2, 8000));
+    const first = await send().expect(200); const second = await send().expect(200);
+    expect(second.body).toEqual(first.body);
+    expect((await db.doc(`rooms/${roomId}`).get()).get('groupState.1.recording.attempts')).toBe(1);
+  });
+  it('音声の偽装と入力過大を、分析の試行枠を消費せず拒否する', async () => {
+    const { roomId, mod, p1 } = await setupRoom();
+    await api(mod).post(`/rooms/${roomId}/groups/start`, { group: 1 }).expect(200);
+    await request(app).post(`/rooms/${roomId}/groups/recording?consent=1&durationSec=2`)
+      .set('authorization', `Bearer ${p1}`).set('content-type', 'audio/webm').send(wave(2)).expect(400);
+    expect((await db.doc(`rooms/${roomId}`).get()).get('groupState.1.recording')).toBeUndefined();
+    await api(p1).post(`/rooms/${roomId}/opinion`, { text: 'x'.repeat(40_000) }).expect(413);
+  });
+  it('計測には固定された操作名・応答・所要時間だけを含み、入力本文を出さない', async () => {
+    const events: unknown[] = [];
+    const target = createApp({ db, auth: getAuth(), gemini: mockGemini(), observe: (event) => events.push(event) });
+    const token = await anon();
+    const response = await request(target).post('/rooms').set('authorization', `Bearer ${token}`).send({ title: 'PRIVATE-TEXT' }).expect(403);
+    expect(response.headers['x-request-id']).toMatch(/^[\da-f-]{36}$/);
+    expect(events).toHaveLength(1); expect(events[0]).toMatchObject({ route: '/rooms', status: 403, code: 'teacher_required' });
+    expect(JSON.stringify(events)).not.toContain(token); expect(JSON.stringify(events)).not.toContain('PRIVATE-TEXT');
+  });
+});
+
+it('パスの階層偽装とJSON条件式の注入を受け付けない', async () => {
+  const token = await anon();
+  await api(token).post('/rooms/a%2Fmembers%2Fb/progress').expect(400);
+  await api(token).post('/rooms/join', { code: { $ne: null } }).expect(400);
+  await api(token).post('/rooms/join', { code: 'A'.repeat(1000) }).expect(400);
+});
+
+it('分析中とクラス結果確定後の回答更新で、分析結果を古くしない', async () => {
+  const { roomId, mod, p1, p2 } = await setupRoom();
+  await api(mod).post(`/rooms/${roomId}/groups/start`, { group: 1 }).expect(200);
+  await api(p1).post(`/rooms/${roomId}/groups/end`).expect(200);
+  await api(p1).post(`/rooms/${roomId}/statement`, { text: '元の回答', agreement: 3 }).expect(200);
+  const { entered, release, post } = blocked('compare');
+  const pending = post(p2, `/rooms/${roomId}/statement`, { text: 'b', agreement: 3 }).then((r) => r);
+  await entered.promise;
+  try {
+    await api(p1).post(`/rooms/${roomId}/statement`, { text: '途中の変更', agreement: 5 }).expect(409);
+    expect((await db.doc(`rooms/${roomId}/consensusStatements/${uidOf(p1)}`).get()).get('text')).toBe('元の回答');
+  } finally { release.resolve(); }
+  expect((await pending).status).toBe(200);
+  for (const status of ['running', 'done']) {
+    await db.doc(`rooms/${roomId}`).update({ 'groupState.1.status': 'consensus', consensusAnalysis: { status } });
+    await api(p1).post(`/rooms/${roomId}/statement`, { text: '変更', agreement: 5 }).expect(409);
+  }
 });
 
 describe('Zod・Admin SDK更新後のAPI互換性', () => {

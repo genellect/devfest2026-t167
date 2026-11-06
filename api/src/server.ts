@@ -14,6 +14,6 @@ const gemini = g.mock
   : vertexGemini(g.project, g.location, g.model);
 
 const port = Number(process.env.PORT ?? 8080);
-createApp({ db: getFirestore(), auth: getAuth(), gemini }).listen(port, () => {
+createApp({ db: getFirestore(), auth: getAuth(), gemini, observe: (event) => console.info(JSON.stringify({ event: 'api_request', ...event })) }).listen(port, () => {
   console.log(`api listening on :${port} (gemini=${describeGemini(g)})`);
 });

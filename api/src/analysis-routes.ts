@@ -1,0 +1,135 @@
+import { trackJob } from './job-events.js';
+import type { Express } from 'express';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { HttpError, wrap, requireOpenRoom, type Handler } from './http.js';
+import { createAnalysisJobs } from './analysis-jobs.js';
+import { validateComparison } from './gemini.js';
+import { groupNumber, messageCounts } from './policy.js';
+import { alignmentRate, interventionEffectiveness, participationFairness, reflectionRate } from './metrics.js';
+import type { Dependencies } from './dependencies.js';
+export function registerAnalysisRoutes(app: Express, deps: Dependencies, guards: { authenticate: Handler; member: Handler; moderator: Handler }) {
+  const { db, gemini } = deps;
+  const { authenticate, member, moderator } = guards;
+  const { beginAnalysis, finishAnalysis } = createAnalysisJobs(deps);
+  const roomRef = (id: string) => db.doc(`rooms/${id}`);
+  const chain = (...handlers: Handler[]) => handlers;
+  // 未検討論点の分析（司会者）。複数インスタンスでも重複しないよう、部屋ドキュメントのトランザクションで排他する
+  app.post('/rooms/:roomId/analyze', ...chain(authenticate, member, moderator, wrap(async (req, res) => {
+    const roomId = req.params.roomId;
+    const { jobId } = await beginAnalysis(roomId, 'analysis');
+    const [ops, msgs] = await Promise.all([
+      db.collection(`rooms/${roomId}/privateOpinions`).get(),
+      db.collection(`rooms/${roomId}/messages`).orderBy('createdAt').get(),
+    ]);
+    let points;
+    try {
+      points = await trackJob(deps, 'points', jobId, () => gemini.findPoints(ops.docs.map((d) => d.get('text')), msgs.docs.map((d) => d.get('text'))));
+    } catch {
+      await finishAnalysis(roomId, 'analysis', jobId, (tx) => {
+        tx.update(roomRef(roomId), { 'analysis.status': 'failed', 'analysis.error': 'gemini_unavailable' });
+      });
+      throw new HttpError(503, 'gemini_unavailable', 'AI の提案は一時停止中です。議論はそのまま続けられます');
+    }
+    // 遅れて返った古い結果は捨てる（jobId が今の分析と一致するときだけ保存）
+    const saved = await finishAnalysis(roomId, 'analysis', jobId, (tx) => {
+      for (const p of points.filter((x) => !x.discussed)) {
+        tx.set(db.collection(`rooms/${roomId}/insights`).doc(), { summary: p.summary, status: 'pending', jobId, source: gemini.source, createdAt: FieldValue.serverTimestamp() });
+      }
+      tx.set(db.doc(`rooms/${roomId}/results/coverage`), {
+        total: points.length, discussed: points.filter((x) => x.discussed).length,
+        reflectionRate: reflectionRate(points), source: gemini.source, jobId, updatedAt: FieldValue.serverTimestamp(),
+      });
+      tx.update(roomRef(roomId), { 'analysis.status': 'done', 'analysis.finishedAt': FieldValue.serverTimestamp() });
+    });
+    if (!saved) throw new HttpError(409, 'stale_result', '新しい分析が始まったため、この結果は破棄しました');
+    res.json({ jobId, suggested: points.filter((x) => !x.discussed).length, total: points.length });
+  })));
+
+  // 提出状況（司会者）。非公開の事前意見と合意の一文は、本文を返さず件数だけを返す
+  app.post('/rooms/:roomId/progress', ...chain(authenticate, member, moderator, wrap(async (req, res) => {
+    const roomId = req.params.roomId;
+    const [room, members, opinions, statements] = await Promise.all([
+      roomRef(roomId).get(),
+      db.collection(`rooms/${roomId}/members`).where('role', '==', 'participant').get(),
+      db.collection(`rooms/${roomId}/privateOpinions`).select().get(),
+      db.collection(`rooms/${roomId}/consensusStatements`).select().get(),
+    ]);
+    const groupOf = new Map(members.docs.map((m) => [m.id, groupNumber(m, room.get('groups'))]));
+    const byGroup = Array.from({ length: room.get('groups') ?? 1 }, (_, i) => ({ group: i + 1, participants: 0, opinions: 0, statements: 0 }));
+    const at = (uid: string) => { const g = groupOf.get(uid); return g ? byGroup[g - 1] : undefined; };
+    for (const m of members.docs) { const g = at(m.id); if (g) g.participants++; }
+    for (const d of opinions.docs) { const g = groupOf.has(d.id) ? at(d.id) : undefined; if (g) g.opinions++; }
+    for (const d of statements.docs) { const g = groupOf.has(d.id) ? at(d.id) : undefined; if (g) g.statements++; }
+    res.json({ participants: members.size, opinions: opinions.size, statements: statements.size, byGroup });
+  })));
+
+  // 提案の承認（司会者）
+  app.post('/rooms/:roomId/insights/:insightId/approve', ...chain(authenticate, member, moderator, wrap(async (req, res) => {
+    const ref = db.doc(`rooms/${req.params.roomId}/insights/${req.params.insightId}`);
+    await db.runTransaction(async (tx) => {
+      requireOpenRoom(await tx.get(roomRef(req.params.roomId)));
+      const s = await tx.get(ref);
+      if (!s.exists) throw new HttpError(404, 'insight_not_found', '提案がありません');
+      if (s.get('status') !== 'pending') throw new HttpError(409, 'already_decided', 'この提案は処理済みです');
+      tx.update(ref, { status: 'approved', approvedAt: FieldValue.serverTimestamp() });
+    });
+    res.json({ status: 'approved' });
+  })));
+
+  // 合意の実態検証と4つの指標（司会者）
+  app.post('/rooms/:roomId/consensus/analyze', ...chain(authenticate, member, moderator, wrap(async (req, res) => {
+    const roomId = req.params.roomId;
+    const { jobId, groups: roomGroups } = await beginAnalysis(roomId, 'consensusAnalysis');
+    const [stmts, approved, msgs, members, coverage] = await Promise.all([
+      db.collection(`rooms/${roomId}/consensusStatements`).get(),
+      db.collection(`rooms/${roomId}/insights`).where('status', '==', 'approved').get(),
+      db.collection(`rooms/${roomId}/messages`).orderBy('createdAt').get(),
+      db.collection(`rooms/${roomId}/members`).where('role', '==', 'participant').get(),
+      db.doc(`rooms/${roomId}/results/coverage`).get(),
+    ]);
+    const firstApproval = Math.min(...approved.docs.map((d) => (d.get('approvedAt') as Timestamp | undefined)?.toMillis() ?? Infinity));
+    const after = msgs.docs.filter((d) => ((d.get('createdAt') as Timestamp | undefined)?.toMillis() ?? 0) >= firstApproval).map((d) => d.get('text') as string);
+    let cmp;
+    try {
+      cmp = await trackJob(deps, 'consensus', jobId, async () => validateComparison(await gemini.compare(stmts.docs.map((d) => d.get('text')), approved.docs.map((d) => ({ id: d.id, summary: d.get('summary') })), after), stmts.size, approved.docs.map((d) => d.id)));
+    } catch {
+      await finishAnalysis(roomId, 'consensusAnalysis', jobId, (tx) => {
+        tx.update(roomRef(roomId), { 'consensusAnalysis.status': 'failed' });
+      });
+      throw new HttpError(503, 'gemini_unavailable', 'AI の分析は一時停止中です。少し待ってから再実行してください');
+    }
+    const counts = messageCounts(members.docs.map((m) => m.id), msgs.docs.map((d) => d.get('uid')));
+    // クラス内のグループごとに、合意の一文がどのまとまりに入ったかを数える（Gemini の呼び出しは増やさない）
+    const groupOf = new Map(members.docs.map((m) => [m.id, groupNumber(m, roomGroups)]));
+    const clusterOf = new Map<number, number>();
+    cmp.groups.forEach((g, ci) => g.members.forEach((i) => clusterOf.set(i, ci)));
+    const groupCount = roomGroups ?? 1;
+    const byGroup = Array.from({ length: groupCount }, (_, gi) => {
+      const idx = stmts.docs.map((d, i) => [d.id, i] as const).filter(([uid]) => groupOf.get(uid) === gi + 1).map(([, i]) => i);
+      const clusters = cmp.groups
+        .map((c, ci) => ({ label: c.label, count: idx.filter((i) => clusterOf.get(i) === ci).length }))
+        .filter((c) => c.count > 0);
+      return { group: gi + 1, respondents: idx.length, clusters, alignmentRate: alignmentRate(clusters.map((c) => ({ members: Array.from({ length: c.count }, (_, k) => k) })), idx.length) };
+    });
+    const summary = {
+      respondents: stmts.size,
+      groups: cmp.groups,
+      byGroup,
+      metrics: {
+        reflectionRate: coverage.exists ? coverage.get('reflectionRate') : null,
+        alignmentRate: alignmentRate(cmp.groups, stmts.size),
+        participationFairness: participationFairness(counts),
+        interventionEffectiveness: interventionEffectiveness(approved.size, new Set(cmp.addressedInsightIds).size),
+      },
+      source: gemini.source,
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    const saved = await finishAnalysis(roomId, 'consensusAnalysis', jobId, (tx) => {
+      tx.set(db.doc(`rooms/${roomId}/results/summary`), { ...summary, jobId });
+      tx.update(roomRef(roomId), { 'consensusAnalysis.status': 'done', 'consensusAnalysis.finishedAt': FieldValue.serverTimestamp() });
+    });
+    if (!saved) throw new HttpError(409, 'stale_result', '新しい分析や状態変更のため、この結果は破棄しました');
+    res.json({ ...summary, updatedAt: undefined });
+  })));
+
+}

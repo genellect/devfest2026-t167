@@ -1,16 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
-import { randomUUID } from "node:crypto";
 
 // 先生の導線（#20 から移した確認）。Google でログイン（認証のエミュレータ）→ 部屋を作る → 生徒が参加して意見を出す
 // → 先生が未検討の論点を探す。分析の失敗（503）と、途中で止まった分析の期限切れのあとも、やり直せること。
-
-/** テスト用の先生（firebase/seed.mjs と同じアカウント）をエミュレータに用意する。すでにあれば何もしない */
-async function ensureTestTeacher() {
-  await fetch(`http://${process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "127.0.0.1:9099"}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake`, {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email: "mod@example.com", password: "password", returnSecureToken: true }), // submit-allow: エミュレータ専用のダミー
-  });
-}
 
 /** はじめてのログインのあと、役割に先生を選んでプロフィールを登録する */
 async function registerAsTeacher(page: Page) {
@@ -33,7 +24,6 @@ async function createRoom(page: Page, title: string) {
 
 /** テスト用の先生でログインして部屋を作り、ダッシュボードを開く */
 async function teacherDashboard(page: Page, title: string) {
-  await ensureTestTeacher();
   await page.goto("/");
   await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
   await registerAsTeacher(page);
@@ -46,13 +36,7 @@ test("先生が Google でログインして部屋を作り、生徒の意見か
   page.on("pageerror", (e) => pageErrors.push(e.message));
   const title = "架空の授業でAIを使うときのルール";
   await page.goto("/");
-  const opened = page.waitForEvent("popup");
-  await page.getByRole("button", { name: "Googleでログイン" }).click();
-  const popup = await opened;
-  await popup.waitForLoadState("load");
-  await popup.getByText("Add new account", { exact: true }).click();
-  await popup.getByLabel("Email", { exact: true }).fill(`teacher-${randomUUID()}@example.com`);
-  await popup.getByRole("button", { name: "Sign in with Google.com", exact: true }).click();
+  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
   await registerAsTeacher(page);
   const code = await createRoom(page, title);
   expect(code).toMatch(/^[A-Z0-9]{6}$/);
@@ -62,6 +46,7 @@ test("先生が Google でログインして部屋を作り、生徒の意見か
     const s = await student.newPage();
     s.on("pageerror", (e) => pageErrors.push(e.message));
     await s.goto(`/join?code=${code}`);
+    await s.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
     await s.getByRole("button", { name: "参加する" }).click();
     const opinion = "架空の授業では、端末を持たない学生のために貸出制度を用意し、費用によって参加の機会が変わらないようにする必要がある。AIを利用した箇所を申告する方法も、授業の開始前に全員で決めておきたい。";
     await s.getByLabel("あなたの意見").fill(opinion);

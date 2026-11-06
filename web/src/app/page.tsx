@@ -46,8 +46,8 @@ export default function Login() {
         )}
         {error && <p className="notice notice--error" role="alert">{error}</p>}
         <div style={{ borderTop: "3px solid #000", paddingTop: 16, marginTop: 8 }} className="stack stack--tight">
-          <p className="t-note">先生から参加コードを聞いた生徒は、ログインしなくても参加できます。</p>
-          <Link href="/join" className="btn btn--blue btn--block">ログインせずに参加コードを入力する</Link>
+          <p className="t-note">先生から参加コードを聞いた生徒は、Googleログイン後に参加できます。</p>
+          <Link href="/join" className="btn btn--blue btn--block">参加コードを入力する</Link>
           <Link href="/about" className="t-note" style={{ color: "inherit" }}>使い方とプライバシー</Link>
         </div>
       </section>

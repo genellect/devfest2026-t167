@@ -12,18 +12,22 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run test/unit",
-    "test:integration": "vitest run test/integration"
+    "test:integration": "vitest run test/integration",
+    "test:performance": "vitest run test/performance",
+    "test:coverage": "vitest run test/unit test/integration --coverage"
   },
   "dependencies": {
     "@google/genai": "1.52.0",
     "express": "4.22.3",
     "firebase-admin": "14.5.0",
+    "music-metadata": "11.16.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/express": "4.17.25",
     "@types/node": "22.20.5",
     "@types/supertest": "6.0.3",
+    "@vitest/coverage-v8": "5.1.0",
     "supertest": "7.3.1",
     "tsx": "4.23.15",
     "typescript": "5.9.3",

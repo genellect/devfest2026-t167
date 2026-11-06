@@ -1,0 +1,28 @@
+import type { NextFunction, Request, Response } from 'express';
+import type { DocumentSnapshot } from 'firebase-admin/firestore';
+import { z } from 'zod';
+
+export interface Context { uid: string; provider: string; teacher: boolean; role?: 'moderator' | 'participant' }
+export type AuthRequest = Request & { ctx: Context };
+export type Handler = (req: Request, res: Response, next: NextFunction) => void;
+export class HttpError extends Error {
+  constructor(readonly status: number, readonly code: string, message: string, readonly extra: object = {}) { super(message); }
+}
+export const wrap = (fn: (req: AuthRequest, res: Response) => Promise<unknown>): Handler =>
+  (req, res, next) => { fn(req as AuthRequest, res).catch(next); };
+export const run = (fn: (req: AuthRequest, res: Response) => Promise<void>): Handler =>
+  (req, res, next) => { fn(req as AuthRequest, res).then(() => { if (!res.headersSent) next(); }).catch(next); };
+export function parse<T>(schema: z.ZodType<T>, body: unknown): T {
+  const result = schema.safeParse(body);
+  // Zod の詳細に入力値が含まれる可能性があるため、固定文言だけを返す。
+  if (!result.success) throw new HttpError(400, 'bad_request', '入力内容を確認してください');
+  return result.data;
+}
+export function requireOpenRoom(room: DocumentSnapshot) {
+  if (!room.exists) throw new HttpError(404, 'room_not_found', '部屋がありません');
+  if (room.get('phase') === 'closed') throw new HttpError(409, 'room_closed', 'この部屋は終了しています');
+}
+
+export function requireModerator(context: Pick<Context, 'role' | 'teacher'>): void {
+  if (context.role !== 'moderator' || !context.teacher) throw new HttpError(403, 'not_moderator', '管理者が承認した司会者だけが実行できます');
+}

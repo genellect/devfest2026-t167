@@ -1,14 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
 import {
-  browserPopupRedirectResolver, GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut, type User,
+  browserPopupRedirectResolver, GoogleAuthProvider, onAuthStateChanged, signInWithCredential, signInWithPopup, signOut, type User,
 } from "firebase/auth";
 import { firebase } from "./firebase";
 
-/** 先生（司会者）は Google でログインする。匿名のままでは部屋を作れない（API が 403 を返す） */
+/** 先生（司会者）は Google でログインする。教師claimがなければ部屋を作れない（API が 403 を返す） */
 export function useHostUser() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
-  useEffect(() => onAuthStateChanged(firebase().auth, (u) => setUser(u && !u.isAnonymous ? u : null)), []);
+  useEffect(() => onAuthStateChanged(firebase().auth, (u) => setUser(u?.providerData.some((provider) => provider.providerId === "google.com") ? u : null)), []);
   return user;
 }
 
@@ -19,15 +19,27 @@ export async function signInAsHost() {
 
 /** エミュレータで動かしているときだけ使う。firebase/seed.mjs のテスト用の先生でログインする */
 export const canUseTestHost = process.env.NEXT_PUBLIC_USE_EMULATORS === "1";
-export async function signInAsTestHost() {
-  await signInWithEmailAndPassword(firebase().auth, "mod@example.com", "password"); // submit-allow: エミュレータ専用のダミー
+async function testGoogle(kind: "teacher" | "student") {
+  if (!canUseTestHost) throw new Error("このログインはエミュレータ専用です");
+  await signInWithCredential(firebase().auth, GoogleAuthProvider.credential(JSON.stringify({
+    sub: `local-${kind}`, email: `local-${kind}@example.com`, email_verified: true, name: kind,
+  })));
 }
-
-/** エミュレータで動かしているときだけ使う。firebase/seed.mjs のテスト用の生徒でログインする */
-export async function signInAsTestStudent() {
-  await signInWithEmailAndPassword(firebase().auth, "p1@example.com", "password"); // submit-allow: エミュレータ専用のダミー
-}
+export const signInAsTestHost = () => testGoogle("teacher");
+export const signInAsTestStudent = () => testGoogle("student");
 
 export async function signOutHost() {
   await signOut(firebase().auth);
+}
+
+/** 表示用。認可の最終判断はAPIとRulesで行う。 */
+export function useTeacherClaim(user: User | null | undefined) {
+  const [teacher, setTeacher] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setTeacher(false);
+    if (user) user.getIdTokenResult().then((result) => { if (active) setTeacher(result.claims.teacher === true); }).catch(() => {});
+    return () => { active = false; };
+  }, [user]);
+  return teacher;
 }
