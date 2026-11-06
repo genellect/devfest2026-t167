@@ -22,6 +22,8 @@ export default function NewRoom() {
   const [minutes, setMinutes] = useState(15);
   const [groups, setGroups] = useState(6);
   const [recording, setRecording] = useState(true);
+  // recording：Docs の MVP フロー（Hostが開始・終了し、録音を分析）／ consensus：事前意見・未検討論点・合意の一文の3機能
+  const [flow, setFlow] = useState<"recording" | "consensus">("recording");
   const [label, setLabel] = useState("");
   useEffect(() => { setLabel(getProfile()?.className ?? ""); }, []);
   const [error, setError] = useState("");
@@ -31,7 +33,7 @@ export default function NewRoom() {
     e.preventDefault();
     setBusy(true); setError("");
     try {
-      const { roomId } = await callApi<{ roomId: string }>("/rooms", { title: name.trim() || title.trim(), theme: title.trim(), minutes, groups, recording, groupSelection, flowVersion: 1 });
+      const { roomId } = await callApi<{ roomId: string }>("/rooms", { title: name.trim() || title.trim(), theme: title.trim(), minutes, groups, recording, groupSelection, ...(flow === "recording" ? { flowVersion: 1 } : {}) });
       setDuration(roomId, minutes);
       if (label.trim()) setRoomLabel(roomId, label.trim());
       addHistory("host", { roomId, title: title.trim() });
@@ -54,6 +56,16 @@ export default function NewRoom() {
       <div className="body body--center">
         <form className="box box--lg card" style={{ width: "min(720px, 100%)" }} onSubmit={create}>
           <h2 className="card__title">セッションを準備する</h2>
+          <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend className="field__label" style={{ marginBottom: 6 }}>進め方</legend>
+            <div className="choices">
+              <button type="button" className="choice" aria-pressed={flow === "recording"} onClick={() => setFlow("recording")}>録音して振り返る</button>
+              <button type="button" className="choice" aria-pressed={flow === "consensus"} onClick={() => setFlow("consensus")}>事前意見と合意を確かめる</button>
+            </div>
+            <p className="field__hint">{flow === "recording"
+              ? "Hostが開始と終了を決め、グループの録音からGeminiが話し合いの流れを分析します。"
+              : "議論の前に全員の意見を非公開で集め、まだ話されていない論点をHostに提案し、結論の理解のずれを確かめます。"}</p>
+          </fieldset>
           <label className="field">セッション名<input className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} placeholder="例：アイデア検討会" /></label>
           <div className="field">
             <label className="field__label" htmlFor="label">クラス・授業名（任意）</label>

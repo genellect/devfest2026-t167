@@ -234,6 +234,22 @@ describe('クラス内のグループ', () => {
     expect((await state(roomId, 2)).status).toBe('discussing');
   });
 
+  it('部屋全体の開始前でも、議論を始めたグループの生徒だけが発言を書ける', async () => {
+    const mod = await named();
+    const { roomId, joinCode } = (await api(mod).post('/rooms', { title: '発言', groups: 2 }).expect(201)).body;
+    const [a, b] = [await anon(), await anon()];
+    for (const [p, g] of [[a, 1], [b, 2]] as const) {
+      await api(p).post('/rooms/join', { code: joinCode }).expect(200);
+      await api(p).post(`/rooms/${roomId}/groups/choose`, { group: g }).expect(200);
+      await api(p).post(`/rooms/${roomId}/opinion`, { text: '意見' }).expect(200);
+    }
+    await api(a).post(`/rooms/${roomId}/messages`, { text: '始まる前' }).expect(409);
+    await api(mod).post(`/rooms/${roomId}/groups/start`, { group: 1 }).expect(200);
+    expect((await db.doc(`sessions/${roomId}`).get()).get('phase')).toBe('collecting');
+    await api(a).post(`/rooms/${roomId}/messages`, { text: '透明性の話をした' }).expect(200);
+    await api(b).post(`/rooms/${roomId}/messages`, { text: 'まだ始まっていない' }).expect(409);
+  });
+
   it('グループの数は1〜12', async () => {
     const mod = await named();
     await api(mod).post('/rooms', { title: 'x', groups: 0 }).expect(400);

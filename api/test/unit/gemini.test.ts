@@ -68,13 +68,26 @@ describe('録音の分析の出力の検証', () => {
 });
 
 describe('AI応答の参照整合性', () => {
-  it('範囲外・重複・欠落・不明な提案IDを拒否する', async () => {
-    const { validateComparison } = await import('../../src/gemini.js');
-    const comparison = (members: number[], ids: string[] = []) => ({ groups: [{ label: '合意', members }], addressedInsightIds: ids });
-    expect(validateComparison(comparison([0, 1], ['ok']), 2, ['ok'])).toBeDefined();
-    for (const value of [comparison([0, 2]), comparison([0, 0]), comparison([0]), comparison([0, 1], ['unknown']), comparison([0, 1], ['ok', 'ok'])]) {
-      expect(() => validateComparison(value, 2, ['ok'])).toThrow();
-    }
+  it('範囲外・重複・欠落・不明な提案IDを、完全な分割に直して受け取る（同じ入力で失敗し続けない）', async () => {
+    const { validateComparison, UNCLASSIFIED_LABEL } = await import('../../src/gemini.js');
+    const comparison = (groups: number[][], ids: string[] = []) => ({ groups: groups.map((members, i) => ({ label: `理解${i}`, members })), addressedInsightIds: ids });
+    expect(validateComparison(comparison([[0, 1]], ['ok']), 2, ['ok'])).toEqual(comparison([[0, 1]], ['ok']));
+    // 範囲外の番号は捨て、漏れた一文は1つずつ別のまとまりにする
+    expect(validateComparison(comparison([[0, 2]]), 2, [])).toEqual({ groups: [{ label: '理解0', members: [0] }, { label: UNCLASSIFIED_LABEL, members: [1] }], addressedInsightIds: [] });
+    // 重複は最初のまとまりだけに残し、空になったまとまりは消す
+    expect(validateComparison(comparison([[0, 0], [0], [1]]), 2, []).groups).toEqual([{ label: '理解0', members: [0] }, { label: '理解2', members: [1] }]);
+    expect(validateComparison(comparison([]), 2, []).groups.map((g) => g.members)).toEqual([[0], [1]]);
+    // 不明・重複した提案 ID は捨てる
+    expect(validateComparison(comparison([[0, 1]], ['unknown', 'ok', 'ok']), 2, ['ok']).addressedInsightIds).toEqual(['ok']);
+  });
+  it('モックは非公開の事前意見と合意の一文の本文を、要約やラベルに写さない', async () => {
+    const { mockGemini } = await import('../../src/gemini.js');
+    const secret = '非公開の事前意見の本文マーカー';
+    const points = await mockGemini().findPoints([secret], []);
+    expect(JSON.stringify(points)).not.toContain('マーカー');
+    const cmp = await mockGemini().compare([`${secret}A`, `${secret}A`, `${secret}B`], [], []);
+    expect(cmp.groups.map((g) => g.members)).toEqual([[0, 1], [2]]);
+    expect(JSON.stringify(cmp)).not.toContain('マーカー');
   });
 });
 
@@ -85,7 +98,7 @@ describe('実SDK接続部分のモック検査', () => {
     expect(result).toMatchObject(responseBody);
     expect(calls.at(-1)!.req.config).toMatchObject({ httpOptions: { retryOptions: { attempts: 1 } } });
     responseBody = { groups: [{ label: '不正', members: [9] }], addressedInsightIds: [] };
-    await expect(vertexGemini('p', 'global', 'gemini-3.5-flash').compare(['一文'], [], [])).rejects.toThrow('invalid_comparison_partition');
+    expect((await vertexGemini('p', 'global', 'gemini-3.5-flash').compare(['一文'], [], [])).groups).toEqual([{ label: '分類されなかった理解', members: [0] }]);
   });
   it('音声のSDK要求と応答スキーマをモックで確認する', async () => {
     const { mockGemini } = await import('../../src/gemini.js');

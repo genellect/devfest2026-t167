@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 
 /** テスト間のログイン回数制限を分離し、同じテストの別端末では同じ本人を使う。 */
-export async function loginStudent(page: Page) {
-  const subject = `e2e-student-${createHash("sha256").update(`${test.info().testId}:${test.info().retry}`).digest("hex").slice(0, 24)}`;
+export async function loginStudent(page: Page, person = "") {
+  const subject = `e2e-student-${createHash("sha256").update(`${test.info().testId}:${test.info().retry}${person ? `:${person}` : ""}`).digest("hex").slice(0, 24)}`;
   await page.route(/identitytoolkit.*accounts:signInWithIdp/, async route => {
     const data = route.request().postDataJSON();
     const body = new URLSearchParams(data.postBody);

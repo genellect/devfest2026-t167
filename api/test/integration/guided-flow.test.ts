@@ -74,6 +74,20 @@ it('未登録・無音・途中の登録では開始できず、Hostの開始後
   await p.post(`/rooms/${roomId}/onboarding`, { mode: 'personal', names: ['変更'] }).expect(409);
   await (await client()).post('/rooms/join', { code: joinCode }).expect(409);
 });
+it('未準備のGuestがいても、Hostが確認すればそのGuestを外して開始できる', async () => {
+  const { h, p, roomId } = await setup(); await enroll(p, roomId);
+  const late = await client();
+  await late.post('/rooms/join', { code: (await db.doc(`sessions/${roomId}`).get()).get('joinCode') }).expect(200);
+  const refused = await h.post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(409);
+  expect(refused.body.error).toMatchObject({ code: 'guests_not_ready', notReady: 1 });
+  await p.post(`/rooms/${roomId}/phase`, { to: 'discussing', excludeNotReady: true }).expect(403);
+  await h.post(`/rooms/${roomId}/phase`, { to: 'discussing', excludeNotReady: true }).expect(200);
+  expect((await member(roomId, late.uid).get()).get('status')).toBe('inactive');
+  expect((await member(roomId, p.uid).get()).get('status')).toBe('active');
+  await late.get(`/rooms/${roomId}/me`).expect(403);
+  await p.post(`/rooms/${roomId}/messages`, { text: '開始後の発言' }).expect(200);
+  expect((await db.doc(`sessions/${roomId}`).get()).get('groupState')['1'].total).toBe(1);
+});
 it('期限をサーバー時刻で判定し、再接続でも終了が維持され、新規発言は拒否する', async () => {
   const { h, p, roomId } = await setup(); await enroll(p, roomId);
   await h.post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(200);

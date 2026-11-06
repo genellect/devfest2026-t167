@@ -6,6 +6,8 @@ import { enforceDiscussionTime } from './discussion-lifecycle.js';
 import { SESSION_CHECK_MS } from './session-policy.js';
 import { readSessionCookie, type sessionGuards } from './session-routes.js';
 import { HttpError, parse, run, wrap, type Handler } from './http.js';
+import { participantGroup } from './membership.js';
+import { statusOf } from './policy.js';
 import type { Dependencies } from './dependencies.js';
 
 /** JSONを越える時刻は専用の値で渡し、画面側でtoMillisだけを復元する。 */
@@ -29,7 +31,10 @@ export function registerLiveRoutes(app: Express, deps: Dependencies, guards: Ret
     const { text } = parse(z.object({ text: z.string().trim().min(1).max(500) }).strict(), req.body);
     await db.runTransaction(async (tx) => {
       const room = await tx.get(db.doc(`sessions/${req.params.roomId}`));
-      if (room.get('phase') !== 'discussing' || room.get('endedAt')) throw new HttpError(409, 'wrong_phase', '議論中だけ送信できます');
+      // グループごとに進む部屋（flowVersion 1 以外）では、部屋全体の開始前でも自分のグループが議論中なら書ける
+      const groupDiscussing = room.get('phase') !== 'discussing' && room.get('flowVersion') !== 1 && room.get('phase') !== 'closed' && req.ctx.role === 'participant'
+        && statusOf(room, await participantGroup(tx, room, req.ctx.uid)) === 'discussing';
+      if ((room.get('phase') !== 'discussing' && !groupDiscussing) || room.get('endedAt')) throw new HttpError(409, 'wrong_phase', '議論中だけ送信できます');
       tx.create(db.collection(`sessions/${req.params.roomId}/messages`).doc(), { uid: req.ctx.uid, text, createdAt: FieldValue.serverTimestamp() });
     });
     res.json({ ok: true });
@@ -87,7 +92,8 @@ export function registerLiveRoutes(app: Express, deps: Dependencies, guards: Ret
               const rows = values as Record<string, unknown>[];
               if (path.endsWith('/members')) payload.collections[path] = rows.filter((r) => r.id === uid || (room.get('participantView.members') !== false && group > 0 && r.group === group));
               if (path.endsWith('/messages')) payload.collections[path] = rows.filter((r) => group > 0 && ids.has(r.uid as string));
-              if (path.endsWith('/insights')) payload.collections[path] = rows.filter((r) => r.status === 'approved' && r.group === group);
+              // 部屋全体の提案（group なし）は全員へ、グループの提案はそのグループへ届ける
+              if (path.endsWith('/insights')) payload.collections[path] = rows.filter((r) => r.status === 'approved' && (r.group === undefined || r.group === null || r.group === group));
             }
           }
         }

@@ -27,7 +27,7 @@ export function HostRoom({ roomId, room }: Props) {
   useEffect(() => { if (room.flowVersion === 1 && clock.over && room.phase === "discussing" && !room.endedAt) void callApi(`/rooms/${roomId}/check-time`).catch(() => {}); }, [room.flowVersion, clock.over, room.phase, room.endedAt, roomId]);
   const summary = useDoc<Summary>(room.phase === "consensus" || room.phase === "closed" ? `sessions/${roomId}/results/summary` : undefined).data;
   const results = useGroupResults(roomId, true);
-  const members = useMembers(roomId, true).filter((m) => m.role === "participant");
+  const members = useMembers(roomId, true).filter((m) => m.role === "participant" && m.status !== "inactive");
   const [phaseError, setPhaseError] = useState("");
   const [moving, setMoving] = useState(false);
   const [view, setView] = useState<"code" | "dashboard" | "class" | number>("dashboard");

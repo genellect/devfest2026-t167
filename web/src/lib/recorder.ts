@@ -1,6 +1,6 @@
 "use client";
 import { firebase } from "./firebase";
-import { registerRecordingGuard, saveChunk, saveRecording, retainUnsavedAudio, releaseUnsavedAudio, type RecoveryRecording } from "./recording-recovery";
+import { deleteRecovery, registerRecordingGuard, saveChunk, saveRecording, retainUnsavedAudio, releaseUnsavedAudio, type RecoveryRecording } from "./recording-recovery";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
@@ -143,10 +143,18 @@ export function useRecorder(roomId?: string) {
     try { return await task; } finally { stopping.current = null; }
   }, [cleanup]);
   stopRef.current = stop;
+  /** 同意の取り消しなどで録音を捨てる。送らず、端末に残した復旧用の録音も消す */
+  const discard = useCallback(async () => {
+    const m = manifest.current;
+    await stop();
+    stopped.current = null; manifest.current = null; chunks.current = [];
+    if (m) { releaseUnsavedAudio(m.id); await deleteRecovery(m.uid, m.id).catch(() => {}); }
+    setElapsedMs(0); setState("idle");
+  }, [stop]);
   useEffect(() => registerRecordingGuard(async () => { await stop(); }), [stop]);
 
   const capture = useCallback(() => ({ stream: stream.current, context: audio.current }), []);
-  return { state, saveError, level, elapsedMs, start, pause, resume, stop, capture };
+  return { state, saveError, level, elapsedMs, start, pause, resume, stop, discard, capture };
 }
 
 export const mmss = (ms: number) => {

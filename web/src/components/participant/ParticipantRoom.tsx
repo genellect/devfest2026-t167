@@ -11,7 +11,7 @@ import { mmss } from "@/lib/recorder";
 import { useAppSession } from "@/lib/session";
 import { MAX_RECORDING_MS, useGroupRecording } from "@/lib/recording";
 import { recordingPhase } from "@/lib/recording-phase";
-import { groupStatus, useDoc, useInsights, useMembers, type GroupResult, type GroupStatus, type Room } from "@/lib/room";
+import { groupStatus, useDoc, useInsights, useMembers, useMessages, type GroupResult, type GroupStatus, type Room } from "@/lib/room";
 
 interface Props { roomId: string; room: Room; uid: string; group?: number }
 
@@ -71,7 +71,7 @@ export function ParticipantRoom({ roomId, room, uid, group }: Props) {
 
 /** 参加のあとにグループを選ぶ。議論を始めたグループには入れない */
 function GroupSelect({ roomId, room, current, onDone }: { roomId: string; room: Room; current?: number; onDone: () => void }) {
-  const members = useMembers(roomId, true).filter((m) => m.role === "participant");
+  const members = useMembers(roomId, true).filter((m) => m.role === "participant" && m.status !== "inactive");
   const [busy, setBusy] = useState<number>();
   const [error, setError] = useState("");
   async function choose(g: number) {
@@ -164,7 +164,7 @@ function OpinionStep({ roomId, uid, total, opinions, canChange, onChangeGroup }:
         {mine && (
           <div className="notice notice--warn stack stack--tight">
             <p className="t-label">グループのみんなの意見を待っています{total ? `（${opinions ?? 0}/${total}人）` : ""}</p>
-            <p className="t-note">全員がそろうと、自動で議論の画面に変わります。それまでは書き直せます。</p>
+            <p className="t-note">Hostが議論を始めると、議論の画面に変わります。それまでは書き直せます。</p>
           </div>
         )}
       </form>
@@ -256,6 +256,7 @@ function VoiceStep({ roomId, recording }: { roomId: string; recording: ReturnTyp
             ? <p className="t-note">まだ話されていない論点が見つかると、Hostがここに出します。</p>
             : insights.map((i) => <p key={i.id} className="t-sm" style={{ borderTop: "3px solid #000", paddingTop: 8 }}>{i.summary}</p>)}
         </section>
+        <DiscussionNotes roomId={roomId} />
         <section className="box box--md pad stack">
           <p className="t-label">グループの結論が出たら</p>
           {!confirming ? (
@@ -274,6 +275,35 @@ function VoiceStep({ roomId, recording }: { roomId: string; recording: ReturnTyp
         </section>
       </aside>
     </div>
+  );
+}
+
+/** 議論で出た発言を短く共有する。AI はこのメモと事前の意見を照らし合わせて、まだ話されていない論点を探す */
+function DiscussionNotes({ roomId }: { roomId: string }) {
+  const messages = useMessages(roomId, true);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    if (!text.trim()) return;
+    setBusy(true); setError("");
+    try { await callApi(`/rooms/${roomId}/messages`, { text: text.trim() }); setText(""); }
+    catch (err) { setError((err as Error).message); }
+    finally { setBusy(false); }
+  }
+  return (
+    <section className="box box--md pad stack" aria-label="議論の発言メモ">
+      <div className="heading-row"><h2 className="t-sm">議論の発言メモ</h2><Tag>グループとHostに表示</Tag></div>
+      <p className="t-note">話し合いで出た意見を短く書きます。AIはこのメモと事前の意見を照らし合わせて、まだ話されていない論点を探します。</p>
+      {messages.slice(-8).map((m) => <p key={m.id} className="t-small">・{m.text}</p>)}
+      <form className="stack stack--tight" onSubmit={send}>
+        <label className="field__label" htmlFor="note">発言を書く</label>
+        <input id="note" className="input" maxLength={500} value={text} onChange={(e) => setText(e.target.value)} />
+        <button className="btn btn--small" disabled={busy || !text.trim()}>{busy ? "共有しています…" : "メモを共有する"}</button>
+      </form>
+      {error && <p className="notice notice--error" role="alert">{error}</p>}
+    </section>
   );
 }
 

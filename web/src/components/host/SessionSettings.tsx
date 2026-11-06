@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { callApi } from "@/lib/api";
+import { ApiError, callApi } from "@/lib/api";
 import { useMembers, useGroups, type Room } from "@/lib/room";
 export function SessionSettings({ roomId, room }: { roomId: string; room: Room }) {
   const [view, setView] = useState(room.participantView ?? { theme: true, timer: true, members: true, speaking: false });
@@ -8,9 +8,17 @@ export function SessionSettings({ roomId, room }: { roomId: string; room: Room }
   const [published, setPublished] = useState(room.resultsPublished ?? false);
   useEffect(() => setPublished(room.resultsPublished ?? false), [room.resultsPublished]);
   const configurations = useGroups(roomId);
-  const members = useMembers(roomId, true).filter((m) => m.role === "participant");
+  const members = useMembers(roomId, true).filter((m) => m.role === "participant" && m.status !== "inactive");
   const [message, setMessage] = useState(""), [busy, setBusy] = useState(false);
   async function act(path: string, data: object) { setBusy(true); setMessage(""); try { await callApi(`/rooms/${roomId}/${path}`, data); setMessage("保存しました。"); return true; } catch (e) { setMessage((e as Error).message); return false; } finally { setBusy(false); } }
+  // 未準備のGuestがいると開始できない。Hostが人数を確かめたうえで、外して始められるようにする
+  const [notReady, setNotReady] = useState("");
+  async function start(excludeNotReady = false) {
+    setBusy(true); setMessage(""); setNotReady("");
+    try { await callApi(`/rooms/${roomId}/phase`, { to: "discussing", ...(excludeNotReady ? { excludeNotReady } : {}) }); }
+    catch (e) { if (e instanceof ApiError && e.code === "guests_not_ready") setNotReady(e.message); else setMessage((e as Error).message); }
+    finally { setBusy(false); }
+  }
   async function changeView(key: "theme" | "timer" | "members" | "speaking", checked: boolean) {
     const before = view, next = { ...view, [key]: checked }; setView(next);
     if (!await act("settings", { participantView: next })) setView(before);
@@ -28,7 +36,9 @@ export function SessionSettings({ roomId, room }: { roomId: string; room: Room }
       {room.phase === "collecting" && <>
         <button className="btn" disabled={busy || (room.groups ?? 1) >= 12} onClick={() => void act("groups/create", { name: `グループ${(room.groups ?? 1) + 1}` })}>グループを追加</button>
         <button className="btn" disabled={busy || (room.groups ?? 1) <= 1} onClick={() => void act("groups/delete", { group: room.groups })}>最後の空グループを削除</button>
-        <button className="btn btn--blue" disabled={busy} onClick={() => void act("phase", { to: "discussing" })}>セッションを開始</button>
+        <button className="btn btn--blue" disabled={busy} onClick={() => void start()}>セッションを開始</button>
+        {notReady && <div className="notice notice--warn stack" role="alert"><p>{notReady}。外したGuestは、このセッションに参加できなくなります。</p>
+          <button className="btn btn--blue" disabled={busy} onClick={() => void start(true)}>未準備のGuestを外して開始</button></div>}
       </>}
       <label><input type="checkbox" checked={room.publishOnEnd ?? true} onChange={(e) => void act("settings", { publishOnEnd: e.target.checked })} />終了時に所属グループの結果を自動公開する</label>
       {(["theme", "timer", "members", "speaking"] as const).map((key, i) => <label key={key}><input type="checkbox" disabled={busy} checked={view[key] ?? (key !== "speaking")} onChange={(e) => void changeView(key, e.target.checked)} />Guestに{["テーマ", "残り時間", "所属グループの参加者", "所属グループの発言時間の推定"][i]}を表示</label>)}

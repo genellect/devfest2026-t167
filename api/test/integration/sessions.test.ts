@@ -200,6 +200,8 @@ describe('ライブ配信と既存データの認可', () => {
     await room.collection('consensusStatements').doc(c.uid).set({ text: 'OWN-STATEMENT' });
     await room.collection('insights').doc('pending').set({ summary: 'UNAPPROVED-INSIGHT', status: 'pending' });
     await room.collection('insights').doc('approved').set({ summary: 'APPROVED-INSIGHT', status: 'approved', group: 1 });
+    await room.collection('insights').doc('room-wide').set({ summary: 'ROOM-WIDE-INSIGHT', status: 'approved' });
+    await room.collection('insights').doc('other-group').set({ summary: 'OTHER-GROUP-INSIGHT', status: 'approved', group: 2 });
     await room.collection('results').doc('group-1').set({ label: 'OWN-GROUP-RESULT' });
     await room.collection('results').doc('group-2').set({ label: 'OTHER-GROUP-RESULT' });
     await room.collection('results').doc('summary').set({ label: 'CLASS-SUMMARY' });
@@ -210,8 +212,8 @@ describe('ライブ配信と既存データの認可', () => {
     await get(c, `/rooms/${room.id}/me`).expect(200);
     const stream = await streamClient(c, room.id);
     try {
-      const text = await stream.until((text) => text.includes('OWN-PRIVATE-OPINION') && text.includes('OWN-STATEMENT') && text.includes('OWN-GROUP-RESULT') && text.includes('APPROVED-INSIGHT'));
-      for (const forbidden of ['OTHER-PRIVATE-OPINION', 'UNAPPROVED-INSIGHT', 'OTHER-GROUP-RESULT', 'CLASS-SUMMARY', 'OTHER-GROUP-MEMBER', 'OTHER-GROUP-MESSAGE', 'OTHER-GROUP-STATE']) expect(text).not.toContain(forbidden);
+      const text = await stream.until((text) => text.includes('OWN-PRIVATE-OPINION') && text.includes('OWN-STATEMENT') && text.includes('OWN-GROUP-RESULT') && text.includes('APPROVED-INSIGHT') && text.includes('ROOM-WIDE-INSIGHT'));
+      for (const forbidden of ['OTHER-PRIVATE-OPINION', 'UNAPPROVED-INSIGHT', 'OTHER-GROUP-INSIGHT', 'OTHER-GROUP-RESULT', 'CLASS-SUMMARY', 'OTHER-GROUP-MEMBER', 'OTHER-GROUP-MESSAGE', 'OTHER-GROUP-STATE']) expect(text).not.toContain(forbidden);
       await post(c, `/rooms/${room.id}/messages`, { text: 'MY-MESSAGE' }).expect(200);
       await stream.until((text) => text.includes('MY-MESSAGE'));
       await room.update({ phase: 'closed' }); await post(c, `/rooms/${room.id}/messages`, { text: 'late' }).expect(409);

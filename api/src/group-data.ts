@@ -5,7 +5,7 @@ import { groupNumber } from './policy.js';
 export async function groupMembers(tx: Transaction, room: DocumentSnapshot, group: number) {
   let query = room.ref.collection('members').where('role', '==', 'participant');
   if (room.get('schemaVersion') >= 3 || (room.get('schemaVersion') >= 2 && room.get('groups') > 1)) query = query.where('group', '==', group);
-  return (await tx.get(query)).docs.filter((member) => groupNumber(member, room.get('groups')) === group);
+  return (await tx.get(query)).docs.filter((member) => member.get('status') !== 'inactive' && groupNumber(member, room.get('groups')) === group);
 }
 export async function groupDocuments(tx: Transaction, room: DocumentSnapshot, collection: string, uids: string[], countsOnly = false) {
   if (!uids.length) return [];

@@ -127,7 +127,7 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
 
   // フェーズを1つ進める（司会者）
   app.post('/rooms/:roomId/phase', ...chain(authenticate, member, moderator, wrap(async (req, res) => {
-    const { to } = parse(z.object({ to: z.enum(PHASES) }), req.body);
+    const { to, excludeNotReady } = parse(z.object({ to: z.enum(PHASES), excludeNotReady: z.boolean().default(false) }), req.body);
     await db.runTransaction(async (tx) => {
       const room = await tx.get(roomRef(req.params.roomId));
       if (room.get('flowVersion') === 1 && to !== 'discussing') throw new HttpError(409, 'use_finish', 'MVPの終了は終了操作を使ってください');
@@ -135,7 +135,10 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
       if (PHASES.indexOf(to) !== cur + 1) throw new HttpError(409, 'wrong_phase', `${room.get('phase')} から ${to} には進めません`);
       if (room.get('flowVersion') === 1 && to === 'discussing') {
         const guests = await tx.get(room.ref.collection('members').where('role', '==', 'participant'));
-        if (!guests.empty && guests.docs.some((m) => !m.get('ready') || !m.get('groupId'))) throw new HttpError(409, 'guests_not_ready', '全Guestの音声登録と所属を確認してください');
+        const notReady = guests.docs.filter((m) => m.get('status') !== 'inactive' && (!m.get('ready') || !m.get('groupId')));
+        // 1人の登録失敗や離脱でセッション全体が始められなくならないよう、Hostが確認したうえで未準備のGuestを外して始められる
+        if (notReady.length && !excludeNotReady) throw new HttpError(409, 'guests_not_ready', `音声登録または所属が済んでいないGuestが${notReady.length}人います`, { notReady: notReady.length });
+        for (const m of notReady) tx.update(m.ref, { status: 'inactive', excludedAt: FieldValue.serverTimestamp() });
       }
       tx.update(roomRef(req.params.roomId), { phase: to, ...(to === 'discussing' ? { startedAt: Timestamp.fromMillis(now()), endsAt: Timestamp.fromMillis(now() + (room.get('minutes') ?? 15) * 60_000) } : {}), [`phaseChangedAt.${to}`]: FieldValue.serverTimestamp() });
     });
