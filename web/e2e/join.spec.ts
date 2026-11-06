@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { loginStudent } from "./student";
 
 // 司会者が部屋を作り、参加者がスマホで参加コードを入れて参加し、非公開の意見を出せるところまで
 import { emulatorGoogleUser } from "../../firebase/emulator-auth.mjs";
@@ -22,10 +23,9 @@ test("参加コードで参加し、非公開の意見を出すと、グルー�
   expect(created.status()).toBe(201);
   const { joinCode } = await created.json();
 
-  await page.goto("/");
-  await page.getByRole("link", { name: "参加コードを入力" }).click();
+  await loginStudent(page);
+  await page.getByRole("link", { name: "参加コードを入力", exact: true }).click();
   await page.getByLabel("参加コード").fill(joinCode);
-  await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
   await page.getByRole("button", { name: "参加する" }).click();
 
   await expect(page.getByRole("heading", { name: "大学における生成AI利用の是非" })).toBeVisible();
@@ -42,8 +42,8 @@ test("全員の同意を確かめて録音し、議論を終えると録音が�
     data: { title: "部活動の時間を短くするべきか" },
   });
   const { joinCode } = await created.json();
+  await loginStudent(page);
   await page.goto(`/join?code=${joinCode}`);
-  await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
   await page.getByRole("button", { name: "参加する" }).click();
   await page.getByLabel("あなたの意見").fill("練習の質を上げれば短くてもよい");
   await page.getByRole("button", { name: "提出する" }).click();
@@ -70,6 +70,10 @@ test("全員の同意を確かめて録音し、議論を終えると録音が�
 
 test("QR コードの URL では参加コードが入力済みになる", async ({ page }) => {
   await page.goto("/join?code=demo01");
+  await expect(page).toHaveURL(/\/$/);
+  await loginStudent(page);
+  await expect(page.getByLabel("参加コード")).toHaveCount(0);
+  await page.getByRole("link", { name: "参加コードを入力", exact: true }).click();
   await expect(page.getByLabel("参加コード")).toHaveValue("DEMO01");
 });
 
@@ -80,16 +84,20 @@ test("誤った参加コードではエラーが出る", async ({ page }) => {
     externalAuthRequests++;
     return route.abort();
   });
-  await page.goto("/join");
+  await loginStudent(page);
+  await page.getByRole("link", { name: "参加コードを入力", exact: true }).click();
   await page.getByLabel("参加コード").fill("ZZZZZZ");
-  await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
   await page.getByRole("button", { name: "参加する" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "参加コード" })).toContainText("参加コードが見つかりません");
   expect(externalAuthRequests, "エミュレータ認証が外部通信に依存していない").toBe(0);
 });
 
 test("スマホの幅でも、ログインと参加の画面が横にはみ出さない", async ({ page }) => {
-  for (const path of ["/", "/join"]) {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Googleでログイン", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await loginStudent(page);
+  for (const path of ["/student", "/join"]) {
     await page.goto(path);
     await expect(page.getByRole("link", { name: /参加コードを入力/ }).or(page.getByLabel("参加コード"))).toBeVisible();
     const { scroll, width } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: window.innerWidth }));

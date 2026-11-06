@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { LoginGate } from "@/components/LoginGate";
 
 export const metadata: Metadata = { title: "T167 Discussion", description: "AI協調型グループディスカッション支援" };
 // viewport-fit=cover で、iPhone の下の余白（env(safe-area-inset-*)）を CSS で扱えるようにする
@@ -15,7 +16,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap" rel="stylesheet" />
       </head>
-      <body>{children}</body>
+      <body><LoginGate>{children}</LoginGate></body>
     </html>
   );
 }

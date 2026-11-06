@@ -24,7 +24,7 @@ export default function About() {
           <section className="box box--md pad stack">
             <h2 className="t-md">生徒の使い方</h2>
             <ol className="stack stack--tight" style={{ margin: 0, paddingLeft: 22 }}>
-              <li>先生の画面の参加コードを入力するか、QRコードを読み取ります。Googleでログインして参加します。</li>
+              <li>Googleでログインし、ホームから参加コードを入力します。QRコードで開いた場合も、ログイン後のホームから参加します。</li>
               <li>今日の目標と、議論の前の意見を書きます。</li>
               <li>グループで話し合います。録音を始めると、画面を見なくても大丈夫です。</li>
               <li>結論を自分の言葉で一文で書きます。</li>

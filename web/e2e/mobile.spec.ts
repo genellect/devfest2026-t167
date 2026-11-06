@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { loginStudent } from "./student";
 
 // スマホの幅（playwright.config.ts の mobile プロジェクト）で、ホーム・参加・使い方などの画面が横にはみ出さず、
 // 画面の下に固定したタブメニューに、役割に合ったタブが出ること。
@@ -24,14 +25,13 @@ const STUDENT_TABS = ["ホーム", "参加", "使い方"];
 const HOST_TABS = ["ホーム", "部屋を作る", "使い方", "設定"];
 
 test("スマホの幅で、参加と使い方の画面に生徒のタブが出て、横にはみ出さない", async ({ page }) => {
-  await page.goto("/join");
+  await loginStudent(page);
+  await page.getByRole("link", { name: "参加コードを入力", exact: true }).click();
   await expectTabs(page, STUDENT_TABS, "参加");
   await expectNoHorizontalScroll(page, "/join");
   // 6マスの入力欄は1つの入力欄として動く（貼り付けた小文字・記号もそろえる）
   await page.getByLabel("参加コード").fill("ab-12 cd");
   await expect(page.getByLabel("参加コード")).toHaveValue("AB12CD");
-  await expect(page.getByRole("button", { name: "参加する" })).toBeDisabled();
-  await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
   await expect(page.getByRole("button", { name: "参加する" })).toBeEnabled();
 
   await page.getByRole("navigation", { name: "メニュー" }).getByRole("link", { name: "使い方" }).click();

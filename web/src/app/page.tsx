@@ -8,7 +8,7 @@ import { getRole, homeOf } from "@/lib/local";
 
 /**
  * ログイン（入口はここだけ）。Google でログインし、初めての人は役割（生徒・先生）を選ぶ画面へ進む。
- * 参加コードだけで議論に入る道も残す（スマホで30秒以内に参加するため）。
+ * 参加コードの入力は、ログイン後のホームから進む。
  */
 export default function Login() {
   const router = useRouter();
@@ -46,8 +46,7 @@ export default function Login() {
         )}
         {error && <p className="notice notice--error" role="alert">{error}</p>}
         <div style={{ borderTop: "3px solid #000", paddingTop: 16, marginTop: 8 }} className="stack stack--tight">
-          <p className="t-note">先生から参加コードを聞いた生徒は、Googleログイン後に参加できます。</p>
-          <Link href="/join" className="btn btn--blue btn--block">参加コードを入力する</Link>
+          <p className="t-note">Googleでログインしてホームを開き、参加コードを入力してください。</p>
           <Link href="/about" className="t-note" style={{ color: "inherit" }}>使い方とプライバシー</Link>
         </div>
       </section>

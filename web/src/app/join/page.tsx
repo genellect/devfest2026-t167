@@ -7,19 +7,19 @@ import { TabBar } from "@/components/nav";
 import { Header } from "@/components/ui";
 import { callApi } from "@/lib/api";
 import { ensureSignedIn, firebase } from "@/lib/firebase";
-import { signOutHost, signInAsHost, signInAsTestStudent, canUseTestHost, useHostUser } from "@/lib/hostAuth";
+import { signOutHost } from "@/lib/hostAuth";
+import { normalizeJoinCode, pendingJoinCode, clearJoinCode } from "@/lib/join-code";
 
 const CODE_LENGTH = 6;
 /** 参加コードは英大文字と数字の6文字。小文字・空白・ハイフン入りの貼り付けもそろえる */
-const normalize = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, CODE_LENGTH);
+const normalize = normalizeJoinCode;
 
 /** P1 参加コード入力。QR コードからは ?code=XXXXXX 付きで開く */
 function JoinForm() {
   const router = useRouter();
-  const user = useHostUser();
   const params = useSearchParams();
   const input = useRef<HTMLInputElement>(null);
-  const [code, setCode] = useState(() => normalize(params.get("code") ?? ""));
+  const [code, setCode] = useState(() => normalize(params.get("code") ?? pendingJoinCode()));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -31,6 +31,7 @@ function JoinForm() {
     setBusy(true); setError(""); setOwnRoom(undefined);
     try {
       const { roomId } = await callApi<{ roomId: string }>("/rooms/join", { code });
+      clearJoinCode();
       const me = await ensureSignedIn();
       const member = await getDoc(doc(firebase().db, `rooms/${roomId}/members/${me.uid}`));
       if (member.get("role") === "moderator") { setOwnRoom(roomId); setBusy(false); return; }
@@ -64,11 +65,6 @@ function JoinForm() {
   return (
     <form className="box box--lg card card--narrow" onSubmit={join} noValidate>
       <h2 className="card__title">参加コードを入力</h2>
-      {!user && <div className="stack stack--tight">
-        <p>Googleでログインしてから参加してください。</p>
-        <button type="button" className="btn btn--blue" onClick={() => signInAsHost().catch((e) => setError((e as Error).message))}>Googleでログイン</button>
-        {canUseTestHost && <button type="button" className="btn" onClick={() => signInAsTestStudent().catch((e) => setError((e as Error).message))}>テスト用の生徒でログイン（エミュレータ）</button>}
-      </div>}
       <div className="field">
         <label className="field__label" htmlFor="code">参加コード</label>
         {/* 見た目は6マス。入力欄は透明な1つだけなので、貼り付け・自動入力・読み上げはふつうの入力欄と同じに動く */}
@@ -88,7 +84,7 @@ function JoinForm() {
         <p id="code-hint" className="field__hint">先生の画面に表示されている英字と数字の6文字です。小文字で入れても大丈夫です。Googleログインが必要です。</p>
       </div>
       {error && <p id="code-error" className="notice notice--error" role="alert">{error}</p>}
-      <button className="btn btn--blue btn--block" type="submit" disabled={busy || !user || code.length !== CODE_LENGTH}>
+      <button className="btn btn--blue btn--block" type="submit" disabled={busy || code.length !== CODE_LENGTH}>
         {busy ? "参加しています…" : "参加する"}
       </button>
     </form>

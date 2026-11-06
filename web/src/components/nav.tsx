@@ -44,10 +44,10 @@ export function TabBar({ role }: { role: NavRole }) {
   );
 }
 
-/** 先生と生徒の両方が開く画面（使い方）用。先生としてログインしていれば先生の、それ以外は生徒のタブを出す */
+/** 使い方のタブはログイン後だけ表示する。 */
 export function AutoTabBar() {
   const user = useHostUser();
-  if (user === undefined) return null; // ログインの状態が分かるまで出さない（先生に生徒のタブが一瞬出ないように）
+  if (!user) return null;
   return <TabBar role={user && getRole(user.uid) === "host" ? "host" : "student"} />;
 }
 

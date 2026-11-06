@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { TabBar } from "@/components/nav";
 import { Header } from "@/components/ui";
 import { useRouter } from "next/navigation";
-import { signOutHost, useHostUser } from "@/lib/hostAuth";
+import { signOutHost, useHostUser, useTeacherClaim } from "@/lib/hostAuth";
 import { getHistory, getNextGoal, getReflection, setRole, shortDate, type HistoryItem } from "@/lib/local";
 
 /** H2 生徒のホーム：前回決めた目標、今日の議論への入口、これまでの議論 */
 export default function StudentHome() {
   const router = useRouter();
-  const account = useHostUser(); // Google でログインしていれば User、参加コードだけで来た人は null
+  const account = useHostUser();
+  const teacher = useTeacherClaim(account);
   const [goal, setGoal] = useState<{ text: string; at: number } | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   useEffect(() => { setGoal(getNextGoal()); setHistory(getHistory("participant")); }, []);
@@ -18,7 +19,7 @@ export default function StudentHome() {
   return (
     <main className="screen screen--tabs">
       <Header title="あなたのホーム" nav={<TabBar role="student" />}>
-        {account && <button className="btn btn--small" onClick={() => { setRole(account.uid, "host"); router.push("/host"); }}>先生として使う</button>}
+        {account && teacher && <button className="btn btn--small" onClick={() => { setRole(account.uid, "host"); router.push("/host"); }}>先生として使う</button>}
         {account
           ? <button className="btn btn--small" onClick={async () => { await signOutHost(); router.push("/"); }}>ログアウト</button>
           : <Link className="btn btn--small" href="/">ログイン</Link>}

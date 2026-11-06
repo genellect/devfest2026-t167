@@ -4,6 +4,7 @@ import {
   browserPopupRedirectResolver, GoogleAuthProvider, onAuthStateChanged, signInWithCredential, signInWithPopup, signOut, type User,
 } from "firebase/auth";
 import { firebase } from "./firebase";
+import { clearJoinCode } from "./join-code";
 
 /** 先生（司会者）は Google でログインする。教師claimがなければ部屋を作れない（API が 403 を返す） */
 export function useHostUser() {
@@ -30,6 +31,7 @@ export const signInAsTestStudent = () => testGoogle("student");
 
 export async function signOutHost() {
   await signOut(firebase().auth);
+  clearJoinCode();
 }
 
 /** 表示用。認可の最終判断はAPIとRulesで行う。 */
