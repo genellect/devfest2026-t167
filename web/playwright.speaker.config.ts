@@ -4,6 +4,6 @@ if (!process.env.SPEAKER_LIVE_TEST_WAV || !process.env.SPEAKER_EMBEDDING_MODEL |
 export default defineConfig({
   ...base,
   testDir: 'real-e2e',
-  timeout: 90_000,
+  timeout: process.env.T167_REAL_GEMINI === "1" ? 240_000 : 90_000,
   use: { ...base.use, launchOptions: { ...base.use?.launchOptions, args: [...(base.use?.launchOptions?.args ?? []), `--use-file-for-fake-audio-capture=${process.env.SPEAKER_LIVE_TEST_WAV}`] } },
 });

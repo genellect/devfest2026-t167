@@ -22,10 +22,11 @@ export function registerDiscussionRoutes(app: Express, deps: Dependencies, guard
     await endDiscussion(deps, req.params.roomId, 'host', true); res.json({ ok: true });
   }));
   app.get('/discussions', authenticate, wrap(async (req, res) => {
-    const memberships = await db.collectionGroup('members').where('uid', '==', req.ctx.uid).get();
-    const entries = memberships.docs.filter((m) => m.ref.path.split('/').length === 4 && m.ref.path.startsWith('sessions/') && m.get('status') === 'active');
+    const links = await db.collection(`users/${req.ctx.uid}/discussions`).get();
+    const memberships = links.empty ? [] : await db.getAll(...links.docs.map((d) => db.doc(`sessions/${d.id}/members/${req.ctx.uid}`)));
+    const entries = memberships.filter((m) => m.exists && m.get('status') === 'active');
     const docs = entries.length ? await db.getAll(...entries.map((m) => m.ref.parent.parent!)) : [];
-    res.json({ sessions: docs.flatMap((d, i) => d.exists ? [{ sessionId: d.id, title: d.get('title'), theme: d.get('theme') ?? '', phase: d.get('phase'), ended: !!d.get('endedAt') || d.get('phase') === 'closed', role: entries[i].get('role'), groupId: entries[i].get('groupId') ?? null }] : []) });
+    res.json({ sessions: docs.flatMap((d, i) => d.exists ? [{ sessionId: d.id, title: d.get('title'), theme: entries[i].get('role') === 'host' || d.get('participantView.theme') !== false ? d.get('theme') ?? '' : '', phase: d.get('phase'), ended: !!d.get('endedAt') || d.get('phase') === 'closed', role: entries[i].get('role'), groupId: entries[i].get('groupId') ?? null }] : []) });
   }));
   const settings = z.object({ title: z.string().trim().min(1).max(100).optional(), theme: z.string().trim().max(1000).optional(), minutes: z.number().int().min(1).max(180).optional(), groupSelection: z.enum(['host', 'participant']).optional(), publishOnEnd: z.boolean().optional(), participantView: z.object({ theme: z.boolean(), timer: z.boolean(), members: z.boolean(), speaking: z.boolean().optional() }).strict().optional(), resultsPublished: z.boolean().optional() }).strict().refine((v) => Object.keys(v).length > 0);
   app.post('/rooms/:roomId/settings', authenticate, member, host, wrap(async (req, res) => {

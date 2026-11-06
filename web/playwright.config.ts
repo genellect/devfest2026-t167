@@ -5,7 +5,7 @@ const emulatorEnv = {
   FIRESTORE_EMULATOR_HOST: process.env.FIRESTORE_EMULATOR_HOST ?? "127.0.0.1:8080",
   FIREBASE_AUTH_EMULATOR_HOST: process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "127.0.0.1:9099",
   GOOGLE_CLOUD_PROJECT: process.env.GOOGLE_CLOUD_PROJECT ?? "demo-t167",
-  GEMINI_MOCK: "1",
+  GEMINI_MOCK: process.env.T167_REAL_GEMINI === "1" ? "0" : "1",
   PORT: process.env.T167_API_PORT ?? "8081",
 };
 

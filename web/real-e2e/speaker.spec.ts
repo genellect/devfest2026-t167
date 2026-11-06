@@ -56,6 +56,12 @@ test('公開人声を画面で登録し、別録音をマイク入力として�
     await page.getByRole('button', { name: 'セッションを終える', exact: true }).click();
     await page.getByRole('button', { name: '終えて結果を見る', exact: true }).click();
     await expect(guest.getByRole('heading', { name: 'ディスカッションの結果' })).toBeVisible();
+    if (process.env.T167_REAL_GEMINI === '1') {
+      await expect(guest.getByText('録音の送信・分析が完了しました。', { exact: true })).toBeVisible({ timeout: 210_000 });
+      await expect(guest.getByText('Geminiによる推定', { exact: true })).toBeVisible();
+      await guest.screenshot({ path: '../docs/screenshots/real-gemini-result-mobile.png', fullPage: true });
+      await page.screenshot({ path: '../docs/screenshots/real-gemini-host-result.png', fullPage: true });
+    }
     await guest.getByRole('link', { name: 'ホームに戻る', exact: true }).click();
     await expect(guest.locator('.mvp-session-link').filter({ hasText: '公開人声・実モデル接続確認' })).toContainText('終了');
   } finally { await context.close(); }

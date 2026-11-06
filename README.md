@@ -295,3 +295,7 @@ Firestoreの直接購読は認可済みAPI配信へ移行し、Firestore/Storage
 録音と同じマイクから1秒区間を送り、所属グループの登録音声と照合して発話時間を集計する。Hostは全班を確認でき、Guestへの表示はHostの明示許可が必要。推定値であり、能力・意欲の評価には使わない。
 
 `bash scripts/dev.sh speaker-setup`で固定版Python依存とモデルを準備し、`SPEAKER_TEST_VOICES=合成WAVの絶対パス1,絶対パス2 T167_TEST_PORT_OFFSET=33000 bash scripts/dev.sh speaker-check`で実モデルを検証する。通常の`check`はモックで認可・画面を検査し、実モデル試験は別実行する。モデル設定を渡して`serve`を起動するとDB/Auth/Geminiはローカルのまま実モデルを使える。合成音声の生成・検証・制約は[MVPロール設計](docs/mvp-roles.md)を参照。Google文字起こしAPI、クラウド設定、本番デプロイは変更しない。
+
+### PR用の実APIデモ
+
+画面・API・実話者モデルを同梱し、非本番web-previewの専用タグで実Geminiを使う構成は`demo/`。`demo/deploy.sh --plan`で対象を確認し、依頼者が非本番への反映を許可したときだけapplyする。通常のCI/checkではクラウドを変更しない。データはDEMO_ID専用領域に分離する。[起動・認証・制約](docs/cloud-demo.md)を参照。

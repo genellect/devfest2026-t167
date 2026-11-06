@@ -168,3 +168,7 @@ Firestoreの直接購読は認可済みAPI配信へ移行し、Firestore/Storage
 ## 登録音声とリアルタイム話者識別の検証
 
 `bash scripts/dev.sh speaker-setup`は.local-dataの専用Python環境とチェックサム検証済みモデルを準備する。`python3 speech/synthetic_samples.py`でmacOSの合成日本語音声を生成できる。`SPEAKER_TEST_VOICES="$PWD/.local-data/speaker-samples/kyoko.wav,$PWD/.local-data/speaker-samples/eddy.wav" T167_TEST_PORT_OFFSET=33000 bash scripts/dev.sh speaker-check`は専用エミュレータで登録・未登録区間の照合・無音除外・終了後の一時プロフィール削除を検証する。実際の児童生徒の音声をテストに使わない。通常のcheckではこの実モデル試験をskipし、認可と画面をモックで検証する。実モデルのローカル画面起動と制約は[設計](docs/mvp-roles.md)を参照。Google Speech APIの有効化・IAM変更・本番反映は行わない。
+
+## 非本番の実Geminiデモ
+
+`demo/Dockerfile`と`demo/cloudbuild.yaml`で画面/API/話者モデルを同梱する。`demo/deploy.sh`は既定でplanのみ。applyもweb-previewのタグ付きリビジョン・通常トラフィック0に固定し、本番サービスへデプロイしない。Google認証・Firestore・Vertex AIを実接続し、DEMO_IDの専用領域へ保存する。デモ作成自体は依頼者の許可を得て行い、mainマージと本番反映の承諾とは分ける。詳細は[クラウドデモ](docs/cloud-demo.md)。全checkにはデプロイ対象/通常トラフィックを守る偽gcloudテストを含み、実クラウドの変更は含めない。

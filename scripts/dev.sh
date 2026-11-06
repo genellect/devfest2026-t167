@@ -138,6 +138,8 @@ check() {
   node --test tests/cloud-demo.test.mjs
   bash tests/config.test.sh
   bash tests/session-security.test.sh
+  bash tests/demo-deploy.test.sh
+  bash -n demo/*.sh
   step "ビルド"
   npm --prefix api run build
   npm --prefix web run build

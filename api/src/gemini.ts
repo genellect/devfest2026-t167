@@ -71,6 +71,18 @@ export const DiscussionSchema = z.object({
   teacherSuggestions: list(text(200), DISCUSSION_LIMITS.teacherSuggestions),
 });
 
+/** 実測した録音時間を正とし、録音外の時刻を根拠として表示しない。 */
+export function boundDiscussion(value: Discussion, durationSec: number): Discussion {
+  const totalMinutes = durationSec / 60;
+  const inside = <T extends Moment>(items: T[]) => items.filter((item) => {
+    const m = /^(\d+):([0-5]\d)$/.exec(item.at);
+    return !!m && Number(m[1]) * 60 + Number(m[2]) <= durationSec;
+  });
+  if (!value.speechDetected) return { ...value, totalMinutes, segments: [], flowNote: '', good: [], review: [], behaviors: { questions: [], responses: [], reasoning: [], collaboration: [] }, teacherSuggestions: [] };
+  const sum = value.segments.reduce((n, s) => n + s.minutes, 0);
+  return { ...value, totalMinutes, segments: value.segments.map((s) => ({ ...s, minutes: sum > 0 ? s.minutes * totalMinutes / sum : 0 })), good: inside(value.good), review: inside(value.review), behaviors: { questions: inside(value.behaviors.questions), responses: inside(value.behaviors.responses), reasoning: inside(value.behaviors.reasoning), collaboration: inside(value.behaviors.collaboration) } };
+}
+
 const TIMEOUT_MS = 20_000;
 /** 音声の分析は長い（30分の録音を聞き取って構造化する）。Cloud Run の既定のタイムアウト 300 秒より短くする */
 const AUDIO_TIMEOUT_MS = 180_000;
@@ -121,7 +133,7 @@ export function vertexGemini(project: string, location: string, model: string, c
       const prompt = [
         'あなたは、中学・高校・大学のグループ学習を見守る記録係です。添付の音声は、1つのグループの話し合いを1台の端末で録音したものです。',
         `テーマ：${theme}`,
-        `録音の長さ：約${Math.max(1, Math.round(durationSec / 60))}分`,
+        `録音の長さ：約${Math.round(durationSec)}秒（${(durationSec / 60).toFixed(3)}分）。短い録音を1分に切り上げない。`,
         '話し合いの流れと、対話の行動（質問・応答・根拠の提示・協働）を分析してください。',
         '# 守ること',
         '- 「観測された事実」と「解釈」を分ける。behaviors・good・review の text は、実際の発言を短く言い換えたもので、at はその発言の録音の経過時間（mm:ss）。',
@@ -141,7 +153,7 @@ export function vertexGemini(project: string, location: string, model: string, c
         contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType, data: audio.toString('base64') } }] }],
         config: { ...GENERATION_CONFIG, abortSignal, responseSchema: discussionSchema },
       }), AUDIO_TIMEOUT_MS);
-      return DiscussionSchema.parse(JSON.parse(res.text ?? '{}'));
+      return boundDiscussion(DiscussionSchema.parse(JSON.parse(res.text ?? '{}')), durationSec);
     },
     async findPoints(opinions, messages) {
       const prompt = [

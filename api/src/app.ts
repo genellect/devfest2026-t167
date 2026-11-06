@@ -89,6 +89,7 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
         tx.set(codeRef, { roomId });
         tx.set(roomRef(roomId), { schemaVersion: 3, ...(flowVersion ? { flowVersion } : {}), publishOnEnd, participantView, title, theme, minutes, groupSelection, resultsPublished: false, groups, recording, phase: 'collecting', joinCode, createdBy: req.ctx.uid, createdAt: FieldValue.serverTimestamp(), analysis: { status: 'idle' } });
         tx.set(db.doc(`sessions/${roomId}/members/${req.ctx.uid}`), { uid: req.ctx.uid, role: 'host', groupId: null, status: 'active', joinedAt: FieldValue.serverTimestamp() });
+        tx.set(db.doc(`users/${req.ctx.uid}/discussions/${roomId}`), { sessionId: roomId });
         tx.set(db.doc(`users/${req.ctx.uid}`), { uid: req.ctx.uid, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
         for (let g = 1; g <= groups; g++) tx.set(db.doc(`sessions/${roomId}/groups/${g}`), { groupId: String(g), name: `グループ${g}`, number: g });
         return true;
@@ -114,6 +115,7 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
         const singleGroup = (room.get('groups') ?? 1) <= 1 && room.get('groupSelection') !== 'host';
         if (singleGroup && statusOf(room, 1) !== 'opinions') throw new HttpError(409, 'group_started', 'このグループはもう議論を始めています');
         // グループが1つなら自動でグループ1。複数なら、参加のあとに生徒が自分で選ぶ（groups/choose）
+        tx.set(db.doc(`users/${req.ctx.uid}/discussions/${roomId}`), { sessionId: roomId });
         tx.set(mRef, { uid: req.ctx.uid, role: 'participant', groupId: singleGroup ? '1' : null, status: 'active', ...(singleGroup ? { group: 1 } : {}), joinedAt: FieldValue.serverTimestamp() });
         return singleGroup;
       }

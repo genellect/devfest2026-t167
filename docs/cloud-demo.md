@@ -38,3 +38,32 @@ Firebase認証の読み取り権限は[公式の権限一覧](https://docs.cloud
 この版ではFirestore直接購読をAPI配信へ移すため、通常の旧画面だけのPRプレビューでは動かない。独自セッションAPI/Rules/Webをそろえたローカルエミュレータで確認する。既存の自動プレビューは画面だけが更新される。API未反映中のプレビューはログイン・セッション機能の成功確認として扱わず、同一SHAでのAPI/Rules/Web反映をリリース条件とする。
 
 承認後、メンテナンス時間に利用を停止し、同一SHAのAPI/Rules/Webを反映する。Storageバケットが存在する場合は`firebase.json`のstorage.rulesを承認された管理者が`npm --prefix firebase run fb -- deploy --only storage --project <対象プロジェクト>`で適用する。バケット公開IAMと既存署名URLも確認する。TTLのplanは`bash infra/setup-session-security.sh --plan`、適用は承認後の`--apply`。監査閲覧IAMは運用担当に限定する。学校管理者は信頼された管理側がschoolAdmin/schoolIdを設定する。詳細は[認証とセッション](auth-sessions.md)。
+
+## PR用の実Geminiデモ（本番には反映しない）
+
+PR #33のMVPを土台に、画面・API・実音声モデルを同梱した`demo/Dockerfile`をCloud Buildで準備する。既存`web-preview`の**通常トラフィックを変更しないタグ付きリビジョン**へデプロイし、専用タグURLで操作する。本番`web`・`api`、main、Firestoreの本番ルート、既存Rulesは変更しない。共有プレビューの通常URLも旧リビジョンのままにする。
+
+デモの保存先は`demoEnvironments/{DEMO_ID}/`以下。利用者・ログイン・参加コード・議論・音声登録をすべて分離し、全環境collectionGroup検索を禁止する。本人の議論一覧は`users/{uid}/discussions`から所属を再検査して取得する。Firebase Authenticationは既存プロジェクトのGoogle認証を使い、デモ用タグホストだけを承認済みドメインへ追加する。
+
+実行用は既存Computeサービスアカウントを新規デモリビジョンだけに指定する。既存のEditor権限を使用し、IAM権限の追加や鍵の配布はしない。これは本番向けの最小権限設計ではなく、デモに限定する。専用SA/DBや公開サービスの新設には管理者権限が必要。
+
+```bash
+# 変更対象・no-traffic・タグ・環境変数を表示するだけ
+DEMO_ID=pr34 DEMO_IMAGE=asia-northeast1-docker.pkg.dev/devfest2026-t167/app/pr34-demo:v1 bash demo/deploy.sh --plan
+# 非本番デモへの反映が承認されている場合だけ実行
+DEMO_ID=pr34 DEMO_IMAGE=asia-northeast1-docker.pkg.dev/devfest2026-t167/app/pr34-demo:v1 bash demo/deploy.sh --apply
+```
+
+アプリのGoogleログインと独自セッション認可は通常どおり必要。エミュレータログインや認証を迂回するデモユーザーは公開しない。Geminiは既存global/モデル/LOWを維持し、モックにフォールバックしない。短い音声は実測秒数を伝え、結果の総時間を実測へそろえ、録音外の時刻を根拠として表示しない。
+
+本番以外への実AI接続は今回の依頼で許可された範囲。上の旧手順の「実AI未実行」「IAM未確認」は過去の準備段階の記録であり、このデモの検証結果とは区別する。マージ・本番デプロイは別途承諾が必要。
+
+タグ作成後、`DEMO_ID=pr34 node demo/authorize-domain.mjs`でCloud Runが返した実タグホストを検証し、Firebaseの承認済みドメインへ追加する。既存ドメインはすべて保持する。資格情報はローカルADCまたはCloud SDKの標準認証を使い、コードやコンテナへコピーしない。デモURLは通常のCloud RunタグURLであり、既存App Hostingの通常URLとは別。
+
+公開人声の実Gemini試験は`T167_REAL_GEMINI=1`を付けた専用Playwright構成で実行する。既存Vertexプロジェクト/global/モデルを指定し、録音をAPIからVertexへ送信して、送信完了・Geminiによる推定・結果本文の表示まで待つ。ローカル実AI試験ではFirebase/Authだけエミュレータとし、クラウドデモのGoogle認証・Firestore試験とは分けて記録する。
+
+既存`web-preview`には公開Invokerの許可がないため、タグURLへの匿名アクセスは403になる。IAMは変更せず、プロジェクトの呼出権限を持つGoogleアカウントで公式プロキシを起動して`http://localhost:36000`を開く。これはクラウドの同じタグリビジョンへ認証して接続するだけで、API/Firestore/Geminiはクラウド上で動く。ローカルポートは自分の端末だけに公開する。アプリ内では別途指定のGoogleアカウントでログインする。第三者に共有できる公開URLの提供には、管理者による専用非本番サービスのInvoker設定が必要。
+
+```bash
+gcloud run services proxy web-preview --tag=pr34-demo --project=devfest2026-t167 --region=asia-east1 --port=36000
+```

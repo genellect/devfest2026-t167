@@ -1,3 +1,4 @@
+import { demoFirestore } from './demo-firestore.js';
 import { fileURLToPath } from 'node:url';
 import { SpeakerWorker } from './voice-worker.js';
 import type { VoiceProvider } from './dependencies.js';
@@ -27,6 +28,6 @@ if (process.env.SPEAKER_EMBEDDING_MODEL && process.env.SPEAKER_VAD_MODEL) {
 }
 else if (localMock) voice = { version: 'mock-voice-v1', source: 'mock', extract: async (pcm) => ({ embedding: [1, 0, 0, 0], speechMs: pcm.length / 32, segments: [{ startMs: 0, endMs: pcm.length / 32 }] }) };
 const port = Number(process.env.PORT ?? 8080);
-createApp({ db: getFirestore(), auth: getAuth(), gemini, voice, observe: (event) => console.info(JSON.stringify({ event: 'api_request', ...event })) }).listen(port, () => {
+createApp({ db: demoFirestore(getFirestore(), process.env.DEMO_ID), auth: getAuth(), gemini, voice, observe: (event) => console.info(JSON.stringify({ event: 'api_request', ...event })) }).listen(port, () => {
   console.log(`api listening on :${port} (gemini=${describeGemini(g)})`);
 });

@@ -113,7 +113,7 @@ export function registerLiveRoutes(app: Express, deps: Dependencies, guards: Ret
     else if (group >= 1) {
       const publishResults = async () => {
         const [ownResult, flow] = await db.getAll(db.doc(`${roomPath}/results/group-${group}`), db.doc(`${roomPath}/results/flow-g${group}`));
-        enqueue({ docs: { [ownResult.ref.path]: ownResult.data() ?? null, [flow.ref.path]: flow.data() ?? null } });
+        enqueue({ docs: { [`${roomPath}/results/group-${group}`]: ownResult.data() ?? null, [`${roomPath}/results/flow-g${group}`]: flow.data() ?? null } });
       };
       subscriptions.push(db.doc(roomPath).onSnapshot(() => { void publishResults().catch(fail); }, fail));
       listenDoc(`${roomPath}/results/group-${group}`); listenDoc(`${roomPath}/results/flow-g${group}`);
@@ -125,7 +125,7 @@ export function registerLiveRoutes(app: Express, deps: Dependencies, guards: Ret
     } else if (group >= 1) {
       listenDoc(`${roomPath}/speaking/${group}`);
       subscriptions.push(db.doc(roomPath).onSnapshot(() => {
-        void db.doc(`${roomPath}/speaking/${group}`).get().then((s) => enqueue({ docs: { [s.ref.path]: s.data() ?? null } })).catch(fail);
+        void db.doc(`${roomPath}/speaking/${group}`).get().then((s) => enqueue({ docs: { [`${roomPath}/speaking/${group}`]: s.data() ?? null } })).catch(fail);
       }, fail));
     }
     if (role === 'participant') {
