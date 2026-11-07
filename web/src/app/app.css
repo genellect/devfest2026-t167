@@ -203,7 +203,8 @@ input[type=checkbox] { width: 20px; height: 20px; flex: 0 0 auto; margin: 2px 0 
 .flow-speak__phase { stroke: #d0d0d0; stroke-width: 1; }
 .flow-speak__equal { stroke: #8f8e89; stroke-width: 1.5; stroke-dasharray: 6 4; }
 .flow-speak__drop { font-size: 12px; font-weight: 700; fill: #5c4300; }
-.flow-speak__phases { position: relative; height: 52px; margin-top: 10px; }
+.flow-speak__phases { position: relative; height: 56px; margin-top: 10px; }
+.flow-speak__halo { paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; }
 .flow-speak__seg { position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 0 4px; border-left: 2px solid #fff; border-right: 2px solid #fff; border-radius: 8px; background: #d3e3fd; color: #041e49; font-size: 13px; font-weight: 500; text-align: center; overflow: hidden; }
 .flow-speak__seg span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .flow-speak__seg span + span { font-size: 12px; font-weight: 400; }
@@ -211,4 +212,11 @@ input[type=checkbox] { width: 20px; height: 20px; flex: 0 0 auto; margin: 2px 0 
 .flow-speak__stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .flow-speak__stats > div { padding: 12px 14px; border-radius: 12px; background: #f0f4f9; }
 .flow-speak__num { font-size: 18px; font-weight: 500; color: #1f1f1f; }
-@media (max-width: 600px) { .flow-speak__stats { grid-template-columns: 1fr; } .flow-speak__seg { font-size: 11px; } .flow-speak__seg span + span { font-size: 11px; } }
+@media (max-width: 600px) {
+  .flow-speak__stats { grid-template-columns: 1fr; }
+  .flow-speak__phases { height: 64px; }
+  /* 狭い帯では話題の名前を2行まで折り返す（切れたときは title で全文） */
+  .flow-speak__seg { font-size: 11px; line-height: 1.25; }
+  .flow-speak__seg span:first-child { white-space: normal; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .flow-speak__seg span + span { font-size: 11px; }
+}

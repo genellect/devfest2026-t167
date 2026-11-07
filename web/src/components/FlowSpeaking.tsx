@@ -51,11 +51,14 @@ function Card({ self, flow }: { self: SelfSpeaking; flow: Flow | null }) {
   const equal = self.memberCount > 1 ? 100 / self.memberCount : null;
   const top = Math.min(100, Math.max(60, Math.ceil((Math.max(...points.map((p) => p.v), equal ?? 0) + 5) / 20) * 20));
   const peak = points.reduce((a, p) => (p.v > a.v ? p : a), points[0]);
-  // いちばん大きく下がった区間（前の点 → 次の点）
-  let drop: { from: number; to: number; i: number } | null = null;
-  points.forEach((p, i) => { if (i && points[i - 1].v - p.v >= DROP && (!drop || points[i - 1].v - p.v > drop.from - drop.to)) drop = { from: points[i - 1].v, to: p.v, i }; });
-  const d = drop as { from: number; to: number; i: number } | null;
-  const dropStart = d ? Math.round(points[d.i - 1].x) : 0, dropEnd = d ? Math.round(points[d.i].x) : 0;
+  // いちばん大きく下がった区間：下がり続けた区間（山 → 谷）のうち、下げ幅が最大のもの
+  let d: { from: number; to: number; start: number; i: number } | null = null;
+  for (let i = 1, start = 0; i < points.length; i++) {
+    if (points[i].v >= points[i - 1].v) { start = i; continue; }
+    const fall = points[start].v - points[i].v;
+    if (fall >= DROP && (!d || fall > d.from - d.to)) d = { from: points[start].v, to: points[i].v, start, i };
+  }
+  const dropStart = d ? Math.round(points[d.start].x) : 0, dropEnd = d ? Math.round(points[d.i].x) : 0;
   const topicAt = (minute: number) => { let acc = 0; for (const s of segments) { if (minute < acc + s.minutes) return s.topic; acc += s.minutes; } return undefined; };
   const dropTopic = d ? topicAt((dropStart + dropEnd) / 2) : undefined;
 
@@ -103,14 +106,14 @@ function Card({ self, flow }: { self: SelfSpeaking; flow: Flow | null }) {
           {bounds.map((b) => <line key={b} x1={x(b)} x2={x(b)} y1={PAD.top} y2={PAD.top + plotH} className="flow-speak__phase" />)}
           {equal !== null && <>
             <line x1={PAD.left} x2={PAD.left + plotW} y1={y(equal)} y2={y(equal)} className="flow-speak__equal" />
-            <text x={PAD.left + 8} y={y(equal) - 6} className="speak-chart__axis">均等な場合 {Math.round(equal)}%</text>
+            <text x={PAD.left + plotW - 4} y={y(equal) - 6} className="speak-chart__axis flow-speak__halo" textAnchor="end">均等な場合 {Math.round(equal)}%</text>
           </>}
           {ticks.map((t) => <text key={t} x={x(t)} y={H - 8} className="speak-chart__axis" textAnchor={t === 0 ? "start" : t >= maxX ? "end" : "middle"}>{t}分</text>)}
           {active !== null && <line x1={x(points[active].x)} x2={x(points[active].x)} y1={PAD.top} y2={PAD.top + plotH} className="speak-chart__cross" />}
           <path d={path} fill="none" stroke={LINE} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
           {d && <>
             <circle cx={x(points[d.i].x)} cy={y(d.to)} r="4" fill={LINE} stroke="#fff" strokeWidth="2" />
-            <text x={Math.min(x(points[d.i].x) + 8, PAD.left + plotW - 4)} y={PAD.top + 14} className="flow-speak__drop" textAnchor={x(points[d.i].x) + 120 > PAD.left + plotW ? "end" : "start"}>低下：{Math.round(d.from)}% → {Math.round(d.to)}%</text>
+            <text x={Math.min(x(points[d.i].x) + 8, PAD.left + plotW - 4)} y={PAD.top + 14} className="flow-speak__drop flow-speak__halo" textAnchor={x(points[d.i].x) + 120 > PAD.left + plotW ? "end" : "start"}>低下：{Math.round(d.from)}% → {Math.round(d.to)}%</text>
           </>}
           {active !== null && <circle cx={x(points[active].x)} cy={y(points[active].v)} r="4" fill={LINE} stroke="#fff" strokeWidth="2" />}
         </svg>
@@ -124,7 +127,7 @@ function Card({ self, flow }: { self: SelfSpeaking; flow: Flow | null }) {
         {bands.length > 0 && (
           <div className="flow-speak__phases" style={{ marginLeft: PAD.left, marginRight: PAD.right }} aria-label="議論の流れ">
             {bands.map((b, i) => (
-              <div key={i} className={`flow-speak__seg${b.highlight ? " flow-speak__seg--hl" : ""}`} style={{ left: `${(b.start / maxX) * 100}%`, width: `${(b.minutes / maxX) * 100}%` }}>
+              <div key={i} title={`${b.topic} ${b.minutes}分`} className={`flow-speak__seg${b.highlight ? " flow-speak__seg--hl" : ""}`} style={{ left: `${(b.start / maxX) * 100}%`, width: `${(b.minutes / maxX) * 100}%` }}>
                 <span>{b.topic}</span><span>{b.minutes}分</span>
               </div>
             ))}
