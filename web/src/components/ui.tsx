@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 
-/** 画面上部の白い帯。eyebrow は小さい補足（クラス名など）、title は画面の見出し、nav はタブメニュー（components/nav.tsx） */
+/** 画面上部の白い帯。eyebrow は小さい補足（クラス名など）、title は画面の見出し、nav は追加の操作（画面の骨組みは components/shell.tsx の AppShell） */
 export function Header({ eyebrow, title, demo, nav, children }: {
   eyebrow?: string; title: string; demo?: boolean; nav?: React.ReactNode; children?: React.ReactNode;
 }) {
