@@ -185,3 +185,26 @@ GitHubのmain（017b78f）と公開済みPRを確認し、認証セッションP
 7. 外すときは `--action revoke` を同じように実行する。クラウド用の鍵は、提出のあと [認証情報の手順](credentials.md)の「抜けるとき・終わったとき」に従って消す。
 
 この PR を本番に反映する前に、対象の全員に付与を済ませる。済む前に反映すると、本番ではだれもディスカッションを作れなくなる。
+
+#### うまくいかないとき
+
+スクリプトは、メールアドレス・UID・鍵を出さないため、失敗しても「教師権限を確認・更新できませんでした」としか表示しない。次の順に確かめる。
+
+| 確かめること | 直し方 |
+|---|---|
+| 対象の人が本番に一度ログインしたか | 本番の URL で Google ログインしてもらう |
+| ADC にログインしているか | `gcloud auth application-default login` をやり直す |
+| 実行する人がプロジェクトの編集者以上か | オーナーのアカウントで実行する（Firebase Authentication の管理権限が要る） |
+| エミュレータの環境変数が残っていないか | `unset FIREBASE_AUTH_EMULATOR_HOST FIRESTORE_EMULATOR_HOST` |
+| Node が 22.12 以上か | `node --version` で確かめる |
+| `api/` の依存関係が入っているか | `npm --prefix api ci` |
+
+#### UID で付ける場合
+
+メールアドレスを使いたくないときは、[Firebase コンソールの Authentication](https://console.firebase.google.com/project/devfest2026-t167/authentication/users) で対象の人の「ユーザー UID」をコピーし、手順3〜5の `--email <メールアドレス>` を `--uid <UID>` に置き換える。`--uid` は main のスクリプトでも使える。
+
+#### 審査員用のテストアカウント
+
+1. 審査員用の Google アカウントを作り、本番に一度ログインする。
+2. 手順3〜5を同じように実行する。
+3. 受け渡し方（提出用の README に書くかどうか）はオーナーが決める。パスワードはリポジトリに書かない。
