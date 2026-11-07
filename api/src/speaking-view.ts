@@ -9,17 +9,18 @@ export interface SelfSpeakingView {
   timeline: (SpeakingMinute & { totalMs: number })[];
 }
 
-const sum = (m: SpeakingMinute) => Object.values(m.talkMs).reduce((a, b) => a + b, 0) + m.unknownMs;
-const pick = (talk: Record<string, number>, own: Set<string>) => Object.fromEntries(Object.entries(talk).filter(([id]) => own.has(id)));
+const sum = (m: SpeakingMinute) => Object.values(m.talkMs ?? {}).reduce((a, b) => a + b, 0) + (m.unknownMs ?? 0);
+const pick = (talk: Record<string, number> | undefined, own: Set<string>) => Object.fromEntries(Object.entries(talk ?? {}).filter(([id]) => own.has(id)));
 
 /** ownIds は本人の端末の参加者ID（共有端末なら、その端末で登録した全員） */
-export function selfSpeakingView(state: SpeakingState, ownIds: string[]): SelfSpeakingView {
-  const own = new Set(ownIds);
-  const totalMs = Object.values(state.talkMs).reduce((a, b) => a + b, 0) + state.unknownMs;
+export function selfSpeakingView(state: Partial<SpeakingState>, ownIds: string[]): SelfSpeakingView {
+  // 古い形式や書きかけの文書でも配信を止めない（欠けた項目は0として扱う）
+  const own = new Set(ownIds), members = state.members ?? [];
+  const totalMs = Object.values(state.talkMs ?? {}).reduce((a, b) => a + b, 0) + (state.unknownMs ?? 0);
   return {
-    scope: 'self', group: state.group, source: state.source, processedMs: state.processedMs,
-    members: state.members.filter((m) => own.has(m.uid)),
-    talkMs: pick(state.talkMs, own), totalMs, memberCount: state.members.length,
+    scope: 'self', group: state.group ?? 0, source: state.source ?? 'mock', processedMs: state.processedMs ?? 0,
+    members: members.filter((m) => own.has(m.uid)),
+    talkMs: pick(state.talkMs, own), totalMs, memberCount: members.length,
     timeline: (state.timeline ?? []).map((m) => ({ talkMs: pick(m.talkMs, own), unknownMs: 0, totalMs: sum(m) })),
   };
 }

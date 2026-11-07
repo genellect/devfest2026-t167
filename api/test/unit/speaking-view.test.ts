@@ -26,3 +26,8 @@ it('本人が話者として登録されていなければ、本人の行は空�
   const view = selfSpeakingView(state, ['someone']);
   expect(view.members).toEqual([]); expect(view.talkMs).toEqual({});
 });
+
+it('項目が欠けた古い文書でも例外にせず、空の集計を返す', () => {
+  const view = selfSpeakingView({ group: 1 }, ['me']);
+  expect(view).toMatchObject({ scope: 'self', members: [], talkMs: {}, totalMs: 0, memberCount: 0, timeline: [] });
+});
