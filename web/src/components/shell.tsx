@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { useHostUser, useIsTeacher } from "@/lib/hostAuth";
 
 /**
@@ -30,7 +31,7 @@ export function AppShell({ title, eyebrow, steps, status, actions, children, onL
     <div className="shell" data-tone={tone} data-wide={wide || undefined}>
       <header className="shell__bar">
         {nav && back
-          ? <Link href={back} className="shell__back" aria-label="ホーム" onClick={guard}><BackIcon /></Link>
+          ? <Link href={back} className="shell__back" aria-label="ホーム" onClick={guard}><ArrowLeft size={22} strokeWidth={1.75} aria-hidden="true" /></Link>
           : nav ? <Link href={home} className="shell__brand" onClick={guard}>Discuss</Link>
             : <span className="shell__brand">Discuss</span>}
         <div className="shell__title">
@@ -80,13 +81,5 @@ export function Stepper({ steps, current }: { steps: string[]; current: number }
         {steps.map((label, i) => <span key={label} data-state={i < current ? "done" : i === current ? "now" : undefined} />)}
       </div>
     </div>
-  );
-}
-
-function BackIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
-      <path d="m7.8 13 5.6 5.6L12 20l-8-8 8-8 1.4 1.4L7.8 11H20v2H7.8Z" />
-    </svg>
   );
 }

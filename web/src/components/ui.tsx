@@ -25,8 +25,9 @@ export function Tag({ tone, children }: { tone?: "yellow" | "tint" | "blue"; chi
 }
 
 /** AI の結果に付ける出典のタグ。モックのときはデモデータと示す */
+/** AI が作った内容の印。デモデータのときは画面の上の帯に1回だけ「デモデータ」と出すので、ここでは出さない */
 export function SourceTag({ source }: { source?: string }) {
-  return <Tag>{source === "mock" ? "デモデータ" : "Gemini による推定"}</Tag>;
+  return source === "mock" ? null : <Tag>AI による推定</Tag>;
 }
 
 const PHASES = [

@@ -1,6 +1,7 @@
 "use client";
 import { AppShell } from "@/components/shell";
 import Link from "next/link";
+import { Settings } from "lucide-react";
 import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
 import { useGeminiSource } from "@/components/ui";
@@ -37,12 +38,12 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
   }, [room.endsAt, room.phase, ended, roomId]);
 
   return (
-    <AppShell wide back="/teacher" tone={ended ? "paper" : "board"}
+    <AppShell wide back="/teacher" tone={room.phase === "collecting" ? "board" : "paper"}
       eyebrow={<>{room.className && <span>{room.className}</span>}<span className={`pill pill--${state === "議論中" ? "live" : state === "終了" ? "done" : "ready"}`}>{state}</span></>}
       title={room.theme || room.title}
       actions={<>{source === "mock" && <span className="tag tag--yellow">デモデータ</span>}
         <button type="button" className="icon-btn" aria-label="設定" title="設定" onClick={() => settings.current?.showModal()}>
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></svg>
+          <Settings size={20} strokeWidth={1.75} aria-hidden="true" />
         </button></>}>
 
       {room.phase === "collecting" && <Lobby roomId={roomId} room={room} seats={seats} opinions={opinions} />}
@@ -112,7 +113,7 @@ function RecordingReview({ roomId, room }: { roomId: string; room: Room }) {
   const groups = Array.from({ length: room.groups ?? 1 }, (_, i) => i + 1);
   return (
     <section className="flow-card stack" aria-labelledby="review-title">
-      <div className="heading-row"><h2 id="review-title" className="t-sm">録音の振り返り</h2>{summary?.source === "mock" && <span className="pill">デモデータ</span>}</div>
+      <div className="heading-row"><h2 id="review-title" className="t-sm">録音の振り返り</h2></div>
       <p className="t-note">分析済み {summary?.analyzedGroups ?? 0}/{room.groups ?? 1}グループ</p>
       {groups.map((g) => <ReviewGroup key={g} roomId={roomId} group={g} />)}
       <Link className="btn btn--blue" href="/teacher" style={{ alignSelf: "flex-start" }}>ホームに戻る</Link>

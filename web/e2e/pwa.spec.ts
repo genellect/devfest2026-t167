@@ -5,7 +5,7 @@ test("ホーム画面に追加できるよう、マニフェストとアイコ�
   const href = await page.locator('link[rel="manifest"]').getAttribute("href");
   expect(href).toBeTruthy();
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute("href", "/icons/apple-touch-icon.png");
-  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#fafbf8");
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#ffffff");
   const res = await request.get(href!);
   expect(res.status()).toBe(200);
   const manifest = await res.json();

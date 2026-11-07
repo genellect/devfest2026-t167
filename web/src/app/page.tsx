@@ -44,12 +44,15 @@ export default function Login() {
         <p className="login__brand">Discuss</p>
         <h1 className="t-hero login__title">話す前に、<br />全員の考えを。</h1>
         <p className="login__lead">声にならなかった意見と、合意のずれを見つけるグループディスカッション。</p>
-        {/* 黒板に貼った付箋の絵。1枚だけ黄色＝AIが見つけた「まだ話されていない論点」 */}
+        {/* 製品の見本：教員の画面に出る AI の付箋と、結果に出る理解の分かれ方 */}
         <div className="login__board" aria-hidden="true">
-          <span className="note note--paper">申告すれば使ってよい</span>
-          <span className="note note--paper">アイデア出しだけなら</span>
-          <span className="note note--yellow">まだ話されていない：<br />端末を持たない人は？</span>
-          <span className="note note--paper">教員の許可がいる</span>
+          <p className="login__board-label">議論中、教員の画面に</p>
+          <span className="note note--yellow">まだ話されていない論点：端末を持たない人は、どう参加する？</span>
+          <p className="login__board-label">議論のあと、結果に</p>
+          <div className="login__split">
+            <span className="note note--blue">申告すれば使ってよい<small>3人</small></span>
+            <span className="note note--pink">教員の許可がいる<small>2人</small></span>
+          </div>
         </div>
       </section>
       <section className="login__panel">

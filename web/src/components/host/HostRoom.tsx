@@ -304,21 +304,25 @@ export function ConsensusProgress({ roomId, room, results, summary }: { roomId: 
   }
   return (
     <div className="body">
-      <section className="box box--lg pad stack" aria-label="結論の一文の回収">
-        <h2 className="t-md">結論の一文</h2>
-        <ul className="stack stack--tight" style={{ margin: 0, paddingLeft: 20 }}>
-          {Array.from({ length: groupCount }, (_, i) => i + 1).map((g) => {
-            const st = room.groupState?.[String(g)];
-            const done = results.some((r) => r.group === g);
-            return <li key={g} className="t-label">グループ{g}：{done ? "結果あり" : `提出 ${st?.submitted ?? 0}/${st?.total ?? 0}人`}
-              {!done && (st?.submitted ?? 0) > 0 && <button className="btn btn--small" style={{ marginLeft: 12 }} disabled={!!busy} onClick={() => void run("groups/analyze", { group: g }, `g${g}`)}>{busy === `g${g}` ? "分析しています…" : "今の回答で結果を出す"}</button>}
-            </li>;
-          })}
-        </ul>
-        <button className="btn btn--blue" disabled={!!busy || running || results.length === 0} onClick={() => void run("consensus/analyze", {}, "all")}>
-          {busy === "all" || running ? "まとめています…" : summary ? "結果をまとめ直す" : "結果をまとめる"}
-        </button>
-        <p className="t-small">全グループの結論の一文から、理解のずれと4つの指標をまとめます。</p>
+      <section className="panel result-toolbar" aria-label="結論の一文の回収">
+        <div className="result-toolbar__main">
+          <h2 className="t-sm">結論の一文</h2>
+          <ul className="result-toolbar__groups">
+            {Array.from({ length: groupCount }, (_, i) => i + 1).map((g) => {
+              const st = room.groupState?.[String(g)];
+              const done = results.some((r) => r.group === g);
+              return <li key={g} data-done={done || undefined}><span>グループ{g}：{done ? "結果あり" : `提出 ${st?.submitted ?? 0}/${st?.total ?? 0}人`}</span>
+                {!done && (st?.submitted ?? 0) > 0 && <button className="btn btn--small" disabled={!!busy} onClick={() => void run("groups/analyze", { group: g }, `g${g}`)}>{busy === `g${g}` ? "分析しています…" : "今の回答で結果を出す"}</button>}
+              </li>;
+            })}
+          </ul>
+        </div>
+        <div className="result-toolbar__action">
+          <button className={`btn${summary ? "" : " btn--blue"}`} disabled={!!busy || running || results.length === 0} onClick={() => void run("consensus/analyze", {}, "all")}>
+            {busy === "all" || running ? "まとめています…" : summary ? "結果をまとめ直す" : "結果をまとめる"}
+          </button>
+          <p className="t-small">全グループの一文から、理解のずれと指標をまとめます。</p>
+        </div>
         {message && <p className="notice notice--warn" role="alert">{message}</p>}
       </section>
     </div>
@@ -363,15 +367,16 @@ export function ClassResult({ roomId, room, results, summary, onOpen }: { roomId
                 : results.length ? "結論の理解はそろっていました。次は、結論を支える理由を一人ひとりが説明できるか確かめます。" : "グループの全員が結論を書くと、ここにまとめが出ます。"}
             </p>
           </section>
-          {signals.map((s) => (
-            <section key={s.title} className={`box box--sm${s.value !== null && s.value < 0.5 ? " box--pink" : ""}`} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px" }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 17 }}>{s.title}</p>
-                <p className="t-small">{s.note}</p>
-              </div>
-              <p className="t-lg" style={{ whiteSpace: "nowrap" }}>{s.value === null ? <span className="t-small">データなし</span> : `${Math.round(s.value * 100)}%`}</p>
-            </section>
-          ))}
+          <section className="panel metric-list" aria-label="指標">
+            <dl>
+              {signals.map((s) => (
+                <div key={s.title}>
+                  <dt><span>{s.title}</span><span className="t-small">{s.note}</span></dt>
+                  <dd>{s.value === null ? <span className="t-small">データなし</span> : `${Math.round(s.value * 100)}%`}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
           <p className="t-small">{source === "mock" ? "数値はデモデータです。" : "数値には Gemini による推定を含みます。"}実測の改善効果とは区別してください。</p>
         </div>
         <section className="box box--lg pad stack">
