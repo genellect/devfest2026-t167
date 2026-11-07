@@ -37,7 +37,7 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
   }, [room.endsAt, room.phase, ended, roomId]);
 
   return (
-    <AppShell wide back="/teacher"
+    <AppShell wide back="/teacher" tone={ended ? "paper" : "board"}
       eyebrow={<>{room.className && <span>{room.className}</span>}<span className={`pill pill--${state === "議論中" ? "live" : state === "終了" ? "done" : "ready"}`}>{state}</span></>}
       title={room.theme || room.title}
       actions={<>{source === "mock" && <span className="tag tag--yellow">デモデータ</span>}

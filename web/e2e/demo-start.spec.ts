@@ -10,7 +10,7 @@ async function joinAsGuest(guest: Page, code: string, name?: string) {
   if (!name) { await expect(guest.getByRole("heading", { name: "表示名を設定" })).toBeVisible(); return; }
   await guest.getByLabel("参加者1の表示名").fill(name);
   await guest.getByRole("button", { name: "表示名を保存して進む" }).click();
-  await expect(guest.getByRole("heading", { name: "初回の音声登録" })).toBeVisible();
+  await expect(guest.getByRole("heading", { name: "声の登録" })).toBeVisible();
 }
 
 test("未準備のGuestを外して開始でき、同意を取り消した録音は終了後も送られない", async ({ page, browser }) => {

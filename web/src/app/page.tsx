@@ -42,8 +42,15 @@ export default function Login() {
     <main className="screen login">
       <section className="login__hero">
         <p className="login__brand">Discuss</p>
-        <h1 className="t-hero login__title">話し合いのあとに、<br />次の一歩が見つかる。</h1>
-        <p className="login__lead">一人ひとりの考えと成長を、授業につなげます。</p>
+        <h1 className="t-hero login__title">話す前に、<br />全員の考えを。</h1>
+        <p className="login__lead">声にならなかった意見と、合意のずれを見つけるグループディスカッション。</p>
+        {/* 黒板に貼った付箋の絵。1枚だけ黄色＝AIが見つけた「まだ話されていない論点」 */}
+        <div className="login__board" aria-hidden="true">
+          <span className="note note--paper">申告すれば使ってよい</span>
+          <span className="note note--paper">アイデア出しだけなら</span>
+          <span className="note note--yellow">まだ話されていない：<br />端末を持たない人は？</span>
+          <span className="note note--paper">教員の許可がいる</span>
+        </div>
       </section>
       <section className="login__panel">
         <h2 className="login__heading">ログイン</h2>

@@ -15,7 +15,7 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     await page.getByRole("button", { name: "カメラで読み取る", exact: true }).click();
     await page.getByLabel("参加者1の表示名").fill("架空のGuest");
     await page.getByRole("button", { name: "表示名を保存して進む" }).click();
-    await expect(page.getByRole("heading", { name: "初回の音声登録" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "声の登録" })).toBeVisible();
     await page.getByLabel("声の特徴の登録と、上記の利用方法に同意します").check();
     await page.getByRole("button", { name: "声を登録する", exact: true }).click();
     await expect(page.getByRole("heading", { name: "議論の前に書く" })).toBeVisible({ timeout: 20_000 });
@@ -38,6 +38,6 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     await page.getByLabel("参加者1の表示名").fill("次回の表示名");
     await page.getByRole("button", { name: "表示名を保存して進む" }).click();
     await expect(page.getByRole("heading", { name: "議論の前に書く" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "初回の音声登録" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "声の登録" })).toHaveCount(0);
   } finally { await host.dispose(); }
 });

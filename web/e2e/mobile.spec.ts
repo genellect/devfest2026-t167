@@ -17,12 +17,9 @@ for (const [account, landing, home] of [["生徒", /\/join$/, "/home"], ["先生
     }
     for (const path of ["/home", "/host/new", "/join", "/host/profile", "/about"]) {
       await page.goto(path);
-      // スマホではメニューを「≡」で開く。ホームは教員なら教員のホーム、学生なら学生のホーム
-      await page.getByRole("button", { name: "メニュー", exact: true }).click();
-      const links = page.getByRole("navigation", { name: "メニュー" }).getByRole("link");
-      await expect(links).toHaveText(["ホーム", "設定"]);
-      await expect(links.first()).toHaveAttribute("href", home);
-      await page.keyboard.press("Escape");
+      // 左のメニューは置かない。左上の「Discuss」がホーム（教員は教員のホーム、学生は学生のホーム）、右上の丸が設定
+      await expect(page.getByRole("link", { name: "Discuss", exact: true })).toHaveAttribute("href", home);
+      await expect(page.getByRole("link", { name: /^設定（/ })).toHaveAttribute("href", "/host/profile");
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path).toBe(true);
     }
   });
