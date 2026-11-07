@@ -202,6 +202,36 @@ input[type=checkbox] { accent-color: var(--board); width: 22px; height: 22px; ma
 }
 @keyframes note-in { from { transform: translateY(-10px) rotate(-3deg); opacity: 0; } to { transform: rotate(-0.6deg); opacity: 1; } }
 
+/* ---------- 合意の実態検証：理解のまとまりを色の違う付箋で並べる（黄色は使わない） ---------- */
+:root { --note-mint: #b9e3c6; --note-lilac: #d5c8f2; }
+.understand { list-style: none; margin: 0; padding: 4px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 18px; align-items: start; }
+.understand__note { display: flex; flex-direction: column; gap: 14px; padding: 18px 18px 16px; border-radius: 3px 3px 18px 3px; color: var(--ink); box-shadow: 0 12px 18px -14px rgb(27 31 29 / .55); transform: rotate(-0.8deg); }
+.understand__note:nth-child(even) { transform: rotate(0.7deg); }
+.understand__note--blue { background: var(--note-blue); }
+.understand__note--pink { background: var(--note-pink); }
+.understand__note--mint { background: var(--note-mint); }
+.understand__note--lilac { background: var(--note-lilac); }
+.understand__label { font-family: var(--font-display); font-weight: 700; font-size: 19px; line-height: 1.5; }
+.understand__count { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 15px; font-weight: 700; }
+.understand__dots { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.understand__dots span { width: 12px; height: 12px; border-radius: 50%; background: var(--ink); opacity: .78; }
+/* 学生が自分で書いた理解は、白い紙に書いて付箋の横に置く */
+.mine-note { background: #fff; border: 1px solid var(--paper-line); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.mine-note__label { font-size: 13px; font-weight: 700; color: var(--ink-sub); }
+.mine-note__text { font-size: 17px; line-height: 1.6; }
+/* グループを比べる表：まとまりの人数の割合を同じ色の帯で */
+.gap-cell { display: inline-flex; flex-direction: column; gap: 6px; min-width: 120px; }
+.split-bar { display: flex; gap: 2px; width: 100%; max-width: 200px; height: 10px; border-radius: 5px; overflow: hidden; }
+.split-bar__part { display: block; flex-basis: 0; }
+/* 議論の流れ：区切りの太い線をやめ、時間の長さだけを帯で示す。目立たせる場面は黒板の色（黄色は使わない） */
+.timeline { border: 0; gap: 4px; }
+.timeline__seg { --seg: var(--primary-soft); border: 0 !important; border-radius: 10px; background: var(--seg); color: var(--ink); font-weight: 700; }
+.timeline__seg--hl { --seg: var(--board); color: var(--chalk); }
+.class-understand { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid var(--paper-line); }
+.class-understand__group { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-weight: 700; }
+.class-understand__group span { font-weight: 400; color: var(--ink-sub); font-size: 15px; }
+.flow-question { background: #fff; border: 1px dashed var(--ink-sub); border-radius: 12px; padding: 10px 14px; }
+
 /* ---------- ホーム・一覧 ---------- */
 .home-code-label { font-size: 14px; color: var(--ink-sub); }
 .home-actions { display: flex; flex-wrap: wrap; gap: 12px; }

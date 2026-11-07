@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { FlowTimeline, GoodReview, useFlow } from "@/components/flow";
 import { SourceTag, Tag } from "@/components/ui";
+import { UnderstandingNotes, describeUnderstanding } from "@/components/understandings";
 import { callApi } from "@/lib/api";
 import { formatMetric } from "@/lib/format";
 import { getNextGoal, getReflection, saveReflection } from "@/lib/local";
@@ -181,7 +182,7 @@ export function ResultStep({ roomId, uid, group, source, title, result }: { room
   const [r, setR] = useState(() => getReflection(roomId));
   const [saved, setSaved] = useState(false);
   const set = (patch: Partial<typeof r>) => { setR({ ...r, ...patch }); setSaved(false); };
-  const groups = [...(result?.clusters ?? [])].sort((a, b) => b.count - a.count).map((c) => ({ label: c.label, n: c.count }));
+  const groups = [...(result?.clusters ?? [])].sort((a, b) => b.count - a.count).map((c) => ({ label: c.label, count: c.count }));
   const alignment = result?.alignmentRate ?? null;
   const { flow } = useFlow(roomId, group, source);
 
@@ -196,26 +197,23 @@ export function ResultStep({ roomId, uid, group, source, title, result }: { room
       {!result ? (
         <p className="box box--sm pad t-label">グループの結果はまだありません。グループ全員が結論の一文を書くと、ここに理解の分かれ方が出ます。</p>
       ) : (
-        <div className="row">
-          <section className="box box--sm box--yellow pad stack">
-            <div className="heading-row"><h3 className="t-sm">あなたの理解</h3><Tag tone="tint">あなたの入力</Tag></div>
-            <p className="t-md">{mine?.text ?? "（入力していません）"}</p>
-          </section>
-          <section className="box box--sm pad stack">
-            <div className="heading-row"><h3 className="t-sm">グループの理解の分かれ方</h3><SourceTag source={result.source} /></div>
-            <p className="t-md">{groups.length <= 1 ? "理解はほぼそろっていました。" : `${groups.length}通りに分かれました。`}</p>
-            <ul className="stack stack--tight" style={{ margin: 0, paddingLeft: 20 }}>
-              {groups.map((g, i) => <li key={i} className="t-label">{g.label}（{g.n}人）</li>)}
-            </ul>
-            <p className="t-note">認識一致度：{formatMetric(alignment, result.source === "mock" ? "mock" : "gemini")}</p>
-          </section>
-        </div>
+        <section className="stack" aria-labelledby="split-title">
+          <div className="heading-row"><h3 id="split-title" className="t-sm">{describeUnderstanding(groups)}</h3><SourceTag source={result.source} /></div>
+          <div className="mine-note">
+            <p className="mine-note__label">あなたが書いた理解</p>
+            <p className="mine-note__text">{mine?.text ?? "（入力していません）"}</p>
+          </div>
+          <UnderstandingNotes clusters={groups} />
+          <p className="t-note">付箋の言葉は、グループ全員の一文を AI がまとめ直したものです。誰がどれを書いたかは表示しません。認識一致度：{formatMetric(alignment, result.source === "mock" ? "mock" : "gemini")}</p>
+        </section>
       )}
 
       {(
         <>
-          <h2 className="t-md">グループで何が起きたか</h2>
-          <FlowTimeline flow={flow} compact />
+          {flow && <>
+            <h2 className="t-md">グループで何が起きたか</h2>
+            <FlowTimeline flow={flow} compact />
+          </>}
           <h2 className="t-md">自分はどう関わっていたか</h2>
           <div className="row">
             <section className="box box--sm pad stack">
@@ -255,8 +253,10 @@ export function ResultStep({ roomId, uid, group, source, title, result }: { room
               {saved && <p role="status">保存しました。次の議論の前に表示します。</p>}
             </section>
           </div>
-          <h2 className="t-md">次はどうするか</h2>
-          <GoodReview flow={flow} />
+          {flow ? <>
+            <h2 className="t-md">次はどうするか</h2>
+            <GoodReview flow={flow} />
+          </> : <p className="t-note">録音した議論では、分析が届くと、議論の流れと振り返りがここに出ます。</p>}
           <Link className="btn" href="/student" style={{ alignSelf: "flex-start" }}>ホームに戻る</Link>
         </>
       )}
