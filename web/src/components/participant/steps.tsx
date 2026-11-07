@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { FlowTimeline, GoodReview, useFlow } from "@/components/flow";
+import { FlowSpeaking } from "@/components/FlowSpeaking";
 import { SourceTag, Tag } from "@/components/ui";
 import { callApi } from "@/lib/api";
 import { formatMetric } from "@/lib/format";
@@ -175,7 +176,7 @@ const ACHIEVED = ["できた", "少しできた", "まだ"];
 const SPOKE = ["言えた", "一部言えた", "言えなかった", "特になかった"];
 
 /** P4-2 認識のちがい ＋ P5 振り返り。グループの結果は全員に、振り返りはこの端末にだけ残す */
-export function ResultStep({ roomId, uid, group, source, title, result }: { roomId: string; uid: string; group: number; source?: string; title: string; result: GroupResult | null }) {
+export function ResultStep({ roomId, uid, group, source, title, result, showSpeaking = false }: { roomId: string; uid: string; group: number; source?: string; title: string; result: GroupResult | null; showSpeaking?: boolean }) {
   const mine = useDoc<{ text: string }>(`sessions/${roomId}/consensusStatements/${uid}`).data;
   const opinion = useDoc<{ text: string }>(`sessions/${roomId}/privateOpinions/${uid}`).data;
   const [r, setR] = useState(() => getReflection(roomId));
@@ -215,7 +216,7 @@ export function ResultStep({ roomId, uid, group, source, title, result }: { room
       {(
         <>
           <h2 className="t-md">グループで何が起きたか</h2>
-          <FlowTimeline flow={flow} compact />
+          {showSpeaking ? <FlowSpeaking roomId={roomId} group={group} flow={flow} /> : <FlowTimeline flow={flow} compact />}
           <h2 className="t-md">自分はどう関わっていたか</h2>
           <div className="row">
             <section className="box box--sm pad stack">

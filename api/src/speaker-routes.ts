@@ -12,6 +12,19 @@ export interface SpeakingState {
   group: number; source: 'mock' | 'model'; version: string; processedMs: number; unknownMs: number;
   talkMs: Record<string, number>; members: { uid: string; label: string }[];
   latest: { uid: string | null; label: string; confidence: number | null } | null; updatedAt: number;
+  /** 録音の1分ごとの発話時間（i番目 = 録音開始から i〜i+1 分）。発言率の推移を描くため。音声や特徴は入れない */
+  timeline?: SpeakingMinute[];
+}
+export interface SpeakingMinute { talkMs: Record<string, number>; unknownMs: number }
+/** 1秒区間の発話時間を、その区間が入る「録音開始から何分目」に足す。前の分が空なら0で埋める */
+export function addToTimeline(timeline: SpeakingMinute[] | undefined, processedMs: number, uid: string | null, speechMs: number): SpeakingMinute[] {
+  const next = (timeline ?? []).map((m) => ({ talkMs: { ...m.talkMs }, unknownMs: m.unknownMs }));
+  const minute = Math.floor(processedMs / 60_000);
+  while (next.length <= minute) next.push({ talkMs: {}, unknownMs: 0 });
+  if (!speechMs) return next;
+  if (uid) next[minute].talkMs[uid] = (next[minute].talkMs[uid] ?? 0) + speechMs;
+  else next[minute].unknownMs += speechMs;
+  return next;
 }
 const error = (code: string, message: string, status = 409) => new HttpError(status, code, message);
 /** 背景の音声送信はactivityに数えない。音声と特徴はレスポンス/DB/ログへ出さない。 */
@@ -65,7 +78,7 @@ export function registerSpeakerRoutes(app: Express, deps: Dependencies, guards: 
       const id = randomUUID();
       tx.set(leaseRef, { id, uid: req.ctx.uid, sessionId: req.ctx.session!.sessionId, expiresAt: deps.now() + 30_000, sequence: 0, startedAt: deps.now(), bytes: 0, profilesHash: hash });
       // 名簿やモデルが変わった場合は、以前の集計と混ぜない。
-      if (!state.exists || lease.get('profilesHash') !== hash || state.get('version') !== deps.voice!.version) tx.set(stateRef, { group, source: deps.voice!.source, version: deps.voice!.version, processedMs: 0, unknownMs: 0, talkMs: Object.fromEntries(voices.map((p) => [p.uid, 0])), members: voices.map(({ uid, label }) => ({ uid, label })), latest: null, updatedAt: deps.now() } satisfies SpeakingState);
+      if (!state.exists || lease.get('profilesHash') !== hash || state.get('version') !== deps.voice!.version) tx.set(stateRef, { group, source: deps.voice!.source, version: deps.voice!.version, processedMs: 0, unknownMs: 0, talkMs: Object.fromEntries(voices.map((p) => [p.uid, 0])), members: voices.map(({ uid, label }) => ({ uid, label })), latest: null, updatedAt: deps.now(), timeline: [] } satisfies SpeakingState);
       return { runId: id, group, sequence: 0, source: deps.voice!.source };
     });
     res.status(201).json(result);
@@ -106,6 +119,7 @@ export function registerSpeakerRoutes(app: Express, deps: Dependencies, guards: 
         const stateRef = ref.collection('speaking').doc(String(group)), state = (await tx.get(stateRef)).data() as SpeakingState;
         if (match.uid) state.talkMs[match.uid] = (state.talkMs[match.uid] ?? 0) + speechMs;
         else state.unknownMs += speechMs;
+        state.timeline = addToTimeline(state.timeline, state.processedMs, match.uid, speechMs);
         state.processedMs += 1000; state.updatedAt = deps.now();
         state.latest = speechMs ? { ...match, label: claim.voices.find((p) => p.uid === match.uid)?.label ?? '判別不能' } : null;
         tx.set(stateRef, state);
