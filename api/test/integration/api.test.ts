@@ -429,6 +429,36 @@ describe('承認と合意の検証', () => {
     await api(mod).post(`/rooms/${roomId}/insights/${id}/approve`).expect(200);
     await api(mod).post(`/rooms/${roomId}/insights/${id}/approve`).expect(409);
   });
+  it('司会者は提案を見送れる（参加者は 403、2回目は 409）。見送った提案は承認できず、合意の検証にも入らない', async () => {
+    const { roomId, mod, p1 } = await setupRoom();
+    await toDiscussing(mod, roomId, ['透明性を確保すべき'], []);
+    await api(mod).post(`/rooms/${roomId}/analyze`).expect(200);
+    const id = (await db.collection(`sessions/${roomId}/insights`).get()).docs[0].id;
+    await api(p1).post(`/rooms/${roomId}/insights/${id}/dismiss`).expect(403);
+    expect((await api(mod).post(`/rooms/${roomId}/insights/${id}/dismiss`).expect(200)).body).toEqual({ status: 'dismissed' });
+    await api(mod).post(`/rooms/${roomId}/insights/${id}/dismiss`).expect(409);
+    await api(mod).post(`/rooms/${roomId}/insights/${id}/approve`).expect(409);
+    await api(mod).post(`/rooms/${roomId}/insights/missing/dismiss`).expect(404);
+    expect((await db.doc(`sessions/${roomId}/insights/${id}`).get()).get('status')).toBe('dismissed');
+  });
+  it('分析し直しても提案は重ならない。まだ決めていない提案は置き換わり、見送った・表示した提案は出し直さない', async () => {
+    const { roomId, mod } = await setupRoom();
+    await toDiscussing(mod, roomId, ['透明性を確保すべき', '費用の負担が心配', '端末がない人'], []);
+    await api(mod).post(`/rooms/${roomId}/analyze`).expect(200);
+    const insights = () => db.collection(`sessions/${roomId}/insights`).get().then((q) => q.docs);
+    const first = await insights();
+    expect(first).toHaveLength(3);
+    await api(mod).post(`/rooms/${roomId}/insights/${first[0].id}/dismiss`).expect(200);
+    await api(mod).post(`/rooms/${roomId}/insights/${first[1].id}/approve`).expect(200);
+    clock += 31_000;
+    const r = await api(mod).post(`/rooms/${roomId}/analyze`).expect(200);
+    expect(r.body.suggested).toBe(1);
+    const after = await insights();
+    expect(after).toHaveLength(3);
+    expect(after.filter((d) => d.get('status') === 'pending')).toHaveLength(1);
+    expect(after.find((d) => d.id === first[2].id)).toBeUndefined();
+    expect(new Set(after.map((d) => d.get('summary'))).size).toBe(3);
+  });
   it('合意の一文のずれと4つの指標を計算する', async () => {
     const { roomId, mod, p1, p2 } = await setupRoom();
     await toDiscussing(mod, roomId, ['透明性を確保すべき', '費用が心配'], [[uidOf(p1), '費用が心配です'], [uidOf(p1), 'そうですね']]);

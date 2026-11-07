@@ -59,6 +59,17 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     await expect(a.getByRole("region", { name: "教員からの問いかけ" })).not.toContainText(summary);
     await proposal.getByRole("button", { name: "全員に表示する", exact: true }).click();
     for (const g of [a, b]) await expect(g.getByRole("region", { name: "教員からの問いかけ" })).toContainText(summary);
+
+    // 残った提案は「見送る」で消え、学生には届かない。上の数字も減る
+    const rest = page.locator(".box--yellow").filter({ hasText: "まだ議論されていない論点" });
+    await expect(rest).toHaveCount(1);
+    const dismissed = (await rest.locator(".t-md").innerText()).trim();
+    await expect(page.getByRole("region", { name: "議論の進み具合" })).toContainText(/未検討の論点\s*1/);
+    await rest.getByRole("button", { name: "見送る", exact: true }).click();
+    await expect(rest).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "議論の進み具合" })).toContainText(/未検討の論点\s*0/);
+    await expect(page.getByRole("heading", { name: "いまは新しい提案はありません" })).toBeVisible();
+    for (const g of [a, b]) await expect(g.getByRole("region", { name: "教員からの問いかけ" })).not.toContainText(dismissed);
     await a.screenshot({ path: "../docs/screenshots/unified-guest-discussion-mobile.png", fullPage: true });
 
     // 教員が終了すると、全員が結論の一文を書く

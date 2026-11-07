@@ -3,16 +3,16 @@ import { AppShell } from "@/components/shell";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
-import { HostSpeaking } from "@/components/Speaking";
 import { useGeminiSource } from "@/components/ui";
 import { ApiError, callApi } from "@/lib/api";
 import { millis, useDoc, useGroupResults, useInsights, useMembers, type Flow, type Room, type Summary } from "@/lib/room";
-import { AiPanel, ClassResult, ConsensusProgress, GroupResultView } from "./HostRoom";
+import { ClassResult, ConsensusProgress, GroupResultView } from "./HostRoom";
+import { LiveBoard } from "./LiveBoard";
 import { SessionSettings } from "./SessionSettings";
 
 /**
  * 教員の画面（1本化した流れ）。段階ごとに主役を1つにする（Docs「UIフィードバック」）。
- * 準備中：参加コードとQR・参加人数・事前意見の提出数・開始／議論中：未検討の論点・グループの状況・終了／
+ * 準備中：参加コードとQR・参加人数・事前意見の提出数・開始／議論中：次に話すとよい論点と3つの数字（LiveBoard）／
  * 終了後：結論の一文の回収・結果。設定は歯車のボタンで開くダイアログに置く。
  */
 export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
@@ -46,7 +46,7 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
         </button></>}>
 
       {room.phase === "collecting" && <Lobby roomId={roomId} room={room} seats={seats} opinions={opinions} />}
-      {!ended && room.phase !== "collecting" && <Live roomId={roomId} room={room} seats={seats} insights={insights} />}
+      {!ended && room.phase !== "collecting" && <LiveBoard roomId={roomId} room={room} members={members} insights={insights} />}
       {ended && (openGroup
         ? <div className="teacher__body"><button className="text-btn" onClick={() => setOpenGroup(undefined)}>セッション全体に戻る</button><GroupResultView result={results.find((r) => r.group === openGroup) ?? null} group={openGroup} roomId={roomId} source={source} /></div>
         : <div className="teacher__body">
@@ -100,49 +100,6 @@ function Lobby({ roomId, room, seats, opinions }: { roomId: string; room: Room; 
         <button className="btn btn--blue btn--block start-btn" disabled={busy} onClick={() => void start()}>{busy ? "開始しています…" : "議論を開始"}</button>
         <p className="t-note">開始すると、新しい参加は受け付けません。全員がそろってから始めてください。</p>
       </section>
-    </div>
-  );
-}
-
-/** 議論中：経過時間と終了、未検討の論点、グループの状況と発言時間 */
-function Live({ roomId, room, seats, insights }: { roomId: string; room: Room; seats: number; insights: Parameters<typeof AiPanel>[0]["insights"] }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
-  const started = millis(room.startedAt);
-  const elapsed = started ? Math.max(0, Math.floor((now - started) / 1000)) : 0;
-  const [confirm, setConfirm] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState("");
-  async function finish() {
-    setBusy(true); setError("");
-    try { await callApi(`/rooms/${roomId}/finish`); }
-    catch (e) { setError((e as Error).message); setBusy(false); }
-  }
-  const groups = Array.from({ length: room.groups ?? 1 }, (_, i) => i + 1);
-  return (
-    <div className="teacher__body">
-      <section className="live-bar" aria-label="議論の進み具合">
-        <p className="live-bar__time" role="timer" aria-label="経過時間">{String(Math.floor(elapsed / 60)).padStart(2, "0")}:{String(elapsed % 60).padStart(2, "0")}</p>
-        <p className="t-label">参加 {seats}人</p>
-        <div className="live-bar__end">
-          {!confirm ? <button className="btn btn--blue" onClick={() => setConfirm(true)}>議論を終える</button>
-            : <><button className="btn btn--blue" disabled={busy} onClick={() => void finish()}>{busy ? "終えています…" : "終えて結果を見る"}</button><button className="btn" disabled={busy} onClick={() => setConfirm(false)}>まだ続ける</button></>}
-        </div>
-        {error && <p className="notice notice--error" role="alert">{error}</p>}
-      </section>
-      <div className="live-grid">
-        <AiPanel roomId={roomId} room={room} insights={insights} />
-        <div className="stack">
-          <section className="flow-card" aria-labelledby="groups-title">
-            <h2 id="groups-title" className="t-sm">グループ</h2>
-            <ul className="group-list">
-              {groups.map((g) => {
-                const st = room.groupState?.[String(g)];
-                return <li key={g}><span>グループ{g}</span><span className="t-note">{st?.total ?? 0}人{st?.recording?.status ? `・録音の分析：${{ analyzing: "分析中", done: "完了", failed: "失敗" }[st.recording.status]}` : ""}</span></li>;
-              })}
-            </ul>
-          </section>
-          <HostSpeaking roomId={roomId} card />
-        </div>
-      </div>
     </div>
   );
 }
