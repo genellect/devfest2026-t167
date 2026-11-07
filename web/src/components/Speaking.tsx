@@ -10,7 +10,7 @@ export interface SpeakingState {
 }
 /** 終了後に参加者へ届く、本人だけの集計（サーバーがほかの人の名前と時間を外して送る） */
 export interface SelfSpeaking {
-  scope: 'self'; group: number; source: 'mock' | 'model'; processedMs: number; totalMs: number;
+  scope: 'self'; group: number; source: 'mock' | 'model'; processedMs: number; totalMs: number; memberCount: number;
   members: { uid: string; label: string }[]; talkMs: Record<string, number>; timeline: SpeakingMinute[];
 }
 function SelfSpeakingRates({ state }: { state: SelfSpeaking }) {

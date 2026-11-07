@@ -4,6 +4,8 @@ import type { SpeakingMinute, SpeakingState } from './speaker-routes.js';
 export interface SelfSpeakingView {
   scope: 'self'; group: number; source: SpeakingState['source']; processedMs: number;
   members: { uid: string; label: string }[]; talkMs: Record<string, number>; totalMs: number;
+  /** 声を登録した参加者の人数（「均等な場合」の線に使う。名前は渡さない） */
+  memberCount: number;
   timeline: (SpeakingMinute & { totalMs: number })[];
 }
 
@@ -17,7 +19,7 @@ export function selfSpeakingView(state: SpeakingState, ownIds: string[]): SelfSp
   return {
     scope: 'self', group: state.group, source: state.source, processedMs: state.processedMs,
     members: state.members.filter((m) => own.has(m.uid)),
-    talkMs: pick(state.talkMs, own), totalMs,
+    talkMs: pick(state.talkMs, own), totalMs, memberCount: state.members.length,
     timeline: (state.timeline ?? []).map((m) => ({ talkMs: pick(m.talkMs, own), unknownMs: 0, totalMs: sum(m) })),
   };
 }

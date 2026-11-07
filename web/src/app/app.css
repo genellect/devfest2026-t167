@@ -196,3 +196,19 @@ input[type=checkbox] { width: 20px; height: 20px; flex: 0 0 auto; margin: 2px 0 
 .speak-chart__table table { border-collapse: collapse; font-size: 13px; min-width: 100%; }
 .speak-chart__table th, .speak-chart__table td { padding: 4px 10px; border-bottom: 1px solid #e3e3e3; text-align: right; white-space: nowrap; }
 .speak-chart__table th:first-child { text-align: left; }
+
+/* 議論の流れとあなたの発言率（Figma 182:1576）。折れ線の真下に、同じ時間軸で話題の帯を並べる */
+.flow-speak__lead { font-size: 16px; font-weight: 500; color: #1f1f1f; }
+.flow-speak__band { fill: #fef1cc; }
+.flow-speak__phase { stroke: #d0d0d0; stroke-width: 1; }
+.flow-speak__equal { stroke: #8f8e89; stroke-width: 1.5; stroke-dasharray: 6 4; }
+.flow-speak__drop { font-size: 12px; font-weight: 700; fill: #5c4300; }
+.flow-speak__phases { position: relative; height: 52px; margin-top: 10px; }
+.flow-speak__seg { position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 0 4px; border-left: 2px solid #fff; border-right: 2px solid #fff; border-radius: 8px; background: #d3e3fd; color: #041e49; font-size: 13px; font-weight: 500; text-align: center; overflow: hidden; }
+.flow-speak__seg span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flow-speak__seg span + span { font-size: 12px; font-weight: 400; }
+.flow-speak__seg--hl { background: #fef1cc; color: #5c4300; }
+.flow-speak__stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.flow-speak__stats > div { padding: 12px 14px; border-radius: 12px; background: #f0f4f9; }
+.flow-speak__num { font-size: 18px; font-weight: 500; color: #1f1f1f; }
+@media (max-width: 600px) { .flow-speak__stats { grid-template-columns: 1fr; } .flow-speak__seg { font-size: 11px; } .flow-speak__seg span + span { font-size: 11px; } }

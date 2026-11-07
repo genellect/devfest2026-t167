@@ -13,7 +13,7 @@ it('本人の時間と、分母になるグループ全体の時間だけを渡�
   const view = selfSpeakingView(state, ['me']);
   expect(view.members).toEqual([{ uid: 'me', label: '本人' }]);
   expect(view.talkMs).toEqual({ me: 6000 });
-  expect(view.totalMs).toBe(20_000);
+  expect(view.totalMs).toBe(20_000); expect(view.memberCount).toBe(2);
   expect(view.timeline).toEqual([{ talkMs: { me: 1000 }, unknownMs: 0, totalMs: 10_000 }, { talkMs: { me: 5000 }, unknownMs: 0, totalMs: 10_000 }]);
   expect(JSON.stringify(view)).not.toMatch(/other|ほかの人|latest|confidence/);
 });
