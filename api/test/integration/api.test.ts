@@ -725,7 +725,7 @@ it('分析中とクラス結果確定後の回答更新で、分析結果を古�
     await api(p1).post(`/rooms/${roomId}/statement`, { text: '途中の変更', agreement: 5 }).expect(409);
     expect((await db.doc(`sessions/${roomId}/consensusStatements/${uidOf(p1)}`).get()).get('text')).toBe('元の回答');
   } finally { release.resolve(); }
-  expect((await running).status).toBe(200);
+  expect((await pending).status).toBe(200);
   for (const status of ['running', 'done']) {
     await db.doc(`sessions/${roomId}`).update({ 'groupState.1.status': 'consensus', consensusAnalysis: { status } });
     await api(p1).post(`/rooms/${roomId}/statement`, { text: '変更', agreement: 5 }).expect(409);
