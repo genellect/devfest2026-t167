@@ -98,15 +98,17 @@ export function DiscussionNotes({ roomId, bare = false }: { roomId: string; bare
     finally { setBusy(false); }
   }
   return (
-    <section className={bare ? "flow-card" : "box box--md pad stack"} aria-label="議論の発言メモ">
-      <div className="heading-row"><h2 className="t-sm">議論の発言メモ</h2><Tag>グループと教員に表示</Tag></div>
-      <p className="t-note">話し合いで出た意見を短く書きます。AIはこのメモと事前の意見を照らし合わせて、まだ話されていない論点を探します。</p>
-      {messages.slice(-8).map((m) => <p key={m.id} className="t-small">・{m.text}</p>)}
-      <form className="stack stack--tight" onSubmit={send}>
-        <label className="field__label" htmlFor="note">発言を書く</label>
-        <input id="note" className="input" maxLength={500} value={text} onChange={(e) => setText(e.target.value)} />
-        <button className="btn btn--small" disabled={busy || !text.trim()}>{busy ? "共有しています…" : "メモを共有する"}</button>
+    <section className={bare ? "flow-card memo" : "box box--md pad stack memo"} aria-label="議論の発言メモ">
+      <div className="heading-row"><h2 className="t-sm">発言メモ</h2><Tag>グループと教員に表示</Tag></div>
+      {messages.length === 0
+        ? <p className="t-note">話し合いで出た意見を、短く書いて共有します。</p>
+        : <ul className="feed memo__feed">{messages.slice(-8).map((m) => <li key={m.id} className="bubble">{m.text}</li>)}</ul>}
+      <form className="memo__composer" onSubmit={send}>
+        <label className="sr-only" htmlFor="note">発言を書く</label>
+        <input id="note" className="input" maxLength={500} placeholder="例：貸出があれば公平になる" value={text} onChange={(e) => setText(e.target.value)} />
+        <button className="btn btn--blue" disabled={busy || !text.trim()}>{busy ? "共有しています…" : "メモを共有する"}</button>
       </form>
+      <p className="t-small">AI は、このメモと全員の事前の意見を照らし合わせて、まだ話されていない論点を探します。</p>
       {error && <p className="notice notice--error" role="alert">{error}</p>}
     </section>
   );
