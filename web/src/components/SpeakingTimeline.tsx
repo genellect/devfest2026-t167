@@ -129,7 +129,7 @@ export function SpeakingTimeline({ timeline, members, processedMs, self = false 
           </table>
         </div>
       </details>
-      <p className="t-note">{self ? "その時点までのグループ全体の発話時間に占める割合です。" : "その時点までの発話時間に占める割合です。無音は除き、判別できなかった時間も分母に含めます。"}</p>
+      <p className="t-note">{self ? "線は、その時点までの割合です。" : "その時点までの発話時間に占める割合です。無音は除き、判別できなかった時間も分母に含めます。"}</p>
     </figure>
   );
 }

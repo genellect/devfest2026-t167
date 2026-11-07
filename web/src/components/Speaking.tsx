@@ -21,7 +21,7 @@ function SelfSpeakingRates({ state }: { state: SelfSpeaking }) {
     {!state.members.length ? <p>声を登録していないため、発言時間は推定していません。</p>
       : state.members.map((m) => { const ms = state.talkMs[m.uid] ?? 0; return <div key={m.uid}><span>{many ? `${m.label}：` : ''}{(ms / 1000).toFixed(1)}秒 · グループの発話の{state.totalMs ? `${Math.round(ms / state.totalMs * 100)}%` : 'データなし'}</span><progress aria-label={`${m.label}の発言率`} value={ms} max={state.totalMs || 1} /></div>; })}
     {!!state.members.length && <SpeakingTimeline timeline={state.timeline} members={state.members} processedMs={state.processedMs} self />}
-    <p className="t-note">グループ全体の発話時間（判別できなかった時間を含む）に占める割合です。ほかの人の時間は表示しません。多く話すほど良いという意味ではなく、能力・意欲の評価にも使用しません。</p>
+    <p className="t-note">割合の分母は、判別できなかった時間を含むグループ全体の発話時間です。ほかの人の時間は表示しません。多く話すほど良いという意味ではなく、能力・意欲の評価にも使用しません。</p>
   </section>;
 }
 export function SpeakingRates({ state }: { state: SpeakingState }) {
