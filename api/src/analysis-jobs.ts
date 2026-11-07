@@ -24,11 +24,12 @@ export function createAnalysisJobs({ db, now }: Dependencies) {
     return { jobId, groups };
   }
   // 状態変更や期限切れ後の再実行と競合した古い結果・エラーは保存しない。
-  const finishAnalysis = (roomId: string, field: AnalysisField, jobId: string, write: (tx: FirebaseFirestore.Transaction) => void) =>
+  // write は読み取り（tx.get）をしてから書き込める。競合したらトランザクションごとやり直す
+  const finishAnalysis = (roomId: string, field: AnalysisField, jobId: string, write: (tx: FirebaseFirestore.Transaction) => void | Promise<void>) =>
     db.runTransaction(async (tx) => {
       const room = await tx.get(roomRef(roomId));
       if (!analysisPhases[field].includes(room.get('phase')) || room.get(`${field}.jobId`) !== jobId) return false;
-      write(tx);
+      await write(tx);
       return true;
     });
   return { beginAnalysis, finishAnalysis };

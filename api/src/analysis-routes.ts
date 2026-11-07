@@ -30,14 +30,20 @@ export function registerAnalysisRoutes(app: Express, deps: Dependencies, guards:
       });
       throw new HttpError(503, 'gemini_unavailable', 'AI の提案は一時停止中です。議論はそのまま続けられます');
     }
-    // 分析のたびに提案が重なって増えないよう、すでに全員に表示した・見送った提案と同じ文は出し直さない
-    const before = await db.collection(`sessions/${roomId}/insights`).where('status', 'in', ['approved', 'dismissed']).get();
-    const decided = new Set(before.docs.map((d) => d.get('summary') as string));
-    const fresh = [...new Set(points.filter((x) => !x.discussed).map((x) => x.summary))].filter((s) => !decided.has(s));
+    // 分析のたびに提案が重なって増えないよう、同じトランザクションで
+    // ・すでに全員に表示した・見送った提案と同じ文は出し直さない
+    // ・まだ決めていない古い提案は、今回の結果に置き換える
+    // を行う。その間に承認・見送りが起きたら、トランザクションごとやり直して判定し直す。
     // 遅れて返った古い結果は捨てる（jobId が今の分析と一致するときだけ保存）
-    const saved = await finishAnalysis(roomId, 'analysis', jobId, (tx) => {
+    const insightsRef = db.collection(`sessions/${roomId}/insights`);
+    let fresh: string[] = [];
+    const saved = await finishAnalysis(roomId, 'analysis', jobId, async (tx) => {
+      const existing = await tx.get(insightsRef);
+      const decided = new Set(existing.docs.filter((d) => d.get('status') !== 'pending').map((d) => d.get('summary') as string));
+      fresh = [...new Set(points.filter((x) => !x.discussed).map((x) => x.summary))].filter((s) => !decided.has(s));
+      for (const d of existing.docs) if (d.get('status') === 'pending') tx.delete(d.ref);
       for (const summary of fresh) {
-        tx.set(db.collection(`sessions/${roomId}/insights`).doc(), { summary, status: 'pending', jobId, source: gemini.source, createdAt: FieldValue.serverTimestamp() });
+        tx.set(insightsRef.doc(), { summary, status: 'pending', jobId, source: gemini.source, createdAt: FieldValue.serverTimestamp() });
       }
       tx.set(db.doc(`sessions/${roomId}/results/coverage`), {
         total: points.length, discussed: points.filter((x) => x.discussed).length,
@@ -46,12 +52,6 @@ export function registerAnalysisRoutes(app: Express, deps: Dependencies, guards:
       tx.update(roomRef(roomId), { 'analysis.status': 'done', 'analysis.finishedAt': FieldValue.serverTimestamp() });
     });
     if (!saved) throw new HttpError(409, 'stale_result', '新しい分析が始まったため、この結果は破棄しました');
-    // まだ決めていない古い提案は、今回の結果に置き換える（読みと削除を同じトランザクションで行い、
-    // その間に承認・見送りされた提案は消さない）
-    await db.runTransaction(async (tx) => {
-      const old = await tx.get(db.collection(`sessions/${roomId}/insights`).where('status', '==', 'pending'));
-      for (const d of old.docs) if (d.get('jobId') !== jobId) tx.delete(d.ref);
-    });
     res.json({ jobId, suggested: fresh.length, total: points.length });
   })));
 

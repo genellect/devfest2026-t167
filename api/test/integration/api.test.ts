@@ -459,6 +459,21 @@ describe('承認と合意の検証', () => {
     expect(after.find((d) => d.id === first[2].id)).toBeUndefined();
     expect(new Set(after.map((d) => d.get('summary'))).size).toBe(3);
   });
+  it('分析の途中で提案を見送っても、分析が終わったあとに同じ提案が出し直されない', async () => {
+    const { roomId, mod } = await setupRoom();
+    await toDiscussing(mod, roomId, ['透明性を確保すべき', '費用の負担が心配'], []);
+    await api(mod).post(`/rooms/${roomId}/analyze`).expect(200);
+    const first = (await db.collection(`sessions/${roomId}/insights`).get()).docs;
+    clock += 31_000; delay = 400;
+    const running = api(mod).post(`/rooms/${roomId}/analyze`).then((r) => r);
+    await new Promise((r) => setTimeout(r, 100));
+    await api(mod).post(`/rooms/${roomId}/insights/${first[0].id}/dismiss`).expect(200);
+    expect((await running).status).toBe(200);
+    const after = (await db.collection(`sessions/${roomId}/insights`).get()).docs;
+    const same = after.filter((d) => d.get('summary') === first[0].get('summary'));
+    expect(same.map((d) => d.get('status'))).toEqual(['dismissed']);
+    expect(after.filter((d) => d.get('status') === 'pending')).toHaveLength(1);
+  });
   it('合意の一文のずれと4つの指標を計算する', async () => {
     const { roomId, mod, p1, p2 } = await setupRoom();
     await toDiscussing(mod, roomId, ['透明性を確保すべき', '費用が心配'], [[uidOf(p1), '費用が心配です'], [uidOf(p1), 'そうですね']]);
@@ -710,7 +725,7 @@ it('分析中とクラス結果確定後の回答更新で、分析結果を古�
     await api(p1).post(`/rooms/${roomId}/statement`, { text: '途中の変更', agreement: 5 }).expect(409);
     expect((await db.doc(`sessions/${roomId}/consensusStatements/${uidOf(p1)}`).get()).get('text')).toBe('元の回答');
   } finally { release.resolve(); }
-  expect((await pending).status).toBe(200);
+  expect((await running).status).toBe(200);
   for (const status of ['running', 'done']) {
     await db.doc(`sessions/${roomId}`).update({ 'groupState.1.status': 'consensus', consensusAnalysis: { status } });
     await api(p1).post(`/rooms/${roomId}/statement`, { text: '変更', agreement: 5 }).expect(409);
