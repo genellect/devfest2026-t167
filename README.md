@@ -266,7 +266,7 @@ http://localhost:3000 を開き、参加コード `100001` で参加する。 �
 | Dev Container・Codespaces | VS Code（Codespaces もブラウザ版ではなく VS Code から開く） | `.devcontainer` が自動で行う |
 | クラウドの AI ツール | — | Claude Code は `bash .claude/cloud-setup.sh`、Codex は `bash .codex/setup.sh` |
 
-PR の前に `bash scripts/dev.sh check` で CI と同じ検査を通し、`bash scripts/dev.sh pr --no-merge` で検査・push・PR の作成を1回で行う。`main` へのマージから自動デプロイまで（本番反映）は、Yuto Matsui の承諾を得てから行う（[PR の確認から本番反映までの手順](docs/contributor-preview-guide.md)）。本物の Gemini で試すときは `GEMINI_MOCK=0 bash scripts/dev.sh serve`（gcloud と ADC が要る。[CONTRIBUTING](CONTRIBUTING.md#起動する)）。
+PR の前に `bash scripts/dev.sh check` で CI と同じ検査を通し、`bash scripts/dev.sh pr --no-merge` で検査・push・PR の作成を1回で行う。`main` へのマージから自動デプロイまで（本番反映）は、Yuto Matsui の承諾を得てから行う（[PR の確認から本番反映までの手順](docs/contributor-preview-guide.md)）。本番反映のあとは、人が本番の URL で教員の作成から結果まで通し、実機とプロジェクターでも確かめる（[本番の URL で通しを確かめる手順](docs/production-check.md)）。本物の Gemini で試すときは `GEMINI_MOCK=0 bash scripts/dev.sh serve`（gcloud と ADC が要る。[CONTRIBUTING](CONTRIBUTING.md#起動する)）。
 
 開発の流れと Git・CI のルールは [CONTRIBUTING](CONTRIBUTING.md)、AI エージェントへの指示は [AGENTS.md](AGENTS.md)、認証情報の扱いは [docs/credentials.md](docs/credentials.md) にある。
 
