@@ -1,8 +1,7 @@
 "use client";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SchoolSecurity } from "@/components/SchoolSecurity";
-import { Header } from "@/components/ui";
+import { AppShell } from "@/components/shell";
 import { LOGOUT_MESSAGES, handleSessionFailure, logoutSession, restoreSession, sessionRequest, useAppSession, type SessionView } from "@/lib/session";
 import { recoveryAudio, recoveryRecordings, unsavedAudio, deleteRecovery, type RecoveryRecording } from "@/lib/recording-recovery";
 import { uploadRecording } from "@/lib/api";
@@ -34,8 +33,8 @@ export default function SessionsPage() {
     if (!Number.isFinite(classEndsAt)) throw new Error("授業終了時刻を指定してください");
     await sessionRequest("/sessions/shared-device", "POST", { isSharedDevice: true, classEndsAt }); await restoreSession();
   }
-  return <main className="screen session-screen"><Header title="端末とセッション"><Link href="/student" className="btn btn--small">ホーム</Link></Header>
-    <div className="body"><section className="session-list">
+  return <AppShell title="端末とセッション">
+    <div className="flow"><section className="session-list">
       <h2 className="t-md">ログインしている端末</h2>
       <p>{current.policy?.idleDays ?? 7}日間使わなかった端末は、自動でログアウトします。全ユーザー共通で{current.policy?.maxConcurrentSessions ?? 1}台まで利用できます。</p>
       {error && <p className="notice notice--error" role="alert">{error}</p>}
@@ -59,5 +58,5 @@ export default function SessionsPage() {
       </article>)}
       {audio && <div><audio controls src={audio} /><a className="btn" href={audio} download="discussion-audio">音声を保存</a></div>}
     </section></div>
-  </main>;
+  </AppShell>;
 }

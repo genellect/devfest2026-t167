@@ -11,9 +11,8 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     const r = await create();
     await fakeQrCamera(page, `${test.info().project.use.baseURL}/join?code=${r.joinCode}`);
     await loginStudent(page);
-    await page.locator(".mvp-actions").getByRole("link", { name: "参加する" }).click();
-    // アプリ内のカメラでQRを読み取ると、ボタンを押さずにそのまま参加する
-    await page.getByRole("button", { name: "QRコードを読み取る", exact: true }).click();
+    // ホームの参加カードからアプリ内のカメラでQRを読み取ると、ボタンを押さずにそのまま参加する
+    await page.getByRole("button", { name: "カメラで読み取る", exact: true }).click();
     await page.getByLabel("参加者1の表示名").fill("架空のGuest");
     await page.getByRole("button", { name: "表示名を保存して進む" }).click();
     await expect(page.getByRole("heading", { name: "初回の音声登録" })).toBeVisible();
@@ -24,7 +23,7 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     await expect(page.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
     await expect(page.getByText("テーマ：秘密のテーマ")).toBeVisible();
     // 開始後にホームへ戻っても、同じコードで議論の画面に戻れる
-    await page.getByRole("link", { name: "ホームに戻る" }).click();
+    await page.getByRole("link", { name: "ホーム", exact: true }).click();
     await page.goto(`/join?code=${r.joinCode}`);
     await expect(page).toHaveURL(/\/rooms\//);
     await expect(page.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
@@ -33,7 +32,7 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     await expect(page.getByRole("timer")).toHaveCount(0);
     expect((await host.post(`/api/rooms/${r.roomId}/finish`, { headers, data: {} })).status()).toBe(200);
     await expect(page.getByRole("heading", { name: "結論を自分の言葉で書く" })).toBeVisible();
-    await page.getByRole("link", { name: "ホームに戻る" }).click();
+    await page.getByRole("link", { name: "ホーム", exact: true }).click();
     const next = await create(); await page.goto(`/join?code=${next.joinCode}`);
     await expect(page).toHaveURL(/\/rooms\//);
     await page.getByLabel("参加者1の表示名").fill("次回の表示名");

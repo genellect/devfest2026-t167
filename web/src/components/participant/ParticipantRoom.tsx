@@ -1,9 +1,9 @@
 "use client";
 import { GuidedGuest } from "./GuidedGuest";
 import { ConsensusStep, DiscussionNotes, OpinionStep, ResultStep } from "./steps";
-import Link from "next/link";
 import { useState } from "react";
-import { Header, PhaseSteps, Tag, useGeminiSource, type Phase } from "@/components/ui";
+import { PHASE_LABEL, Tag, useGeminiSource, type Phase } from "@/components/ui";
+import { AppShell, Stepper } from "@/components/shell";
 import { callApi } from "@/lib/api";
 import { mmss } from "@/lib/recorder";
 import { useAppSession } from "@/lib/session";
@@ -14,6 +14,7 @@ import { groupStatus, useDoc, useInsights, useMembers, type GroupResult, type Gr
 interface Props { roomId: string; room: Room; uid: string; group?: number }
 
 const STEP_OF: Record<GroupStatus, Phase> = { opinions: "collecting", discussing: "discussing", consensus: "consensus", done: "closed" };
+const STEP_INDEX: Record<Phase, number> = { collecting: 0, discussing: 1, consensus: 2, closed: 3 };
 
 /**
  * 参加者（タブレット横向き）の画面。グループはそれぞれのペースで進む：
@@ -35,16 +36,14 @@ export function ParticipantRoom({ roomId, room, uid, group }: Props) {
   const canRecord = groupConfig !== undefined && (!groupConfig?.recorderUid || groupConfig.recorderUid === uid);
   const recording = useGroupRecording(roomId, discussing && canRecord, gs?.recording?.status);
   // 録音中・未送信の録音があるときにホームへ戻ると、録音が消える。確かめてから戻る
-  const confirmLeave = (e: React.MouseEvent) => {
-    if (recording.unsaved && !window.confirm("録音がまだ送られていません。ホームに戻ると、録音は消えます。戻りますか？")) e.preventDefault();
-  };
+  const confirmLeave = () => !recording.unsaved || window.confirm("録音がまだ送られていません。ホームに戻ると、録音は消えます。戻りますか？");
+  const phase: Phase = closed ? "closed" : STEP_OF[showResult ? "done" : writing ? "consensus" : status];
   if (room.flowVersion === 1) return <GuidedGuest roomId={roomId} room={room} uid={uid} group={group} recording={recording} canRecord={canRecord} />;
   return (
-    <main className="screen">
-      <Header eyebrow={group && (room.groups ?? 1) > 1 ? `あなたはグループ${group}` : undefined} title={room.title} demo={source === "mock"}>
-        <PhaseSteps phase={closed ? "closed" : STEP_OF[showResult ? "done" : writing ? "consensus" : status]} />
-        <Link className="btn btn--small" href="/student" onClick={confirmLeave}>ホーム</Link>
-      </Header>
+    <AppShell eyebrow={group && (room.groups ?? 1) > 1 ? `あなたはグループ${group}` : undefined} title={room.title} back="/home" onLeave={confirmLeave}
+      actions={source === "mock" && <span className="tag tag--yellow">デモデータ</span>}
+      steps={<Stepper steps={["事前意見", "議論", "結論", "結果"]} current={STEP_INDEX[phase]} />} status={PHASE_LABEL[phase]}>
+      <div className="flow">
       {!showResult && room.groupSelection !== "host" && (!group || choosing) && <GroupSelect roomId={roomId} room={room} current={group} onDone={() => setChoosing(false)} />}
       {!group && room.groupSelection === "host" && <p className="notice" role="status">教員によるグループの割り当てを待っています。</p>}
       {groupConfig?.name && <p className="notice">所属：{groupConfig.name}</p>}
@@ -63,7 +62,8 @@ export function ParticipantRoom({ roomId, room, uid, group }: Props) {
           <p className="box box--md pad t-label">この授業は終わりました。グループに入っていなかったので、結果はありません。</p>
         </div>
       )}
-    </main>
+      </div>
+    </AppShell>
   );
 }
 

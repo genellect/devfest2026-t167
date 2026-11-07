@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import { AppShell, Stepper } from "@/components/shell";
 import { SpeakerCapture } from "@/lib/speaker-capture";
 import { GuestSpeaking } from "@/components/Speaking";
 import { useEffect, useRef, useState } from "react";
@@ -85,28 +85,27 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord }: 
   const named = !!own?.attendees?.length;
   const voiced = !!own?.ready || voiceSkipped;
   const gs = group ? room.groupState?.[String(group)] : undefined;
-  // 進み具合：表示名 → 声 → 意見 → 議論 → 一文 → 結果
-  const STEPS = ["表示名", "声", "意見", "議論", "一文", "結果"];
-  const step = ended ? (result || status === "done" ? 5 : 4) : !named ? 0 : !voiced ? 1 : waiting ? 2 : 3;
+  // 進み具合（Figma「最新」）：事前意見（表示名・声・意見）→ 議論 → 結論 → 結果
+  const STEPS = ["事前意見", "議論", "結論", "結果"];
+  const step = ended ? (result || status === "done" ? 3 : 2) : !named || !voiced || waiting ? 0 : 1;
   const shared = own?.deviceMode === "shared";
-  const leave = (e: React.MouseEvent) => { if (recording.unsaved && !window.confirm("録音がまだ送られていません。ホームに戻ると、録音は送られず分析されません。戻りますか？")) e.preventDefault(); };
+  const question = (
+    <section className="sticky" aria-label="教員からの問いかけ">
+      <p className="sticky__label">教員からの問いかけ</p>
+      {insights.length === 0 ? <p className="t-note">まだ話されていない論点があると、教員がここに表示します。</p>
+        : insights.map((i) => <p key={i.id} className="sticky__text">{i.summary}</p>)}
+    </section>
+  );
+  const leave = () => !recording.unsaved || window.confirm("録音がまだ送られていません。ホームに戻ると、録音は送られず分析されません。戻りますか？");
   const uploadState = recording.upload.state;
-  return <main className="screen">
-    <header className="appbar">
-      <div className="appbar__title">
-        <p className="appbar__who">{own?.displayName ?? "参加の準備"}{group && (room.groups ?? 1) > 1 ? `・グループ${group}` : ""}</p>
-        <h1 className="appbar__theme">{room.participantView?.theme === false ? room.title : room.theme || room.title}</h1>
-      </div>
-      <Link href="/home" className="btn btn--small" onClick={leave}>ホームに戻る</Link>
-    </header>
-    <ol className="track" aria-label="進み具合">
-      {STEPS.map((label, i) => <li key={label} aria-current={i === step ? "step" : undefined} data-done={i < step}>{label}</li>)}
-    </ol>
+  const who = [own?.displayName, group && (room.groups ?? 1) > 1 ? `グループ${group}` : ""].filter(Boolean).join("・");
+  return <AppShell eyebrow={who || undefined} title={room.participantView?.theme === false ? room.title : room.theme || room.title}
+    steps={<Stepper steps={STEPS} current={step} />} back="/home" onLeave={leave}>
     <div className="flow">
       {error && <p className="notice notice--error" role="alert">{error}</p>}
 
       {ended ? <>
-        <p className="notice" role="status">{room.endReason === "timeout" ? "設定した時間になりました。" : "教員がディスカッションを終了しました。"}</p>
+        <p className="notice" role="status">{room.endReason === "timeout" ? "設定した時間になりました。" : "教員が議論を終了しました。"}</p>
         {["uploading", "waiting", "done"].includes(uploadState) && <p className="notice" role="status">{uploadState === "done" ? "録音の送信・分析が完了しました。" : uploadState === "waiting" ? "グループの分析結果を待っています。録音は端末に保持しています。" : "録音を送信して分析しています。画面を閉じずにお待ちください。"}</p>}
         {uploadState === "failed" && <div className="notice notice--error stack"><p role="alert">{recording.upload.message}</p><button className="btn" onClick={() => void recording.retry()}>録音を再送する</button></div>}
         {!group ? <p className="notice">グループに入っていなかったため、結果はありません。</p>
@@ -152,6 +151,8 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord }: 
         : <OpinionStep bare roomId={roomId} uid={uid} total={gs?.total} opinions={gs?.opinions} canChange={false} onChangeGroup={() => {}} />)
 
       : <>
+        {/* 教員が承認した問いかけ（まだ話されていない論点）は、届いたら一番上に出す */}
+        {insights.length > 0 && question}
         <section className="flow-card" aria-labelledby="talk-title">
           <h2 id="talk-title" className="flow-card__title">グループで話し合いましょう</h2>
           {room.participantView?.theme !== false && room.theme && <p>テーマ：{room.theme}</p>}
@@ -166,15 +167,11 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord }: 
           {speakerStatus && <p className="t-small" role="status">{speakerStatus}</p>}
           {recording.rec.saveError && <p className="notice notice--error" role="alert">{recording.rec.saveError}</p>}
         </section>
-        <section className="sticky" aria-label="教員からの問いかけ">
-          <p className="sticky__label">教員からの問いかけ</p>
-          {insights.length === 0 ? <p className="t-note">まだ話されていない論点があると、教員がここに表示します。</p>
-            : insights.map((i) => <p key={i.id} className="sticky__text">{i.summary}</p>)}
-        </section>
+        {insights.length === 0 && question}
         <DiscussionNotes bare roomId={roomId} />
       </>}
 
       {group && room.participantView?.speaking === true && (!ended || room.resultsPublished) && <GuestSpeaking roomId={roomId} group={group} />}
     </div>
-  </main>;
+  </AppShell>;
 }

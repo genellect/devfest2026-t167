@@ -32,7 +32,7 @@ test("未準備のGuestを外して開始でき、同意を取り消した録音
     await expect(ready.getByRole("heading", { name: "議論の前に書く" })).toBeVisible({ timeout: 20_000 });
     await joinAsGuest(late, code);
 
-    await page.getByRole("button", { name: "ディスカッションを開始", exact: true }).click();
+    await page.getByRole("button", { name: "議論を開始", exact: true }).click();
     await expect(page.getByRole("alert").filter({ hasText: "表示名の登録が済んでいない参加者が1人います" })).toBeVisible();
     await expect(ready.getByRole("heading", { name: "議論の前に書く" })).toBeVisible();
     await page.getByRole("alert").filter({ hasText: "表示名の登録が済んでいない参加者" }).screenshot({ path: "../docs/screenshots/mvp-start-exclude-mobile.png" });
@@ -49,7 +49,7 @@ test("未準備のGuestを外して開始でき、同意を取り消した録音
     await consent.uncheck();
     await expect(ready.getByRole("button", { name: "録音を始める", exact: true })).toBeDisabled();
 
-    await page.getByRole("button", { name: "ディスカッションを終える", exact: true }).click();
+    await page.getByRole("button", { name: "議論を終える", exact: true }).click();
     await page.getByRole("button", { name: "終えて結果を見る", exact: true }).click();
     await expect(ready.getByRole("heading", { name: "結論を自分の言葉で書く" })).toBeVisible();
     await ready.waitForTimeout(1_500);

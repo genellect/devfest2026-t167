@@ -250,7 +250,7 @@ export function ResultStep({ roomId, uid, group, source, title, result }: { room
                 <label className="field__label" htmlFor="next">次の議論で実践する目標</label>
                 <input id="next" className="input" style={{ color: "#000" }} value={r.nextGoal ?? ""} maxLength={60} placeholder="例：自分の意見の前に、1つ質問する" onChange={(e) => set({ nextGoal: e.target.value })} />
               </div>
-              <button type="button" className="btn btn--yellow" style={{ alignSelf: "flex-end" }}
+              <button type="button" className="btn btn--blue" style={{ alignSelf: "flex-end" }}
                 onClick={() => { saveReflection(roomId, { ...r, savedAt: Date.now() }); setSaved(true); }}>振り返りを保存</button>
               {saved && <p role="status">保存しました。次の議論の前に表示します。</p>}
             </section>

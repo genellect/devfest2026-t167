@@ -3,14 +3,18 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Loading } from "@/components/ui";
-import { signOutHost, useHostUser, useIsTeacher } from "@/lib/hostAuth";
+import { AppShell } from "@/components/shell";
+import { useHostUser, useIsTeacher } from "@/lib/hostAuth";
+import { getRoomLabel } from "@/lib/local";
 import { sessionRequest } from "@/lib/session";
 
-interface Discussion { sessionId: string; title: string; theme: string; phase: string; ended?: boolean; role: "host" | "participant" }
+interface Discussion { sessionId: string; title: string; theme: string; phase: string; ended?: boolean; role: "host" | "participant"; className?: string }
+
+const state = (s: Discussion) => s.ended ? { label: "終了", tone: "done" } : s.phase === "collecting" ? { label: "準備中", tone: "ready" } : { label: "議論中", tone: "live" };
 
 /**
- * 教員のホーム。学生の画面とURLを分ける（Docs「UIフィードバック」「サーバーフィードバック」）。
- * 招待された教員だけが入れる。主役は「ディスカッションを作る」で、その下に作ったディスカッションを並べる。
+ * 教員のホーム（Figma「最新」02-T）。学生の画面とURLを分ける（Docs「UIフィードバック」「サーバーフィードバック」）。
+ * 招待された教員だけが入れる。主役は「議論を作る」で、その下に作った議論を並べる。
  */
 export default function TeacherHome() {
   const router = useRouter();
@@ -26,46 +30,39 @@ export default function TeacherHome() {
     let active = true;
     sessionRequest<{ sessions: Discussion[] }>("/discussions")
       .then((r) => { if (active) setSessions(r.sessions.filter((s) => s.role === "host")); })
-      .catch(() => { if (active) setError("ディスカッションの一覧を取得できませんでした。接続を確かめて再読み込みしてください。"); });
+      .catch(() => { if (active) setError("一覧を読み込めませんでした。接続を確認して、再読み込みしてください。"); });
     return () => { active = false; };
   }, [teacher]);
   if (!user || !teacher) return <Loading />;
-  const state = (s: Discussion) => s.ended ? { label: "終了", tone: "done" } : s.phase === "collecting" ? { label: "準備中", tone: "ready" } : { label: "議論中", tone: "live" };
   return (
-    <main className="screen teacher">
-      <header className="appbar">
-        <div className="appbar__title">
-          <p className="appbar__who">Discuss<span className="pill pill--ready" style={{ marginLeft: 8 }}>教員</span></p>
-          <h1 className="appbar__theme">教員のホーム</h1>
-        </div>
-        <Link className="btn btn--small" href="/sessions">アカウント</Link>
-        <button className="btn btn--small" onClick={async () => { await signOutHost(); window.location.assign("/"); }}>ログアウト</button>
-      </header>
-      <div className="teacher__body">
-        <section className="teacher-create" aria-labelledby="create-title">
-          <h2 id="create-title" className="t-md">次の授業のディスカッション</h2>
-          <p className="t-note">テーマを決めると、教室に映す参加コードとQRコードを作ります。</p>
-          <Link className="btn btn--blue start-btn teacher-create__btn" href="/host/new">ディスカッションを作る</Link>
+    <AppShell title="教員のホーム" eyebrow={<span className="pill pill--ready">教員</span>}>
+      <div className="flow">
+        <section className="flow-card teacher-create" aria-labelledby="create-title">
+          <h2 id="create-title" className="flow-card__title">次の授業の議論</h2>
+          <p className="flow-card__lead">テーマを決めると、教室に映す参加コードとQRコードを作ります。</p>
+          <div className="home-actions"><Link className="btn btn--blue start-btn" href="/host/new">議論を作る</Link></div>
         </section>
-        <section className="flow-card stack" aria-labelledby="mine-title">
-          <h2 id="mine-title" className="t-sm">作ったディスカッション</h2>
+        <section className="flow-quiet" aria-labelledby="mine-title">
+          <h2 id="mine-title" className="section-title">作った議論</h2>
           {error && <p className="notice notice--error" role="alert">{error}</p>}
           {sessions === undefined && !error && <p className="t-note">読み込んでいます…</p>}
-          {sessions?.length === 0 && <p className="t-note">まだありません。作ったディスカッションは、ここから開き直せます。</p>}
-          {!!sessions?.length && (
-            <ul className="teacher-list">
-              {sessions.map((s) => {
-                const st = state(s);
-                return <li key={s.sessionId}><Link href={`/rooms/${s.sessionId}`} className="teacher-list__item mvp-session-link">
-                  <span className="teacher-list__title">{s.theme || s.title}</span>
-                  <span className={`pill pill--${st.tone}`}>{st.label}</span>
-                </Link></li>;
-              })}
-            </ul>
-          )}
+          {sessions?.length === 0 && <p className="t-note">作った議論が、ここに並びます。</p>}
+          {sessions?.map((s) => {
+            const st = state(s), label = s.className || getRoomLabel(s.sessionId);
+            return (
+              <Link key={s.sessionId} href={`/rooms/${s.sessionId}`} className="session-row mvp-session-link">
+                <span className="session-row__text">
+                  {label && <span className="session-row__class">{label}</span>}
+                  <span className="session-row__title">{s.theme || s.title}</span>
+                </span>
+                <span className={`pill pill--${st.tone}`}>{st.label}</span>
+                <span className="session-row__chevron" aria-hidden="true">›</span>
+              </Link>
+            );
+          })}
         </section>
         <Link className="text-btn" href="/join">参加者として参加する</Link>
       </div>
-    </main>
+    </AppShell>
   );
 }

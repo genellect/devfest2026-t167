@@ -18,7 +18,7 @@ test('録音と同じマイクで登録済みの声を照合し、Hostが表示�
     await guest.getByLabel('声の特徴の登録と、上記の利用方法に同意します').check();
     await guest.getByRole('button', { name: '声を登録する', exact: true }).click();
     await expect(guest.getByRole('heading', { name: '議論の前に書く' })).toBeVisible({ timeout: 20_000 });
-    await page.getByRole('button', { name: 'ディスカッションを開始', exact: true }).click();
+    await page.getByRole('button', { name: '議論を開始', exact: true }).click();
     await expect(guest.getByRole('heading', { name: 'グループで話し合いましょう' })).toBeVisible();
     await expect(guest.getByLabel('グループ全員が録音・声の照合・発言時間の集計に同意しました')).not.toBeChecked();
     await expect(guest.getByRole('button', { name: '録音を始める', exact: true })).toBeDisabled();
@@ -36,7 +36,7 @@ test('録音と同じマイクで登録済みの声を照合し、Hostが表示�
     await page.getByRole('button', { name: '閉じる', exact: true }).click();
     await guest.screenshot({ path: '../docs/screenshots/mvp-speaker-guest-mobile.png', fullPage: true });
     await page.screenshot({ path: '../docs/screenshots/mvp-speaker-host-mobile.png', fullPage: true });
-    await page.getByRole('button', { name: 'ディスカッションを終える', exact: true }).click();
+    await page.getByRole('button', { name: '議論を終える', exact: true }).click();
     await page.getByRole('button', { name: '終えて結果を見る', exact: true }).click();
     await expect(guest.getByRole('heading', { name: '結論を自分の言葉で書く' })).toBeVisible();
     await expect(guest.getByRole('button', { name: '録音中', exact: true })).toHaveCount(0);

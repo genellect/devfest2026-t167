@@ -1,16 +1,15 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { TabBar } from "@/components/nav";
-import { Header, Loading } from "@/components/ui";
+import { useEffect, useState } from "react";
+import { Loading } from "@/components/ui";
+import { AppShell } from "@/components/shell";
 import { callApi } from "@/lib/api";
 import { useHostUser, useIsTeacher } from "@/lib/hostAuth";
-import { useEffect } from "react";
 import { addHistory, getProfile, setRoomLabel } from "@/lib/local";
 
 
-/** S2 ディスカッションを作る */
+/** 議論を作る（教員だけ） */
 export default function NewRoom() {
   const router = useRouter();
   const user = useHostUser();
@@ -38,7 +37,7 @@ export default function NewRoom() {
   if (user === null) {
     return (
       <main className="screen"><div className="body body--center">
-        <div className="box box--lg card card--narrow"><p className="t-label">ディスカッションを作るには、Googleでログインしてください。</p>
+        <div className="box box--lg card card--narrow"><p className="t-label">議論を作るには、Googleでログインしてください。</p>
           <Link className="btn btn--yellow" href="/">ログインする</Link></div>
       </div></main>
     );
@@ -46,23 +45,22 @@ export default function NewRoom() {
   if (!teacher) {
     // 作成は招待された教員だけ。APIでも同じ条件で断る
     return (
-      <main className="screen screen--tabs">
-        <Header title="新しいディスカッション" nav={<TabBar role="host" />} />
-        <div className="body body--center">
-          <div className="box box--lg card card--narrow stack">
-            <p className="t-label" role="status">ディスカッションを作れるのは、招待された教員のアカウントだけです。</p>
-            <p className="t-note">参加する場合は、教員の画面に出ている6桁の数字を入力してください。</p>
-            <Link className="btn btn--blue" href="/join">参加コードを入力する</Link>
-          </div>
+      <AppShell title="新しい議論">
+        <div className="flow">
+          <section className="flow-card">
+            <p role="status">議論を作れるのは、招待された教員のアカウントだけです。</p>
+            <p className="t-note">参加するときは、教員の画面に出ている6桁の数字を入力します。</p>
+            <div className="home-actions"><Link className="btn btn--blue" href="/join">参加コードを入力する</Link></div>
+          </section>
         </div>
-      </main>
+      </AppShell>
     );
   }
   return (
-    <main className="screen screen--tabs">
-      <Header title="新しいディスカッション" nav={<TabBar role="host" />} />
-      <div className="body body--center">
-        <form className="box box--lg card card--narrow" onSubmit={create}>
+    <AppShell title="新しい議論">
+      <div className="flow">
+        <form className="flow-card" onSubmit={create} aria-labelledby="new-title">
+          <h2 id="new-title" className="flow-card__title">議論の準備</h2>
           <div className="field">
             <label className="field__label" htmlFor="title">テーマ</label>
             <input id="title" className="input" value={title} maxLength={100} required placeholder="例：大学の課題提出でAIの利用を認めるべきか" onChange={(e) => setTitle(e.target.value)} />
@@ -72,9 +70,9 @@ export default function NewRoom() {
             <input id="label" className="input" value={label} maxLength={40} placeholder="例：2年3組" onChange={(e) => setLabel(e.target.value)} />
           </div>
           {error && <p className="notice notice--error" role="alert">{error}</p>}
-          <button className="btn btn--blue btn--block" type="submit" disabled={busy || !title.trim()}>{busy ? "作成しています…" : "作成する"}</button>
+          <div className="home-actions"><button className="btn btn--blue" type="submit" disabled={busy || !title.trim()}>{busy ? "作成しています…" : "作成する"}</button></div>
         </form>
       </div>
-    </main>
+    </AppShell>
   );
 }

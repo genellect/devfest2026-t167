@@ -9,7 +9,7 @@ test("教師claimのない学生は作成できず、Classroom未連携のまま
   await page.route("https://classroom.googleapis.com/**", (r) => { classroomRequests++; return r.abort(); });
   const studentSubject = await loginStudent(page);
   await expect(page.getByText("あなたは、生徒ですか？先生ですか？")).toHaveCount(0);
-  await expect(page.getByRole("link", { name: /ディスカッションを作る/ })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /議論を作る/ })).toHaveCount(0);
   // URLを直接開いても作成の画面は出さない
   await page.goto("/host/new");
   await expect(page.getByRole("status")).toContainText("招待された教員のアカウントだけ");
@@ -40,7 +40,7 @@ test("教師claimのない学生は作成できず、Classroom未連携のまま
     expect((await api.post(`/api/rooms/${roomId}/groups/assign`, { headers: teacher, data: { uid: localStudent.localId, group: 1 } })).status()).toBe(200);
     await expect(page.getByLabel("あなたの意見")).toBeVisible();
     await page.goto("/home");
-    await expect(page.locator(".mvp-session-link").filter({ hasText: "Participantとして参加するセッション" })).toContainText("参加者");
+    await expect(page.locator(".mvp-session-link").filter({ hasText: "Participantとして参加するセッション" })).toContainText(/参加者|グループ1/);
     await mkdir("../docs/screenshots", { recursive: true });
     await page.screenshot({ path: "../docs/screenshots/mvp-home-mobile.png", fullPage: true });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

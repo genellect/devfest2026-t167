@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./material.css";
 import "./app.css";
+import "./classroom.css";
 import { LoginGate } from "@/components/LoginGate";
 
 export const metadata: Metadata = {
@@ -19,11 +20,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="ja">
       <head>
-        {/* Figma と同じ書体。読み込めないときは globals.css の代替書体で表示する */}
+        {/* Figma「最新」と同じ書体（Noto Sans JP）。読み込めないときは classroom.css の代替書体で表示する */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
       </head>
       <body><LoginGate>{children}</LoginGate></body>
     </html>
