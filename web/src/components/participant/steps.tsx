@@ -210,8 +210,10 @@ export function ResultStep({ roomId, uid, group, source, title, result }: { room
 
       {(
         <>
-          <h2 className="t-md">グループで何が起きたか</h2>
-          <FlowTimeline flow={flow} compact />
+          {flow && <>
+            <h2 className="t-md">グループで何が起きたか</h2>
+            <FlowTimeline flow={flow} compact />
+          </>}
           <h2 className="t-md">自分はどう関わっていたか</h2>
           <div className="row">
             <section className="box box--sm pad stack">
@@ -251,8 +253,10 @@ export function ResultStep({ roomId, uid, group, source, title, result }: { room
               {saved && <p role="status">保存しました。次の議論の前に表示します。</p>}
             </section>
           </div>
-          <h2 className="t-md">次はどうするか</h2>
-          <GoodReview flow={flow} />
+          {flow ? <>
+            <h2 className="t-md">次はどうするか</h2>
+            <GoodReview flow={flow} />
+          </> : <p className="t-note">録音した議論では、分析が届くと、議論の流れと振り返りがここに出ます。</p>}
           <Link className="btn" href="/student" style={{ alignSelf: "flex-start" }}>ホームに戻る</Link>
         </>
       )}

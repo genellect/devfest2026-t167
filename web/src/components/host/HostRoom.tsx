@@ -340,6 +340,18 @@ export function ClassResult({ roomId, room, results, summary, onOpen }: { roomId
   const groupCount = room.groups ?? 1;
   return (
     <div className="body">
+      {results.length > 0 && (
+        <section className="box box--lg pad stack" aria-labelledby="class-understand-title">
+          <div className="heading-row"><p className="t-label">合意の中身</p><SourceTag source={source} /></div>
+          <h2 id="class-understand-title" className="t-md">{split > 0 ? `${results.length}グループ中${split}グループで、同じ結論の理解が分かれました` : "どのグループも、結論の理解はほぼそろっていました"}</h2>
+          {results.map((r) => (
+            <div key={r.group} className="class-understand">
+              <p className="class-understand__group">グループ{r.group}<span>{describeUnderstanding(r.clusters)}</span></p>
+              <UnderstandingNotes clusters={r.clusters} />
+            </div>
+          ))}
+        </section>
+      )}
       <div className="split split--result">
         <div className="stack" style={{ gap: 20 }}>
           <section className="box box--lg box--blue pad stack">
