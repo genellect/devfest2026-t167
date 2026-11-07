@@ -9,6 +9,8 @@ import { HttpError, parse, run, wrap, type Handler } from './http.js';
 import { participantGroup } from './membership.js';
 import { statusOf } from './policy.js';
 import type { Dependencies } from './dependencies.js';
+import { selfSpeakingView } from './speaking-view.js';
+import type { SpeakingState } from './speaker-routes.js';
 
 /** JSONを越える時刻は専用の値で渡し、画面側でtoMillisだけを復元する。 */
 export function wireData(value: unknown): unknown {
@@ -74,6 +76,12 @@ export function registerLiveRoutes(app: Express, deps: Dependencies, guards: Ret
           if (payload.docs) {
             for (const path of Object.keys(payload.docs)) {
               if (path.includes('/speaking/') && (room.get('participantView.speaking') !== true || (room.get('endedAt') && room.get('resultsPublished') !== true))) payload.docs[path] = null;
+              // 終了後の結果画面では、本人の発言時間と割合だけを渡す（ほかの人の名前と時間は渡さない）
+              else if (path.includes('/speaking/') && room.get('endedAt') && payload.docs[path]) {
+                const self = await db.doc(`${roomPath}/members/${uid}`).get();
+                const ownIds = ((self.get('attendees') as { id: string }[] | undefined) ?? []).map((a) => a.id);
+                payload.docs[path] = selfSpeakingView(payload.docs[path] as SpeakingState, ownIds);
+              }
               if (path.includes('/results/') && !mayReadResult(path.split('/').at(-1)!, false, group, room.get('resultsPublished') === true)) payload.docs[path] = null;
               if (path === roomPath) {
                 const data = { ...(room.data() ?? {}) };

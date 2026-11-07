@@ -8,6 +8,22 @@ export interface SpeakingState {
   latest: { uid: string | null; label: string; confidence: number | null } | null;
   timeline?: SpeakingMinute[];
 }
+/** 終了後に参加者へ届く、本人だけの集計（サーバーがほかの人の名前と時間を外して送る） */
+export interface SelfSpeaking {
+  scope: 'self'; group: number; source: 'mock' | 'model'; processedMs: number; totalMs: number;
+  members: { uid: string; label: string }[]; talkMs: Record<string, number>; timeline: SpeakingMinute[];
+}
+function SelfSpeakingRates({ state }: { state: SelfSpeaking }) {
+  const many = state.members.length > 1;
+  return <section className="box pad stack" aria-label="あなたの発言時間">
+    <h3>{many ? 'この端末の参加者の発言時間（推定）' : 'あなたの発言時間（推定）'}</h3>
+    {state.source === 'mock' && <p>音声モックのテスト表示です。実際の声は識別していません。</p>}
+    {!state.members.length ? <p>声を登録していないため、発言時間は推定していません。</p>
+      : state.members.map((m) => { const ms = state.talkMs[m.uid] ?? 0; return <div key={m.uid}><span>{many ? `${m.label}：` : ''}{(ms / 1000).toFixed(1)}秒 · グループの発話の{state.totalMs ? `${Math.round(ms / state.totalMs * 100)}%` : 'データなし'}</span><progress aria-label={`${m.label}の発言率`} value={ms} max={state.totalMs || 1} /></div>; })}
+    {!!state.members.length && <SpeakingTimeline timeline={state.timeline} members={state.members} processedMs={state.processedMs} self />}
+    <p className="t-note">グループ全体の発話時間（判別できなかった時間を含む）に占める割合です。ほかの人の時間は表示しません。多く話すほど良いという意味ではなく、能力・意欲の評価にも使用しません。</p>
+  </section>;
+}
 export function SpeakingRates({ state }: { state: SpeakingState }) {
   const total = Object.values(state.talkMs).reduce((a, b) => a + b, 0) + state.unknownMs;
   return <section className="box pad stack" aria-label={`グループ${state.group}の発言時間`}>
@@ -22,8 +38,9 @@ export function SpeakingRates({ state }: { state: SpeakingState }) {
   </section>;
 }
 export function GuestSpeaking({ roomId, group }: { roomId: string; group: number }) {
-  const { data } = useDoc<SpeakingState>(`sessions/${roomId}/speaking/${group}`);
-  return data ? <SpeakingRates state={data} /> : null;
+  const { data } = useDoc<SpeakingState | SelfSpeaking>(`sessions/${roomId}/speaking/${group}`);
+  if (!data) return null;
+  return 'scope' in data && data.scope === 'self' ? <SelfSpeakingRates state={data} /> : <SpeakingRates state={data as SpeakingState} />;
 }
 export function HostSpeaking({ roomId, card = false, ended = false }: { roomId: string; card?: boolean; ended?: boolean }) {
   const groups = useRoomFeed(roomId).collections[`sessions/${roomId}/speaking`] ?? [];
