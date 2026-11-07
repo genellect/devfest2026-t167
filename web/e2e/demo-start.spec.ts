@@ -1,3 +1,4 @@
+import { loginGoogle } from "./google";
 import { expect, test, type Page } from "@playwright/test";
 import { loginStudent } from "./student";
 
@@ -15,7 +16,7 @@ async function joinAsGuest(guest: Page, code: string, name?: string) {
 
 test("未準備のGuestを外して開始でき、同意を取り消した録音は終了後も送られない", async ({ page, browser }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
+  await loginGoogle(page, "teacher");
   await page.waitForURL(/\/teacher$/); await page.goto("/host/new");
   await page.getByLabel("テーマ", { exact: true }).fill("架空の開始確認");
   await page.getByRole("button", { name: "作成する", exact: true }).click();

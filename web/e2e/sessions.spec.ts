@@ -1,3 +1,4 @@
+import { loginGoogle } from "./google";
 import { expect, test } from "@playwright/test";
 import { emulatorGoogleUser } from "../../firebase/emulator-auth.mjs";
 import { loginStudent } from "./student";
@@ -28,7 +29,7 @@ test("共用端末は15分の無操作で再認証画面になり、元画面の
   await page.goto("/"); await page.getByLabel("学校の共用端末で利用する").check();
   const end = new Date(Date.now() + 3600_000), local = new Date(end.getTime() - end.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
   await page.getByLabel("授業終了時刻").fill(local);
-  await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
+  await loginGoogle(page, "student");
   await page.waitForURL(/\/join$/);
   await page.clock.install(); await page.clock.fastForward(15 * 60_000 + 1000);
   await expect(page.getByRole("dialog", { name: "再認証" })).toBeVisible();
@@ -61,7 +62,7 @@ test("録音中の失効は音声を保存してからログアウトし、再�
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(page).toHaveURL(/\/$/); await expect(page.getByRole("status")).toContainText("7日間利用がなかった");
   await page.unroute("**/api/sessions/current");
-  await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
+  await loginStudent(page, "", { home: false });
   await page.waitForURL(/\/join$/); await page.goto("/sessions");
   await expect(page.getByText(/保存済み・/)).toBeVisible();
   await page.getByRole("button", { name: "再生・ダウンロード" }).click();

@@ -1,8 +1,9 @@
+import { loginGoogle } from "./google";
 import { expect, test } from "@playwright/test";
 
 test("教員のホームから作成し、開始・強制終了・結果・教員のホームへ進む", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
+  await loginGoogle(page, "teacher");
   await expect(page).toHaveURL(/\/teacher$/);
   await page.getByRole("link", { name: "議論を作る", exact: true }).click();
   await page.getByLabel("テーマ", { exact: true }).fill("チームで何を作るか");

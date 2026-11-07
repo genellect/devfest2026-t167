@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Loading } from "@/components/ui";
-import { canUseTestHost, homePath, signInAsHost, signInAsTestHost, signInAsTestStudent, useHostUser, useIsTeacher, type LoginOptions } from "@/lib/hostAuth";
+import { googleLoginError, homePath, signInAsHost, useHostUser, useIsTeacher } from "@/lib/hostAuth";
 import { logoutMessage, useAppSession } from "@/lib/session";
 import { pendingJoinCode } from "@/lib/join-code";
 
@@ -28,13 +28,13 @@ export default function Login() {
     router.replace(pendingJoinCode() ? "/join" : homePath(teacher));
   }, [user, teacher, router]);
 
-  async function login(how: (options: LoginOptions) => Promise<void>) {
+  async function login() {
     setBusy(true); setError("");
     try {
       const classEndsAt = shared ? new Date(end).getTime() : null;
-      if (shared && (!classEndsAt || classEndsAt <= Date.now())) throw new Error("授業終了時刻を指定してください");
-      await how({ isSharedDevice: shared, classEndsAt });
-    } catch (e) { setError(`ログインできませんでした：${(e as Error).message}`); setBusy(false); }
+      if (shared && (!classEndsAt || classEndsAt <= Date.now())) { setError("授業終了時刻を指定してください"); setBusy(false); return; }
+      await signInAsHost({ isSharedDevice: shared, classEndsAt });
+    } catch (e) { setError(googleLoginError(e)); setBusy(false); }
   }
 
   if (user === undefined || user) return <Loading />;
@@ -58,13 +58,8 @@ export default function Login() {
         {session.message && <p className="notice notice--error" role="alert">{session.message}</p>}
         <label className="check"><input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} /><span>学校の共用端末で利用する</span></label>
         {shared && <div className="field"><label className="field__label" htmlFor="class-end">授業終了時刻</label><input id="class-end" className="input" aria-label="授業終了時刻" type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} required /><p className="field__hint">この時刻を過ぎると、この端末から自動でログアウトします。</p></div>}
-        <button className="btn btn--blue btn--block" onClick={() => login(signInAsHost)} disabled={busy}>{busy ? "ログインしています…" : "Googleでログイン"}</button>
-        {canUseTestHost && (
-          <div className="stack stack--tight">
-            <button className="btn btn--block btn--small" onClick={() => login(signInAsTestHost)} disabled={busy}>テスト用の先生でログイン（エミュレータ）</button>
-            <button className="btn btn--block btn--small" onClick={() => login(signInAsTestStudent)} disabled={busy}>テスト用の生徒でログイン（エミュレータ）</button>
-          </div>
-        )}
+        <button className="btn btn--blue btn--block" onClick={() => void login()} disabled={busy}>{busy ? "ログインしています…" : "Googleでログイン"}</button>
+        <p className="t-small">Googleで本人確認します。ログインの維持にCookieとサイトデータを使用します。有効なログインが残っている場合は、自動で再開します。</p>
         {error && <p className="notice notice--error" role="alert">{error}</p>}
         <Link href="/about" className="login__link">プライバシー</Link>
       </section>

@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  browserPopupRedirectResolver, GoogleAuthProvider, signInWithCredential, signInWithPopup, reauthenticateWithPopup,
+  browserPopupRedirectResolver, GoogleAuthProvider, signInWithPopup, reauthenticateWithPopup,
 } from "firebase/auth";
 import { useEffect, useState } from "react";
 import { firebase } from "./firebase";
@@ -48,14 +48,13 @@ export async function reauthenticateSession() {
   const provider = new GoogleAuthProvider(); provider.setCustomParameters({ prompt: "select_account", login_hint: user.email ?? "" });
   await unlockSession(() => reauthenticateWithPopup(user, provider, browserPopupRedirectResolver));
 }
-/** エミュレータで動かしているときだけ使う。権限はseedの管理側付与に従う。 */
-export const canUseTestHost = process.env.NEXT_PUBLIC_USE_EMULATORS === "1";
-async function testGoogle(kind: "teacher" | "student", options: LoginOptions) {
-  if (!canUseTestHost) throw new Error("このログインはエミュレータ専用です");
-  await login(() => signInWithCredential(firebase().auth, GoogleAuthProvider.credential(JSON.stringify({
-    sub: `local-${kind}`, email: `local-${kind}@example.com`, email_verified: true, name: kind,
-  }))), options);
+/** SDKの生のエラーやアカウント情報を画面へ出さず、本人が対処できる案内にする。 */
+export function googleLoginError(error: unknown): string {
+  const code = (error as { code?: string })?.code;
+  if (code === "auth/popup-blocked") return "ポップアップがブロックされています。このサイトのポップアップを許可して、もう一度お試しください。";
+  if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") return "Googleのログインが完了しませんでした。もう一度お試しください。";
+  if (code === "cookie_unavailable") return "ログインに必要なCookieを確認できません。このサイトのCookieを許可して、もう一度お試しください。";
+  if (code === "auth/web-storage-unsupported") return "ログイン情報を保存できません。このサイトのCookieとサイトデータを許可してください。";
+  return "ログインできませんでした。接続を確認して、もう一度お試しください。";
 }
-export const signInAsTestHost = (options: LoginOptions = { isSharedDevice: false, classEndsAt: null }) => testGoogle("teacher", options);
-export const signInAsTestStudent = (options: LoginOptions = { isSharedDevice: false, classEndsAt: null }) => testGoogle("student", options);
 export async function signOutHost() { await logoutSession(); clearJoinCode(); }

@@ -1,9 +1,10 @@
+import { loginGoogle } from "./google";
 import { expect, test } from '@playwright/test';
 import { loginStudent } from './student';
 
 test('録音と同じマイクで登録済みの声を照合し、Hostが表示を許可した場合だけGuestへ配信する', async ({ page, browser }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'テスト用の先生でログイン（エミュレータ）' }).click();
+  await loginGoogle(page, "teacher");
   await page.waitForURL(/\/teacher$/); await page.goto('/host/new');
   await page.getByLabel('テーマ', { exact: true }).fill('合成マイクのテスト');
   await page.getByRole('button', { name: '作成する', exact: true }).click();

@@ -1,9 +1,10 @@
+import { loginGoogle } from "./google";
 import { expect, test } from "@playwright/test";
 import { loginStudent } from "./student";
 for (const [account, landing, home] of [["生徒", /\/join$/, "/home"], ["先生", /\/teacher$/, "/teacher"]] as const) {
   test(`${account}の模擬アカウントは役割登録せず、ログイン後に${account === "生徒" ? "参加コードの入力" : "教員のホーム"}へ進む`, async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: `テスト用の${account}でログイン（エミュレータ）` }).click();
+    await loginGoogle(page, account === "先生" ? "teacher" : "student");
     await expect(page).toHaveURL(landing);
     // 学生には作成の入口を出さない。教員のホームの主役は作成
     if (account === "生徒") await expect(page.getByRole("link", { name: /議論を作る/ })).toHaveCount(0);

@@ -89,9 +89,9 @@ test("QR コードの URL から開くと、ログインのあとにそのまま
 });
 
 test("誤った参加コードではエラーが出る", async ({ page }) => {
-  // 模擬Googleのエミュレータ認証は、外部の Google スクリプトなしで完了する。
+  // 本番と同じポップアップ用SDKを使うが、本人確認を実Google/Firebaseの認証APIへ送らない。
   let externalAuthRequests = 0;
-  await page.route("https://apis.google.com/**", route => {
+  await page.context().route(/^https:\/\/(accounts\.google\.com|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com)\//, route => {
     externalAuthRequests++;
     return route.abort();
   });
@@ -99,7 +99,7 @@ test("誤った参加コードではエラーが出る", async ({ page }) => {
   await page.getByLabel("参加コード").fill("999999");
   await page.getByRole("button", { name: "参加する", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "参加コード" })).toContainText("参加コードが見つかりません");
-  expect(externalAuthRequests, "エミュレータ認証が外部通信に依存していない").toBe(0);
+  expect(externalAuthRequests, "本人確認はローカルの認証エミュレータだけを使う").toBe(0);
 });
 
 test("スマホの幅でも、ログインと参加の画面が横にはみ出さない", async ({ page }) => {

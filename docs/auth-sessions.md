@@ -5,6 +5,8 @@
 
 ## 設計と既存構成
 
+入口はGoogleログインのボタン1つに統一する。開発用の先生/生徒の直接ログインは削除し、開発・E2EもGoogle認証エミュレータの選択画面を使う。Google認証後は独自Cookieの往復を確認してからログイン完了にする。Cookieを保存できなければ、設定の確認と再試行を案内する。端末区分と台数上限は維持する。
+
 Next.js → 同一オリジン `/api` の転送 → Express/TypeScript (Cloud Run) → Firebase Admin SDKを維持する。FastAPIは導入しない。FirebaseのGoogle本人認証を置換せず、全保護APIで失効確認付きIDトークンと独自Cookieの両方を検査する。学校ポリシー操作は管理者設定のschoolId/schoolAdminだけを信頼する。議論の権限は各セッションのmembers.roleを参照する。teacher claim はディスカッションの作成（`POST /rooms`）だけに使い、作成後の権限は members.role で決める。UIの役割選択は使わない。
 
 Docs正本の匿名参加記述と現在のGoogle必須方針は異なる。依頼者の全員Googleログイン必須の指示を優先する。既存未マージの依存更新・品質・クラウド準備・ログイン必須化 (#26/27/28/30/31) を前提とする。依頼者の確認後にPRを公開する。マージ・auto-merge・本番反映は別途承諾まで行わない。
@@ -145,7 +147,7 @@ APIカバレッジは行99.29%、文95.83%、分岐85.73%、関数97.46%。30人
 
 UIの最後の配色/文言調整後も型・Lintとプレビューの表示を確認する。PC1440×1000、スマホ幅390×844、WebKitタブレット横幅1194×834でログイン→ホーム→端末一覧の表示と横はみ出しを確認。WebKitのサイズ変更は実機iPad/iOS Simulatorの検査ではない。
 
-プレビュー: `http://localhost:31000/`。再起動は専用checkoutで `T167_TEST_PORT_OFFSET=28000 GEMINI_MOCK=1 bash scripts/dev.sh serve`。元のiPadプレビューとはポート/DBを分離し、実Googleアカウントを入力しない。「テスト用の生徒/先生でログイン」を使う。新規セッションの通知配信、実Google再認証、実Cloud Run/Rules/IAM/TTLは未検証・未反映。
+プレビュー: `http://localhost:31000/`。再起動は専用checkoutで `T167_TEST_PORT_OFFSET=28000 GEMINI_MOCK=1 bash scripts/dev.sh serve`。元のiPadプレビューとはポート/DBを分離し、実Googleアカウントを入力しない。「Googleでログイン」から認証エミュレータの架空のアカウントを選ぶ。新規セッションの通知配信、実Google再認証、実Cloud Run/Rules/IAM/TTLは未検証・未反映。
 
 ![セッション一覧（スマホ幅）](screenshots/session-list-mobile.png)
 
