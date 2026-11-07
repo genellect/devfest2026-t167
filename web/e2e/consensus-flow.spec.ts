@@ -76,7 +76,8 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     await expect(page.getByText("グループ1：結果あり")).toBeVisible({ timeout: 20_000 });
     await page.getByRole("button", { name: "結果をまとめる", exact: true }).click();
     await expect(page.getByRole("button", { name: "結果をまとめ直す", exact: true })).toBeVisible();
-    await expect(page.getByText("理解が2通り")).toBeVisible();
+    await expect(page.getByText("理解が2通り", { exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "1グループ中1グループで、同じ結論の理解が分かれました" })).toBeVisible();
     for (const o of [...opinions, ...statements]) await expect(page.locator("main")).not.toContainText(o);
     await expect(a.getByText("同じ結論を、どう理解した？")).toBeVisible();
     await page.screenshot({ path: "../docs/screenshots/unified-host-result-mobile.png", fullPage: true });
