@@ -66,6 +66,8 @@ it('保存した共有端末の全員の声を使い、無音・曖昧な声を�
   silent = true; now += 1000; await chunk(p, roomId, run, 3).expect(200);
   const state = (await stateRef(roomId).get()).data()!;
   expect(state.processedMs).toBe(4000); expect(state.talkMs).toEqual({ [ids[0]]: 1000, [ids[1]]: 1000 }); expect(state.unknownMs).toBe(1000); expect(state.latest).toBeNull();
+  // 発言率の推移：同じ1分目に、話者ごとの時間と判別不能が入る（再送は二重計上しない）
+  expect(state.timeline).toEqual([{ talkMs: { [ids[0]]: 1000, [ids[1]]: 1000 }, unknownMs: 1000 }]);
   expect(JSON.stringify(state)).not.toMatch(/embedding|audio|profilesHash/);
   await p.post(`/rooms/${roomId}/speaker/${run}/stop`).expect(200);
   expect((await db.doc(`sessions/${roomId}/speakerLeases/1`).get()).get('expiresAt')).toBe(0);

@@ -56,6 +56,7 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
           <ConsensusProgress roomId={roomId} room={room} results={results} summary={summary ?? null} />
           <ClassResult roomId={roomId} room={room} results={results} summary={summary ?? null} onOpen={setOpenGroup} />
           <RecordingReview roomId={roomId} room={room} />
+          <HostSpeaking roomId={roomId} card ended />
         </div>)}
 
       <dialog ref={settings} className="dialog" aria-labelledby="settings-title" onClick={(e) => { if (e.target === settings.current) settings.current?.close(); }}>
