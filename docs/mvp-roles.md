@@ -157,3 +157,31 @@ GitHubのmain（017b78f）と公開済みPRを確認し、認証セッションP
 - 画面の振り分け（ログイン後の行き先、作成ボタンの表示）は IDトークンの claim を読むだけで、権限はAPIが確かめる。
 - 付与は管理者が `node scripts/teacher-access.mjs --project <プロジェクト> --email <メール> --action grant` で行う（`--uid` でもよい）。相手が一度 Google でログインしてから実行する。付与・解除のあとは以前のトークンを失効させるので、相手はログインし直す。メールアドレスと UID は出力しない。
 - 対象は、チームの教員3人と審査員用のテストアカウント（Docs「サーバーフィードバック」）。メールアドレスはリポジトリに書かない。
+
+### 本番で教師権限を付ける手順
+
+この手順は、本番の Firebase Authentication を変える。オーナーかプロジェクトの編集者が行う。メールアドレスは、ターミナルの引数以外（PR・Issue・チャット・ログ）に書かない。
+
+1. 対象の人に、本番の URL へ一度 Google でログインしてもらう。一度もログインしていないアカウントには付与できない。
+2. 実行する場所を選ぶ。
+   - 手元の PC（推奨。鍵を作らない）：編集者の Google アカウントで次を実行する。Node は 22.12 以上を使う。
+     ```bash
+     gcloud auth login
+     gcloud auth application-default login
+     gcloud auth application-default set-quota-project devfest2026-t167
+     npm --prefix api ci
+     ```
+   - クラウドの Claude Code：[認証情報の手順](credentials.md)の「AI 用の鍵を作る」で鍵を作り、環境変数 `GCP_SA_KEY` に登録して、新しいセッションを開く。起動時のフックが gcloud にログインする。
+3. 読み取りだけで状態を確かめる。`"googleLogin":true` で、`"disabled":false` なら付与できる。
+   ```bash
+   node scripts/teacher-access.mjs --project devfest2026-t167 --email <メールアドレス> --action inspect
+   ```
+4. 付与する。`{"teacher":true,"changed":true,"signInAgain":true}` が出れば成功。
+   ```bash
+   node scripts/teacher-access.mjs --project devfest2026-t167 --email <メールアドレス> --action grant
+   ```
+5. もう一度 `inspect` を実行し、`"teacher":true` になったことを確かめる。
+6. 本人にログインし直してもらい、教員のホーム（`/teacher`）に進んで「ディスカッションを作る」が出ることを確かめる。
+7. 外すときは `--action revoke` を同じように実行する。クラウド用の鍵は、提出のあと [認証情報の手順](credentials.md)の「抜けるとき・終わったとき」に従って消す。
+
+この PR を本番に反映する前に、対象の全員に付与を済ませる。済む前に反映すると、本番ではだれもディスカッションを作れなくなる。
