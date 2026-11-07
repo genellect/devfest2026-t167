@@ -223,6 +223,14 @@ input[type=checkbox] { accent-color: var(--board); width: 22px; height: 22px; ma
 .gap-cell { display: inline-flex; flex-direction: column; gap: 6px; min-width: 120px; }
 .split-bar { display: flex; gap: 2px; width: 100%; max-width: 200px; height: 10px; border-radius: 5px; overflow: hidden; }
 .split-bar__part { display: block; flex-basis: 0; }
+/* 議論の流れ：区切りの太い線をやめ、時間の長さだけを帯で示す。目立たせる場面は黒板の色（黄色は使わない） */
+.timeline { border: 0; gap: 4px; }
+.timeline__seg { --seg: var(--primary-soft); border: 0 !important; border-radius: 10px; background: var(--seg); color: var(--ink); font-weight: 700; }
+.timeline__seg--hl { --seg: var(--board); color: var(--chalk); }
+.class-understand { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid var(--paper-line); }
+.class-understand__group { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-weight: 700; }
+.class-understand__group span { font-weight: 400; color: var(--ink-sub); font-size: 15px; }
+.flow-question { background: #fff; border: 1px dashed var(--ink-sub); border-radius: 12px; padding: 10px 14px; }
 
 /* ---------- ホーム・一覧 ---------- */
 .home-code-label { font-size: 14px; color: var(--ink-sub); }

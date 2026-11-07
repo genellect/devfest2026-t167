@@ -68,7 +68,7 @@ export function GoodReview({ flow }: { flow: Flow | null }) {
     return (
       <div className="row">
         <section className="box box--md pad stack"><Tag tone="blue">ここがよかった</Tag><p className="empty">{flow ? NO_SPEECH : PENDING}</p></section>
-        <section className="box box--md pad stack"><Tag tone="yellow">ここを見直そう</Tag><p className="empty">{flow ? NO_SPEECH : PENDING}</p></section>
+        <section className="box box--md pad stack"><Tag tone="tint">ここを見直そう</Tag><p className="empty">{flow ? NO_SPEECH : PENDING}</p></section>
       </div>
     );
   }
@@ -84,12 +84,12 @@ export function GoodReview({ flow }: { flow: Flow | null }) {
         ))}
       </section>
       <section className="box box--md pad stack">
-        <div className="heading-row"><span><Tag tone="yellow">ここを見直そう</Tag></span><SourceTag source={flow.source} /></div>
+        <div className="heading-row"><span><Tag tone="tint">ここを見直そう</Tag></span><SourceTag source={flow.source} /></div>
         {flow.review.map((r, i) => (
           <div key={i} className="stack stack--tight">
             <p className="t-small" style={{ fontWeight: 700 }}>{atLabel(r.at)}の場面</p>
             <p className="t-md">{r.text}</p>
-            {r.question && <p className="box box--yellow" style={{ padding: "10px 14px" }}>{r.question}</p>}
+            {r.question && <p className="flow-question">{r.question}</p>}
           </div>
         ))}
       </section>
