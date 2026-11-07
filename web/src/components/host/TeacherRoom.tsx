@@ -1,7 +1,7 @@
 "use client";
 import { AppShell } from "@/components/shell";
 import Link from "next/link";
-import { Settings } from "lucide-react";
+import { Presentation, Settings } from "lucide-react";
 import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
 import { useGeminiSource } from "@/components/ui";
@@ -38,10 +38,11 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
   }, [room.endsAt, room.phase, ended, roomId]);
 
   return (
-    <AppShell wide back="/teacher" tone={room.phase === "collecting" ? "board" : "paper"}
+    <AppShell wide back="/teacher" 
       eyebrow={<>{room.className && <span>{room.className}</span>}<span className={`pill pill--${state === "議論中" ? "live" : state === "終了" ? "done" : "ready"}`}>{state}</span></>}
       title={room.theme || room.title}
       actions={<>{source === "mock" && <span className="tag tag--yellow">デモデータ</span>}
+        <a className="btn btn--small present-link" href={`/rooms/${roomId}/present`} target="_blank" rel="noopener"><Presentation aria-hidden="true" strokeWidth={1.75} />投影画面</a>
         <button type="button" className="icon-btn" aria-label="設定" title="設定" onClick={() => settings.current?.showModal()}>
           <Settings size={20} strokeWidth={1.75} aria-hidden="true" />
         </button></>}>

@@ -70,6 +70,18 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     await expect(page.getByRole("region", { name: "議論の進み具合" })).toContainText(/未検討の論点\s*0/);
     await expect(page.getByRole("heading", { name: "いまは新しい提案はありません" })).toBeVisible();
     for (const g of [a, b]) await expect(g.getByRole("region", { name: "教員からの問いかけ" })).not.toContainText(dismissed);
+
+    // 投影画面：教員だけが開け、全員に表示した問いかけだけを映す（見送った提案・事前意見の本文は映さない）
+    const presentUrl = `${new URL(page.url()).pathname.replace(/\/$/, "")}/present`;
+    const present = await page.context().newPage();
+    await present.goto(presentUrl);
+    await expect(present.getByRole("region", { name: "議論中" })).toContainText(summary);
+    for (const t of [dismissed, ...opinions]) await expect(present.locator("main")).not.toContainText(t);
+    await present.close();
+    const studentPresent = await contexts[0].newPage();
+    await studentPresent.goto(presentUrl);
+    await expect(studentPresent.getByText("投影画面は、この議論を作った教員だけが開けます。")).toBeVisible();
+    await studentPresent.close();
     await a.screenshot({ path: "../docs/screenshots/unified-guest-discussion-mobile.png", fullPage: true });
 
     // 教員が終了すると、全員が結論の一文を書く
