@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import { AppShell, Stepper } from "@/components/shell";
 import { SpeakerCapture } from "@/lib/speaker-capture";
 import { GuestSpeaking } from "@/components/Speaking";
 import { useEffect, useRef, useState } from "react";
@@ -85,23 +85,15 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord }: 
   const named = !!own?.attendees?.length;
   const voiced = !!own?.ready || voiceSkipped;
   const gs = group ? room.groupState?.[String(group)] : undefined;
-  // 進み具合：表示名 → 声 → 意見 → 議論 → 一文 → 結果
-  const STEPS = ["表示名", "声", "意見", "議論", "一文", "結果"];
-  const step = ended ? (result || status === "done" ? 5 : 4) : !named ? 0 : !voiced ? 1 : waiting ? 2 : 3;
+  // 進み具合（Figma「最新」）：事前意見（表示名・声・意見）→ 議論 → 結論 → 結果
+  const STEPS = ["事前意見", "議論", "結論", "結果"];
+  const step = ended ? (result || status === "done" ? 3 : 2) : !named || !voiced || waiting ? 0 : 1;
   const shared = own?.deviceMode === "shared";
-  const leave = (e: React.MouseEvent) => { if (recording.unsaved && !window.confirm("録音がまだ送られていません。ホームに戻ると、録音は送られず分析されません。戻りますか？")) e.preventDefault(); };
+  const leave = () => !recording.unsaved || window.confirm("録音がまだ送られていません。ホームに戻ると、録音は送られず分析されません。戻りますか？");
   const uploadState = recording.upload.state;
-  return <main className="screen">
-    <header className="appbar">
-      <div className="appbar__title">
-        <p className="appbar__who">{own?.displayName ?? "参加の準備"}{group && (room.groups ?? 1) > 1 ? `・グループ${group}` : ""}</p>
-        <h1 className="appbar__theme">{room.participantView?.theme === false ? room.title : room.theme || room.title}</h1>
-      </div>
-      <Link href="/home" className="btn btn--small" onClick={leave}>ホームに戻る</Link>
-    </header>
-    <ol className="track" aria-label="進み具合">
-      {STEPS.map((label, i) => <li key={label} aria-current={i === step ? "step" : undefined} data-done={i < step}>{label}</li>)}
-    </ol>
+  const who = [own?.displayName, group && (room.groups ?? 1) > 1 ? `グループ${group}` : ""].filter(Boolean).join("・");
+  return <AppShell eyebrow={who || undefined} title={room.participantView?.theme === false ? room.title : room.theme || room.title}
+    steps={<Stepper steps={STEPS} current={step} />} back="/home" onLeave={leave}>
     <div className="flow">
       {error && <p className="notice notice--error" role="alert">{error}</p>}
 
@@ -176,5 +168,5 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord }: 
 
       {group && room.participantView?.speaking === true && (!ended || room.resultsPublished) && <GuestSpeaking roomId={roomId} group={group} />}
     </div>
-  </main>;
+  </AppShell>;
 }

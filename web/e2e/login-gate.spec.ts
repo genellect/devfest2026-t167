@@ -7,13 +7,15 @@ for (const path of ["/student", "/join", "/signup", "/host", "/host/new", "/host
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("button", { name: "Googleでログイン", exact: true })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "メニュー" })).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "参加する", exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("参加コード")).toHaveCount(0);
   });
 }
 
 test("ログアウト後の戻る・再読込でもホームへ進めない", async ({ page }) => {
   await loginStudent(page);
   await expect(page.getByRole("button", { name: "先生として使う" })).toHaveCount(0);
+  // ログアウトは設定の画面にある
+  await page.goto("/host/profile");
   await page.getByRole("button", { name: "ログアウト", exact: true }).click();
   await expect(page.getByRole("button", { name: "Googleでログイン", exact: true })).toBeVisible();
   await page.goBack();
