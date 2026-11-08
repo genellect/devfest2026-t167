@@ -32,7 +32,7 @@ const member = (roomId: string, uid: string) => db.doc(`sessions/${roomId}/membe
 async function enroll(p: Awaited<ReturnType<typeof client>>, roomId: string, mode: 'personal' | 'shared' = 'personal', names = ['表示名']) {
   await p.post(`/rooms/${roomId}/onboarding`, { mode, names }).expect(200);
   const rows = (await member(roomId, p.uid).get()).get('attendees') as { id: string }[];
-  for (const a of rows) await request(app).post(`/rooms/${roomId}/voice/${a.id}?consent=1`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(9 * 32000, 1)).expect(200);
+  for (const a of rows) await request(app).post(`/rooms/${roomId}/voice/${a.id}`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(9 * 32000, 1)).expect(200);
 }
 it('個人端末はGoogle UIDに紐付いた声の特徴を初回だけ登録し、別セッションでも再利用する', async () => {
   const { h, p, roomId } = await setup(); await enroll(p, roomId);
@@ -45,15 +45,18 @@ it('個人端末はGoogle UIDに紐付いた声の特徴を初回だけ登録し
   expect((await member(r.roomId, p.uid).get()).get('ready')).toBe(true);
   await p.post('/voice-profile/delete').expect(200); expect((await profile.ref.get()).exists).toBe(false);
 });
-it('共用端末は全員を毎回登録し、終了時にその回の声の特徴だけ削除する', async () => {
-  const { h, p, roomId } = await setup(); await enroll(p, roomId, 'shared', ['A', 'B']);
-  expect((await db.collection(`sessions/${roomId}/voiceProfiles`).get()).size).toBe(2);
+it('共有端末は声の事前登録を省略し、個人用の特徴を作らず参加できる', async () => {
+  const { h, p, roomId } = await setup();
+  await p.post(`/rooms/${roomId}/onboarding`, { mode: 'shared', names: ['A', 'B'] }).expect(200);
+  const own = await member(roomId, p.uid).get();
+  expect(own.get('ready')).toBe(true);
+  expect(own.get('attendees').every((a: { voiceRegistered: boolean }) => !a.voiceRegistered)).toBe(true);
+  const id = own.get('attendees')[0].id;
+  await request(app).post(`/rooms/${roomId}/voice/${id}`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(9 * 32000)).expect(409);
+  expect((await db.collection(`sessions/${roomId}/voiceProfiles`).get()).empty).toBe(true);
   expect((await db.doc(`users/${p.uid}/voiceProfiles/default`).get()).exists).toBe(false);
   await h.post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(200);
-  await p.post(`/rooms/${roomId}/finish`).expect(403);
   await h.post(`/rooms/${roomId}/finish`).expect(200);
-  expect((await db.collection(`sessions/${roomId}/voiceProfiles`).get()).empty).toBe(true);
-  expect((await db.doc(`sessions/${roomId}`).get()).get('endReason')).toBe('host');
   await h.get(`/rooms/${roomId}/results/session-summary`).expect(200);
   await p.get(`/rooms/${roomId}/results/session-summary`).expect(403);
 });
@@ -62,14 +65,15 @@ it('未登録・無音・途中の登録では開始できず、Hostの開始後
   await h.post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(409);
   await p.post(`/rooms/${roomId}/onboarding`, { mode: 'personal', names: ['A', 'B'] }).expect(400);
   await h.post(`/rooms/${roomId}/onboarding`, { mode: 'personal', names: ['Host'] }).expect(403);
-  await p.post(`/rooms/${roomId}/onboarding`, { mode: 'shared', names: ['A', 'B'] }).expect(200);
+  await p.post(`/rooms/${roomId}/onboarding`, { mode: 'personal', names: ['A'] }).expect(200);
   const rows = (await member(roomId, p.uid).get()).get('attendees');
+  await h.post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(409);
   silent = true;
-  await request(app).post(`/rooms/${roomId}/voice/${rows[0].id}?consent=1`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(9 * 32000)).expect(400);
+  await request(app).post(`/rooms/${roomId}/voice/${rows[0].id}`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(9 * 32000)).expect(400);
   silent = false;
-  await request(app).post(`/rooms/${roomId}/voice/missing?consent=1`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(9 * 32000)).expect(404);
-  await request(app).post(`/rooms/${roomId}/voice/${rows[0].id}?consent=1`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(10)).expect(400);
-  for (const row of rows) await request(app).post(`/rooms/${roomId}/voice/${row.id}?consent=1`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(9 * 32000)).expect(200);
+  await request(app).post(`/rooms/${roomId}/voice/missing`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(9 * 32000)).expect(404);
+  await request(app).post(`/rooms/${roomId}/voice/${rows[0].id}`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(10)).expect(400);
+  for (const row of rows) await request(app).post(`/rooms/${roomId}/voice/${row.id}`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(9 * 32000)).expect(200);
   await h.post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(200);
   await p.post(`/rooms/${roomId}/onboarding`, { mode: 'personal', names: ['変更'] }).expect(409);
   await (await client()).post('/rooms/join', { code: joinCode }).expect(409);
@@ -101,7 +105,7 @@ it('参加済みのGuestは、開始後も終了後も同じコードで部屋�
   await (await client()).post('/rooms/join', { code: joinCode }).expect(409);
   expect((await member(roomId, p.uid).get()).get('status')).toBe('active');
 });
-it('1本の流れ：開始前の事前意見、音声登録なしでの開始、終了後の合意の一文から、グループの結果と指標が出る', async () => {
+it('1本の流れ：開始前の音声登録と事前意見、終了後の合意の一文から、グループの結果と指標が出る', async () => {
   const h = await client('teacher'), a = await client(), b = await client();
   const r = (await h.post('/rooms', { title: '大学のAI利用', theme: '大学のAI利用', className: '2年3組', flowVersion: 1 }).expect(201)).body;
   const room = db.doc(`sessions/${r.roomId}`);
@@ -109,7 +113,7 @@ it('1本の流れ：開始前の事前意見、音声登録なしでの開始、
   expect((await room.get()).get('minutes')).toBeUndefined();
   for (const [p, name] of [[a, 'A'], [b, 'B']] as const) {
     await p.post('/rooms/join', { code: r.joinCode }).expect(200);
-    await p.post(`/rooms/${r.roomId}/onboarding`, { mode: 'personal', names: [name] }).expect(200);
+    await enroll(p, r.roomId, 'personal', [name]);
     await p.post(`/rooms/${r.roomId}/opinion`, { text: `${name}の非公開の意見` }).expect(200);
   }
   await h.post(`/rooms/${r.roomId}/phase`, { to: 'discussing' }).expect(200);
@@ -156,7 +160,7 @@ it('期限をサーバー時刻で判定し、再接続でも終了が維持さ�
   await h.post(`/rooms/${roomId}/finish`).expect(200);
   expect((await room.ref.get()).get('endReason')).toBe('timeout');
   now += 5 * 60_000 + 1;
-  await request(app).post(`/rooms/${roomId}/groups/recording?consent=1&durationSec=1`).set(p.headers).set('content-type', 'audio/wav').send(wave()).expect(409);
+  await request(app).post(`/rooms/${roomId}/groups/recording?durationSec=1`).set(p.headers).set('content-type', 'audio/wav').send(wave()).expect(409);
 });
 it('期限前と存在しないセッションの検査では終了を書き込まない', async () => {
   const { roomId } = await setup(); await endDiscussion(deps, roomId, 'timeout');

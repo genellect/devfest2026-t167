@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
 import { initializeApp } from 'firebase-admin/app';
@@ -131,35 +131,15 @@ describe('同時ログインと失効', () => {
     await get(c).expect(401); await get({ ...c, cookie: rotated }).expect(200);
     expect(unlocked.body.session.isSharedDevice).toBe(true);
   });
-  it('学校ポリシーは同じ学校の管理者だけが操作し、管理者も2台まで', async () => {
+  it('学校ポリシー管理APIは公開せず、保存済みの上書きも適用しない', async () => {
     const u = await user(), decoded = await auth.verifyIdToken(u.idToken), school = `school-${randomUUID()}`;
-    const adminToken = { ...decoded, schoolId: school, schoolAdmin: true, auth_time: Math.floor(clock / 1000) };
-    const target = await user(); await auth.setCustomUserClaims(target.localId, { schoolId: school });
-    const fakeAuth = { verifyIdToken: async () => adminToken, getUser: auth.getUser.bind(auth) } as typeof auth;
-    const adminApp = createApp({ db, auth: fakeAuth, gemini: mockGemini(), now: () => clock });
-    const created = await request(adminApp).post('/sessions').set('authorization', 'Bearer synthetic').send(info).expect(201);
-    const cookie = created.headers['set-cookie'][0].split(';')[0];
-    const adminReq = (method: 'get' | 'put' | 'post', path: string) => request(adminApp)[method](path).set('authorization', 'Bearer synthetic').set('cookie', cookie);
-    await adminReq('get', `/schools/${school}/security-policy`).expect(200);
-    await adminReq('put', `/schools/${school}/security-policy`).send({ idleDays: 2, maxConcurrentSessions: 2, newDeviceNotifications: true }).expect(200);
-    await adminReq('put', `/schools/${school}/security-policy`).send({ studentLimit: 9 }).expect(400);
-    await adminReq('get', '/schools/other/security-policy').expect(403);
-    await adminReq('post', `/schools/${school}/users/${target.localId}/sessions/revoke`).send({}).expect(200);
-    await adminReq('post', `/schools/${school}/users/unknown/sessions/revoke`).send({}).expect(404);
-    await adminReq('post', `/schools/${school}/users/${u.localId}/sessions/revoke`).send({}).expect(404);
-    clock += 1; const a = await service.create(adminToken, info);
-    clock += 1; const b = await service.create(adminToken, info);
-    expect((await db.doc(`users/${u.localId}/sessions/${created.body.session.sessionId}`).get()).get('revokedAt')).toBeTruthy();
-    await service.validate(adminToken, a.secret); await service.validate(adminToken, b.secret);
-    expect((await service.policy(adminToken)).idleDays).toBe(2);
-  });
-  it('通知アダプターが失敗しても作成済みセッションを失敗扱いにしない', async () => {
-    const u = await user(), decoded = await auth.verifyIdToken(u.idToken), schoolId = `notify-${randomUUID()}`;
-    await db.doc(`schools/${schoolId}/security/policy`).set({ newDeviceNotifications: true });
-    const notifications = { newSession: vi.fn(async () => { throw new Error('synthetic-down'); }) };
-    const sessions = createSessions(db, () => clock, notifications);
-    const r = await sessions.create({ ...decoded, schoolId }, info); await sessions.validate({ ...decoded, schoolId }, r.secret);
-    expect(notifications.newSession).toHaveBeenCalledOnce();
+    const token = { ...decoded, schoolId: school, schoolAdmin: true, auth_time: Math.floor(clock / 1000) };
+    await db.doc(`schools/${school}/security/policy`).set({ idleDays: 2, maxConcurrentSessions: 2, newDeviceNotifications: true });
+    const adminApp = createApp({ db, auth: { verifyIdToken: async () => token } as typeof auth, gemini: mockGemini(), now: () => clock });
+    await request(adminApp).get(`/schools/${school}/security-policy`).set('authorization', 'Bearer synthetic').expect(404);
+    await request(adminApp).put(`/schools/${school}/security-policy`).set('authorization', 'Bearer synthetic').send({}).expect(404);
+    await request(adminApp).post(`/schools/${school}/users/${u.localId}/sessions/revoke`).set('authorization', 'Bearer synthetic').send({}).expect(404);
+    expect(await service.policy(token)).toMatchObject({ idleDays: 7, maxConcurrentSessions: 1, newDeviceNotifications: false });
   });
   it('監査ログに個人情報・生Cookie・トークン・端末ラベルを出さない', async () => {
     const c = await login(await user()); await post(c, '/sessions/logout-all').expect(200);

@@ -9,12 +9,16 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json",
     "test": "vitest run src",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "postinstall": "node scripts/pdf-assets.mjs",
+    "predev": "node scripts/pdf-assets.mjs",
+    "prebuild": "node scripts/pdf-assets.mjs"
   },
   "dependencies": {
     "firebase": "11.10.0",
     "jsqr": "1.4.0",
     "next": "15.5.29",
+    "pdfjs-dist": "5.4.624",
     "qrcode": "1.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0"

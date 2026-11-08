@@ -16,7 +16,7 @@ export function LoginGate({ children }: { children: React.ReactNode }) {
   if (status === "active" && !publicPage) mountedPrivate.current = true;
   useEffect(() => {
     if (publicPage || user !== null) return;
-    if (pathname === "/join") rememberJoinCode(new URLSearchParams(window.location.search).get("code") ?? "");
+    if (["/join", "/home", "/teacher"].includes(pathname)) rememberJoinCode(new URLSearchParams(window.location.search).get("code") ?? "");
     mountedPrivate.current = false; router.replace("/");
   }, [pathname, publicPage, user, router]);
   useEffect(() => { if (status === "active") lastInput.current = Date.now(); }, [status]);

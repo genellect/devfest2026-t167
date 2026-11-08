@@ -1,7 +1,8 @@
+import { loginGoogle } from "./google";
 import { expect, test, type Page } from "@playwright/test";
 import { loginStudent } from "./student";
 
-// デモで1人の登録漏れや同意の取り消しがあっても、Hostが始めて終えられ、同意のない録音は送られないことを確かめる。
+// デモで1人の登録漏れや録音の破棄があっても、Hostが始めて終えられ、破棄した録音は送られないことを確かめる。
 
 async function joinAsGuest(guest: Page, code: string, name?: string) {
   await guest.goto(`/join?code=${code}`);
@@ -13,12 +14,12 @@ async function joinAsGuest(guest: Page, code: string, name?: string) {
   await expect(guest.getByRole("heading", { name: "声の登録" })).toBeVisible();
 }
 
-test("未準備のGuestを外して開始でき、同意を取り消した録音は終了後も送られない", async ({ page, browser }) => {
+test("未準備のGuestを外して開始でき、破棄した録音は終了後も送られない", async ({ page, browser }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
-  await page.waitForURL(/\/teacher$/); await page.goto("/host/new");
+  await loginGoogle(page, "teacher");
+  await page.waitForURL(/\/home$/); await page.goto("/host/new");
   await page.getByLabel("テーマ", { exact: true }).fill("架空の開始確認");
-  await page.getByRole("button", { name: "作成する", exact: true }).click();
+  await page.getByRole("button", { name: "セッションを作成", exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);
   const code = (await page.getByTestId("join-code").textContent())!.replace(/\s/g, "");
   const origin = new URL(page.url()).origin;
@@ -27,27 +28,26 @@ test("未準備のGuestを外して開始でき、同意を取り消した録音
     const ready = await readyContext.newPage(), late = await lateContext.newPage();
     await loginStudent(ready, "ready"); await loginStudent(late, "late");
     await joinAsGuest(ready, code, "準備できたGuest");
-    await ready.getByLabel("声の特徴の登録と、上記の利用方法に同意します").check();
+
     await ready.getByRole("button", { name: "声を登録する", exact: true }).click();
-    await expect(ready.getByRole("heading", { name: "議論の前に書く" })).toBeVisible({ timeout: 20_000 });
+    await expect(ready.getByRole("heading", { name: "参加できました" })).toBeVisible({ timeout: 20_000 });
     await joinAsGuest(late, code);
 
     await page.getByRole("button", { name: "議論を開始", exact: true }).click();
-    await expect(page.getByRole("alert").filter({ hasText: "表示名の登録が済んでいない参加者が1人います" })).toBeVisible();
-    await expect(ready.getByRole("heading", { name: "議論の前に書く" })).toBeVisible();
-    await page.getByRole("alert").filter({ hasText: "表示名の登録が済んでいない参加者" }).screenshot({ path: "../docs/screenshots/mvp-start-exclude-mobile.png" });
+    await expect(page.getByRole("alert").filter({ hasText: "表示名・音声登録・グループの準備が済んでいない参加者が1人います" })).toBeVisible();
+    await expect(ready.getByRole("heading", { name: "参加できました" })).toBeVisible();
+    await page.getByRole("alert").filter({ hasText: "表示名・音声登録・グループの準備が済んでいない参加者" }).screenshot({ path: "../docs/screenshots/mvp-start-exclude-mobile.png" });
     await page.getByRole("button", { name: "未準備の参加者を外して開始", exact: true }).click();
-    await expect(ready.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
+    await expect(ready.getByRole("main", { name: "話し合い中", exact: true })).toBeVisible();
     await expect(late.getByText("この部屋を表示できません")).toBeVisible();
 
     const uploads: string[] = [];
     ready.on("request", (r) => { if (r.url().includes("/groups/recording")) uploads.push(r.url()); });
-    const consent = ready.getByLabel("グループ全員が録音・声の照合・発言時間の集計に同意しました");
-    await consent.check();
     await ready.getByRole("button", { name: "録音を始める", exact: true }).click();
     await expect(ready.getByRole("button", { name: "録音を停止して端末に保管", exact: true })).toBeVisible();
-    await consent.uncheck();
-    await expect(ready.getByRole("button", { name: "録音を始める", exact: true })).toBeDisabled();
+    await ready.getByRole("button", { name: "設定を開く", exact: true }).click();
+    await ready.getByRole("button", { name: "録音を破棄", exact: true }).click();
+    await expect(ready.getByRole("button", { name: "録音を始める", exact: true })).toBeEnabled();
 
     await page.getByRole("button", { name: "議論を終える", exact: true }).click();
     await page.getByRole("button", { name: "終えて結果を見る", exact: true }).click();

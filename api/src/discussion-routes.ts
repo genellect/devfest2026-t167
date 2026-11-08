@@ -26,7 +26,7 @@ export function registerDiscussionRoutes(app: Express, deps: Dependencies, guard
     const memberships = links.empty ? [] : await db.getAll(...links.docs.map((d) => db.doc(`sessions/${d.id}/members/${req.ctx.uid}`)));
     const entries = memberships.filter((m) => m.exists && m.get('status') === 'active');
     const docs = entries.length ? await db.getAll(...entries.map((m) => m.ref.parent.parent!)) : [];
-    res.json({ sessions: docs.flatMap((d, i) => d.exists ? [{ sessionId: d.id, title: d.get('title'), theme: entries[i].get('role') === 'host' || d.get('participantView.theme') !== false ? d.get('theme') ?? '' : '', phase: d.get('phase'), ended: !!d.get('endedAt') || d.get('phase') === 'closed', role: entries[i].get('role'), groupId: entries[i].get('groupId') ?? null }] : []) });
+    res.json({ sessions: docs.flatMap((d, i) => d.exists ? [{ sessionId: d.id, title: d.get('title'), className: d.get('className') ?? '', theme: entries[i].get('role') === 'host' || d.get('participantView.theme') !== false ? d.get('theme') ?? '' : '', phase: d.get('phase'), ended: !!d.get('endedAt') || d.get('phase') === 'closed', role: entries[i].get('role'), groupId: entries[i].get('groupId') ?? null }] : []) });
   }));
   const settings = z.object({ title: z.string().trim().min(1).max(100).optional(), theme: z.string().trim().max(1000).optional(), minutes: z.number().int().min(1).max(180).optional(), groupSelection: z.enum(['host', 'participant']).optional(), publishOnEnd: z.boolean().optional(), participantView: z.object({ theme: z.boolean(), timer: z.boolean(), members: z.boolean(), speaking: z.boolean().optional() }).strict().optional(), resultsPublished: z.boolean().optional() }).strict().refine((v) => Object.keys(v).length > 0);
   app.post('/rooms/:roomId/settings', authenticate, member, host, wrap(async (req, res) => {
@@ -58,13 +58,14 @@ export function registerDiscussionRoutes(app: Express, deps: Dependencies, guard
     res.status(201).json({ groupId: String(group) });
   }));
   app.post('/rooms/:roomId/groups/update', authenticate, member, host, wrap(async (req, res) => {
-    const body = parse(z.object({ group: groupId, name: z.string().trim().min(1).max(60), recorderUid: id.nullable().default(null) }).strict(), req.body);
+    const body = parse(z.object({ group: groupId, name: z.string().trim().min(1).max(60), recorderUid: id.nullable().default(null), recordingMode: z.enum(['auto','single','personal']).optional() }).strict(), req.body);
     await db.runTransaction(async (tx) => {
       const ref = db.doc(`sessions/${req.params.roomId}`), room = await tx.get(ref); requireOpenRoom(room);
       if (body.group > room.get('groups')) throw new HttpError(404, 'group_not_found', 'グループがありません');
+      if (body.recordingMode && room.get('phase') !== 'collecting') throw new HttpError(409,'already_started','録音方式は開始前に設定してください');
       const recorder = body.recorderUid ? await tx.get(ref.collection('members').doc(body.recorderUid)) : null;
       if (recorder && (recorder.get('role') !== 'participant' || recorder.get('status') !== 'active' || recorder.get('group') !== body.group)) throw new HttpError(400, 'invalid_recorder', '同じグループの参加者を選んでください');
-      tx.set(ref.collection('groups').doc(String(body.group)), { groupId: String(body.group), number: body.group, name: body.name, recorderUid: body.recorderUid });
+      tx.set(ref.collection('groups').doc(String(body.group)), { groupId: String(body.group), number: body.group, name: body.name, recorderUid: body.recorderUid, ...(body.recordingMode ? { recordingMode: body.recordingMode } : {}) }, { merge:true });
     }); res.json({ ok: true });
   }));
   app.post('/rooms/:roomId/groups/delete', authenticate, member, host, wrap(async (req, res) => {

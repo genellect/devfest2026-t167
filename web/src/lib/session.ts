@@ -101,7 +101,15 @@ export async function establishSession(info: { isSharedDevice: boolean; classEnd
   if (!user) throw new Error("Googleでログインしてください");
   const type = window.matchMedia("(pointer: coarse)").matches ? (Math.min(innerWidth, innerHeight) > 600 ? "tablet" : "phone") : "pc";
   const data = await sessionRequest<SessionReply>("/sessions", "POST", { ...info, deviceType: type, deviceLabel: type === "tablet" ? "タブレットのブラウザ" : type === "phone" ? "スマートフォンのブラウザ" : "PCのブラウザ" }, user, false);
-  accept(user, data);
+  // HttpOnly CookieはJSから読めない。作成成功だけで入室せず、ブラウザがCookieを返せることをAPIで確認する。
+  let checked: SessionReply;
+  try { checked = await sessionRequest<SessionReply>("/sessions/current", "GET", undefined, user, false); }
+  catch (error) {
+    if (error instanceof SessionRequestError && error.code === "session_required") throw new SessionRequestError(401, "cookie_unavailable", "ログインに必要なCookieを確認できません");
+    throw error;
+  }
+  if (checked.session.sessionId !== data.session.sessionId) throw new SessionRequestError(401, "cookie_unavailable", "ログイン状態を確認できません");
+  accept(user, checked);
 }
 export async function unlockSession(reauthenticate: () => Promise<unknown>) {
   signingIn = true;

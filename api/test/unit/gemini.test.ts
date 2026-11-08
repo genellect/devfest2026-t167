@@ -128,3 +128,43 @@ it('AI用の環境変数で受け取った認証をVertex SDKへ直接渡せる'
   await vertexGemini('p', 'global', 'gemini-3.5-flash', credentials).findPoints(['架空の意見'], []);
   expect(calls.at(-1)!.init).toMatchObject({ vertexai: true, project: 'p', googleAuthOptions: { credentials } });
 });
+
+
+describe('テーマ提案', () => {
+  it('引用された相談と前回案から、既存モデル・設定で3つの問いを取得する', async () => {
+    responseBody = { themes: ['問いA', '問いB', '問いC'] };
+    expect(await vertexGemini('p', 'global', 'gemini-3.5-flash').suggestThemes('AIと大学生活', ['以前の問い'])).toEqual(responseBody.themes);
+    expect(calls.at(-1)!.req.config).toMatchObject(GENERATION_CONFIG);
+  });
+  it('実モデルが直前と同じ案を返した場合は表示せず拒否する', async () => {
+    responseBody = { themes: ['以前の問い', '新しい問いB', '新しい問いC'] };
+    await expect(vertexGemini('p', 'global', 'gemini-3.5-flash').suggestThemes('環境問題', ['以前の問い'])).rejects.toThrow();
+  });
+  it('候補数・重複・長すぎる候補・不正な型は受理しない', async () => {
+    const { ThemesSchema } = await import('../../src/gemini.js');
+    for (const themes of [[], ['A', 'B'], ['A', 'A', 'B'], ['A'.repeat(101), 'B', 'C'], [4, 'B', 'C']]) expect(ThemesSchema.safeParse({ themes }).success).toBe(false);
+  });
+  it('デモも3候補を返し、出し直すと直前と異なる案にする。失敗設定も維持する', async () => {
+    const { mockGemini } = await import('../../src/gemini.js');
+    const provider = mockGemini();
+    const first = await provider.suggestThemes('環境問題', []), second = await provider.suggestThemes('環境問題', first);
+    expect(first).toHaveLength(3); expect(second).toHaveLength(3);
+    expect(second.every(t => !first.includes(t))).toBe(true);
+    expect(await provider.suggestThemes('環境問題', second)).toEqual(first);
+    await expect(mockGemini({ fail: () => true }).suggestThemes('環境問題', [])).rejects.toThrow();
+  });
+});
+
+describe('文字起こしと根拠を伴う振り返り',()=>{
+  it('録音時間外の文字起こしを採用しない',async()=>{
+    const g=vertexGemini('p','global','gemini-3.5-flash');
+    responseBody={segments:[{startMs:0,endMs:2000,text:'言葉'}]};
+    expect(await g.transcribe!({audio:Buffer.alloc(44),mimeType:'audio/wav',durationSec:1})).toEqual([]);
+    responseBody={segments:[{startMs:0,endMs:1000,text:'言葉'}]};
+    expect(await g.transcribe!({audio:Buffer.alloc(44),mimeType:'audio/wav',durationSec:1})).toEqual([{startMs:0,endMs:1000,text:'言葉'}]);
+  });
+  it('渡した発言ID以外を根拠にした観察・次の行動を採用しない',async()=>{
+    responseBody={observations:[{evidenceId:'known',text:'観察'},{evidenceId:'invented',text:'誤り'}],nextSteps:[{evidenceId:'invented',text:'誤り'}]};
+    expect(await vertexGemini('p','global','gemini-3.5-flash').reviewEvidence!('participant',[{id:'known',text:'発言'}])).toEqual({observations:[{evidenceId:'known',text:'観察'}],nextSteps:[]});
+  });
+});

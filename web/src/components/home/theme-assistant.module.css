@@ -1,0 +1,49 @@
+.trigger { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 48px; padding: 4px 10px; border: 0; border-radius: 28px; color: #5f6368; background: transparent; text-align: left; font-size: 18px; }
+.trigger:hover { background: #dfe7f4; }
+.trigger svg { flex-shrink: 0; }
+.trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 上部の相談バーの位置から全画面へ展開する。移動はコンポーネントのWAAPIで制御。 */
+.dialog { position: fixed !important; inset: var(--viewport-top, 0px) 0 auto; margin: 0; width: 100%; height: var(--viewport-height, 100dvh); max-width: none; max-height: none; padding: max(14px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); border: 0; border-radius: 0; background: #f8fafd; color: #202124; font-family: var(--font); font-weight: 400; box-shadow: none; overflow: hidden; }
+.dialog[open] { display: flex; flex-direction: column; }
+.dialog::before { content: ""; position: absolute; inset: 45% -20% -30%; pointer-events: none; background: radial-gradient(ellipse at 50% 100%, #8ab4f83b, transparent 68%); }
+.dialog::backdrop { background: transparent; }
+.dialog[data-closing] { pointer-events: none; }
+.dialog > * { position: relative; }
+.content { flex: 1; min-height: 0; width: min(760px, 100%); margin: 0 auto; overflow-y: auto; overscroll-behavior: contain; padding: 20px 0; }
+.welcome { min-height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px 0 60px; }
+.welcome > svg { width: 52px; height: 52px; margin-bottom: 24px; }
+.welcomeTitle { font-size: clamp(28px, 4vw, 44px); line-height: 1.5; font-weight: 400; letter-spacing: -.04em; margin: 0; }
+.welcomeNote { color: #747775; font-size: clamp(13px, 2vw, 17px); line-height: 1.7; margin: 18px 0 0; }
+.inputDock { flex-shrink: 0; width: min(760px, 100%); margin: 0 auto; padding-top: 12px; }
+.inputDock > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 0; flex-shrink: 0; }
+.heading h2:focus { outline: none; }
+.heading h2 { display: flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 500; margin: 0; }
+.close { display: grid; place-items: center; min-width: 44px; min-height: 44px; border: 0; border-radius: 50%; background: transparent; color: #5f6368; font-size: 30px; }
+.close:hover, .close:focus-visible { background: #e9eef6; }
+.dialog .close:focus { outline: none; box-shadow: none; }
+.dialog label { display: block; font-size: 15px; margin-bottom: 12px; }
+.composer { display: flex; align-items: flex-end; gap: 12px; padding: 14px 16px 14px 24px; background: #e9eef6; border: 1px solid transparent; border-radius: 36px; box-shadow: 0 6px 40px #4285f414; }
+.composer:focus-within { border-color: #b8c9e4; background: #fff; }
+.dialog .composer textarea { flex: 1; width: 100%; min-width: 0; min-height: 44px; height: 44px; max-height: 120px; border: 0; padding: 9px 0; border-radius: 0; outline: none; box-shadow: none; color: #202124; font-size: 16px; line-height: 26px; background: transparent; resize: none; }
+.dialog .composer textarea:focus-visible { outline: none; }
+.send { display: grid; place-items: center; border: 0; border-radius: 50%; width: 44px; min-width: 44px; height: 44px; background: #0b57d0; color: #fff; }
+.send:disabled { background: #e3e7ee; color: #777; }
+.note { color: #5f6368; font-size: 13px; margin: 18px 0 12px; }
+.error { color: #a50e0e; background: #fce8e6; padding: 12px; border-radius: 12px; font-size: 14px; margin-top: 16px; }
+.results ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.results li { display: flex; align-items: flex-start; gap: 12px; background: #fff; border: 1px solid #e0e3e7; padding: 17px; border-radius: 18px; }
+.number { display: grid; place-items: center; flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: #e8f0fe; color: #0b57d0; font-size: 13px; }
+.results h3 { margin: 0 0 10px; font-size: 16px; font-weight: 500; line-height: 1.6; overflow-wrap: anywhere; }
+.results .use { display: inline-flex; align-items: center; min-height: 44px; gap: 10px; padding: 8px 14px; border-radius: 22px; color: #0b57d0; background: #edf3fe; font-size: 14px; }
+.use:hover { background: #d3e3fd; }
+.another { min-height: 44px; border: 1px solid #c4c7c5; border-radius: 24px; padding: 8px 18px; color: #0b57d0; background: transparent; font-size: 14px; margin-top: 16px; }
+@media (max-width: 680px) {
+  .trigger { gap: 8px; padding: 4px 6px; font-size: 15px; }
+  .trigger svg { width: 22px; height: 22px; }
+  .dialog { padding-left: max(18px, env(safe-area-inset-left)); padding-right: max(18px, env(safe-area-inset-right)); }
+  .heading h2 { font-size: 17px; }
+  .composer { gap: 8px; padding: 12px 12px 12px 20px; }
+  .welcome { padding-bottom: 40px; }
+}
+@media (max-height: 480px) { .welcome { padding: 8px 0; } .welcome > svg { width: 32px; height: 32px; margin-bottom: 8px; } .welcomeTitle { font-size: 23px; } .welcomeNote { margin-top: 8px; } }

@@ -4,7 +4,7 @@ import { HttpError } from './http.js';
 
 /** インスタンスをまたぐ利用者単位の制限。窓ごとに新しい文書を増やさない。 */
 export function createLimiter(db: Firestore, now: () => number) {
-  return async (uid: string, action: 'create' | 'join' | 'submit' | 'session-login' | 'session-activity', limit: number, windowMs = 60_000) => {
+  return async (uid: string, action: 'workspace' | 'processing' | 'transcript' | 'theme-suggest' | 'create' | 'join' | 'submit' | 'session-login' | 'session-activity', limit: number, windowMs = 60_000) => {
     const id = createHash('sha256').update(`${uid}:${action}`).digest('hex');
     await db.runTransaction(async (tx) => {
       const ref = db.doc(`apiLimits/${id}`), snap = await tx.get(ref);

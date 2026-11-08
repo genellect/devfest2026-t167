@@ -33,12 +33,12 @@ async function client(target = app, kind: 'teacher' | 'student' = 'student') {
   return { uid: u.localId, headers, target, post: (path: string, body = {}) => request(target).post(path).set(headers).send(body), get: (path: string) => request(target).get(path).set(headers) };
 }
 type Client = Awaited<ReturnType<typeof client>>;
-async function register(c: Client, roomId: string, names: string[], audio?: Buffer[]) {
+async function register(c: Client, roomId: string, names: string[], audio?: Buffer[], offset = 0) {
   await c.post(`/rooms/${roomId}/onboarding`, { mode: names.length > 1 ? 'shared' : 'personal', names }).expect(200);
   const attendees = (await db.doc(`sessions/${roomId}/members/${c.uid}`).get()).get('attendees') as { id: string }[];
   for (const [i, a] of attendees.entries()) {
-    slot = i;
-    await request(c.target).post(`/rooms/${roomId}/voice/${a.id}?consent=1`).set(c.headers).set('content-type', 'audio/pcm').send(audio?.[i] ?? Buffer.alloc(8 * 32000, 1)).expect(200);
+    slot = i + offset;
+    await request(c.target).post(`/rooms/${roomId}/voice/${a.id}`).set(c.headers).set('content-type', 'audio/pcm').send(audio?.[i] ?? Buffer.alloc(8 * 32000, 1)).expect(200);
   }
   slot = 0; return attendees.map((a) => a.id);
 }
@@ -48,15 +48,101 @@ async function setup(target = app, audio?: Buffer[]) {
   for (const c of [p, q]) await c.post('/rooms/join', { code: r.joinCode }).expect(200);
   await h.post(`/rooms/${r.roomId}/groups/assign`, { uid: p.uid, group: 1 }).expect(200);
   await h.post(`/rooms/${r.roomId}/groups/assign`, { uid: q.uid, group: 2 }).expect(200);
-  const ids = await register(p, r.roomId, ['声A', '声B'], audio);
+  const second = await client(target);
+  await second.post('/rooms/join', { code: r.joinCode }).expect(200);
+  await h.post(`/rooms/${r.roomId}/groups/assign`, { uid: second.uid, group: 1 }).expect(200);
+  const ids = [...await register(p, r.roomId, ['声A'], audio ? [audio[0]] : undefined), ...await register(second, r.roomId, ['声B'], audio ? [audio[1]] : undefined, 1)];
   await register(q, r.roomId, ['別グループ'], audio ? [audio[0]] : undefined);
+  for (const group of [1, 2]) await h.post(`/rooms/${r.roomId}/groups/update`, { group, name: `グループ${group}`, recordingMode: 'single' }).expect(200);
   return { h, p, q, roomId: r.roomId as string, ids };
 }
-const start = (c: Client, id: string) => c.post(`/rooms/${id}/speaker/start`, { consent: true });
+const start = (c: Client, id: string) => c.post(`/rooms/${id}/speaker/start`, {});
 const chunk = (c: Client, id: string, run: string, sequence = 0, pcm = Buffer.alloc(32000, 1)) => request(c.target).post(`/rooms/${id}/speaker/${run}/chunk?sequence=${sequence}`).set(c.headers).set('content-type', 'audio/pcm').send(pcm);
 const stateRef = (id: string) => db.doc(`sessions/${id}/speaking/1`);
 const begin = (h: Client, id: string) => h.post(`/rooms/${id}/phase`, { to: 'discussing' }).expect(200);
-it('保存した共有端末の全員の声を使い、無音・曖昧な声を分けて集計し、再送を二重計上しない', async () => {
+async function anonymousRoom(target = app) {
+  const h = await client(target, 'teacher'), p = await client(target);
+  const room = (await h.post('/rooms', { title: '匿名話者の議論', flowVersion: 1, groups: 1 }).expect(201)).body;
+  await p.post('/rooms/join', { code: room.joinCode }).expect(200);
+  await p.post(`/rooms/${room.roomId}/onboarding`, { mode: 'shared', names: ['名前と結び付けない参加者'] }).expect(200);
+  await begin(h, room.roomId);
+  return { h, p, roomId: room.roomId as string };
+}
+it('共有端末は事前登録なしでA/B/Cを集計し、雑音・無音を除外、不明を分母に残し、再開してもラベルを維持する', async () => {
+  const { h, p, roomId } = await anonymousRoom();
+  const started = await start(p, roomId).expect(201);
+  expect(started.body.mode).toBe('anonymous');
+  const run = started.body.runId;
+  for (let sequence = 0; sequence < 3; sequence++) {
+    slot = sequence; now += 1000;
+    await chunk(p, roomId, run, sequence).expect(200);
+  }
+  // 人の発話だが声が混ざった区間は、既存の誰かへ押し込まない。
+  ambiguity = true; now += 1000; await chunk(p, roomId, run, 3).expect(200);
+  ambiguity = false; silent = true;
+  now += 1000; await chunk(p, roomId, run, 4, Buffer.alloc(32000)).expect(200);
+  now += 1000; await chunk(p, roomId, run, 5, Buffer.alloc(32000, 7)).expect(200);
+  let state = (await stateRef(roomId).get()).data()!;
+  expect(state.members.map((m: { label: string }) => m.label)).toEqual(['話者A', '話者B', '話者C']);
+  expect(state.talkMs).toEqual({ 'anonymous-1': 1000, 'anonymous-2': 1000, 'anonymous-3': 1000 });
+  expect(state.unknownMs).toBe(1000);
+  expect(state.processedMs).toBe(6000);
+  expect(JSON.stringify(state)).not.toMatch(/embedding|名前と結び付けない|profiles/);
+  await p.post(`/rooms/${roomId}/speaker/${run}/stop`).expect(200);
+  // 別のAPIインスタンスでも、セッション内の一時特徴から同じラベルへ復帰する。
+  const otherInstance = createApp(deps), connection = { ...p, target: otherInstance,
+    post: (path: string, body = {}) => request(otherInstance).post(path).set(p.headers).send(body) };
+  const next = (await start(connection, roomId).expect(201)).body.runId;
+  silent = false; slot = 0;
+  now += 1000; await chunk(connection, roomId, next).expect(200);
+  await chunk(connection, roomId, next).expect(200); // 再送
+  state = (await stateRef(roomId).get()).data()!;
+  expect(state.latest.label).toBe('話者A');
+  expect(state.talkMs['anonymous-1']).toBe(2000);
+  expect(state.members).toHaveLength(3);
+  expect((await db.collection(`sessions/${roomId}/voiceProfiles`).get()).size).toBe(1);
+  await h.post(`/rooms/${roomId}/finish`).expect(200);
+  expect((await db.collection(`sessions/${roomId}/voiceProfiles`).get()).empty).toBe(true);
+  expect((await stateRef(roomId).get()).get('talkMs')['anonymous-1']).toBe(2000);
+  await chunk(connection, roomId, next, 1).expect(409);
+});
+it('匿名話者の推論中にHostが終了した場合は特徴も集計も保存せず、他グループ・Hostの送信を拒否する', async () => {
+  const { h, p, roomId } = await anonymousRoom();
+  await start(h, roomId).expect(403);
+  const outsider = await client();
+  await start(outsider, roomId).expect(403);
+  const run = (await start(p, roomId).expect(201)).body.runId;
+  during = async () => { await h.post(`/rooms/${roomId}/finish`).expect(200); };
+  await chunk(p, roomId, run).expect(409);
+  expect((await stateRef(roomId).get()).get('processedMs')).toBe(0);
+  expect((await db.collection(`sessions/${roomId}/voiceProfiles`).get()).empty).toBe(true);
+});
+it('時間指定のないセッションでも3時間の失効検査で匿名特徴を削除し、集計履歴だけ残す', async () => {
+  const { p, roomId } = await anonymousRoom();
+  const run = (await start(p, roomId).expect(201)).body.runId;
+  await chunk(p, roomId, run).expect(200);
+  expect((await db.collection(`sessions/${roomId}/voiceProfiles`).get()).size).toBe(1);
+  now += 3 * 60 * 60_000 + 1;
+  await p.get(`/rooms/${roomId}/speaker/config`).expect(200);
+  expect((await db.collection(`sessions/${roomId}/voiceProfiles`).get()).empty).toBe(true);
+  expect((await db.doc(`sessions/${roomId}`).get()).get('endReason')).toBe('timeout');
+  expect((await stateRef(roomId).get()).get('talkMs')).toEqual({ 'anonymous-1': 1000 });
+  await start(p, roomId).expect(409);
+});
+it('匿名区分もモデル版の変更中は旧接続の結果を拒否し、再開時に旧特徴と混ぜない', async () => {
+  const { p, roomId } = await anonymousRoom();
+  const run = (await start(p, roomId).expect(201)).body.runId;
+  await chunk(p, roomId, run).expect(200);
+  const changed = createApp({ ...deps, voice: { ...voice, version: 'different-version' } });
+  const connection = { ...p, target: changed, post: (path: string, body = {}) => request(changed).post(path).set(p.headers).send(body) };
+  now += 1000;
+  await chunk(connection, roomId, run, 1).expect(409);
+  await p.post(`/rooms/${roomId}/speaker/${run}/stop`).expect(200);
+  await start(connection, roomId).expect(201);
+  expect((await stateRef(roomId).get()).get('processedMs')).toBe(0);
+  expect((await db.collection(`sessions/${roomId}/voiceProfiles`).get()).empty).toBe(true);
+});
+it('各自の端末で登録した声を使い、無音・曖昧な声を分けて集計し、再送を二重計上しない', async () => {
   const { h, p, roomId, ids } = await setup(); await begin(h, roomId);
   expect((await p.get(`/rooms/${roomId}/speaker/config`).expect(200)).body.source).toBe('mock');
   const run = (await start(p, roomId).expect(201)).body.runId;
@@ -70,7 +156,7 @@ it('保存した共有端末の全員の声を使い、無音・曖昧な声を�
   await p.post(`/rooms/${roomId}/speaker/${run}/stop`).expect(200);
   expect((await db.doc(`sessions/${roomId}/speakerLeases/1`).get()).get('expiresAt')).toBe(0);
 });
-it('Host開始・録音担当・同意・同時接続・所属セッション・送信順序を検証する', async () => {
+it('Host開始・録音担当・入力形式・同時接続・所属セッション・送信順序を検証する', async () => {
   const { h, p, q, roomId } = await setup();
   await start(p, roomId).expect(409); await begin(h, roomId);
   await start(h, roomId).expect(403);
@@ -109,11 +195,11 @@ it('処理中の登録削除・失効・Host終了は結果確定前に検査す
 it('モデル未設定・登録削除・モデル変更・推論障害を成功扱いしない', async () => {
   const { h, p, roomId } = await setup(); await begin(h, roomId);
   const missing = createApp({ ...deps, voice: undefined });
-  await request(missing).post(`/rooms/${roomId}/speaker/start`).set(p.headers).send({ consent: true }).expect(503);
+  await request(missing).post(`/rooms/${roomId}/speaker/start`).set(p.headers).send({}).expect(503);
   const run = (await start(p, roomId).expect(201)).body.runId;
   failure = true; const failed = await chunk(p, roomId, run).expect(503); expect(JSON.stringify(failed.body)).not.toContain('private exception'); failure = false;
   expect((await stateRef(roomId).get()).get('processedMs')).toBe(0);
-  now += 21_000; await db.collection(`sessions/${roomId}/voiceProfiles`).get().then((s) => s.docs[0].ref.delete());
+  now += 21_000; await db.doc(`users/${p.uid}/voiceProfiles/default`).delete();
   await chunk(p, roomId, run).expect(409);
 });
 it('実時間より高速な送信と、登録情報の変更を拒否する', async () => {
@@ -122,8 +208,8 @@ it('実時間より高速な送信と、登録情報の変更を拒否する', a
   await chunk(p, roomId, run, 0).expect(200); await chunk(p, roomId, run, 1).expect(200);
   await chunk(p, roomId, run, 2).expect(409);
   now += 1000;
-  const profile = (await db.collection(`sessions/${roomId}/voiceProfiles`).get()).docs[0];
-  await profile.ref.update({ embedding: vector(2) });
+  const profile = db.doc(`users/${p.uid}/voiceProfiles/default`);
+  await profile.update({ embedding: vector(2) });
   await chunk(p, roomId, run, 2).expect(409);
 });
 it('Host指定の担当者以外は同じグループでも録音を開始できない', async () => {
@@ -166,24 +252,27 @@ it('6グループが同時に音声を送っても、それぞれの登録済み
 const actual = process.env.T167_REAL_SPEAKER === '1';
 let worker: SpeakerWorker | undefined;
 afterAll(() => worker?.close());
-it.skipIf(!actual)('実Sherpaモデル：登録に使っていない2種類の合成音声をAPI経由で識別し、無音を除外する', async () => {
-  worker = new SpeakerWorker(process.env.SPEAKER_PYTHON!, fileURLToPath(new URL('../../../speech/worker.py', import.meta.url)));
-  const realVoice: VoiceProvider = { version: 'sherpa-speaker-v1', source: 'model', extract: (pcm) => worker!.analyze(pcm) };
-  const target = createApp({ ...deps, voice: realVoice });
+function syntheticWaves() {
   const paths = process.env.SPEAKER_TEST_VOICES!.split(',');
-  const waves = paths.map((p) => {
+  return paths.map((p) => {
     const b = readFileSync(p); let at = 12;
     expect(b.toString('ascii', 0, 4)).toBe('RIFF'); expect(b.toString('ascii', 8, 12)).toBe('WAVE');
     while (at < b.length) {
       const size = b.readUInt32LE(at + 4), type = b.toString('ascii', at, at + 4);
       if (type === 'fmt ') { expect(b.readUInt16LE(at + 8)).toBe(1); expect(b.readUInt16LE(at + 10)).toBe(1); expect(b.readUInt32LE(at + 12)).toBe(16000); expect(b.readUInt16LE(at + 22)).toBe(16); }
-      if (type === 'data') { expect(size).toBeGreaterThanOrEqual(9 * 32000); return b.subarray(at + 8, at + 8 + size); }
+      if (type === 'data') { expect(size).toBeGreaterThanOrEqual(10 * 32000); return b.subarray(at + 8, at + 8 + size); }
       at += 8 + size + size % 2;
     }
     throw new Error('missing_pcm_data');
   });
+}
+it.skipIf(!actual)('実Sherpaモデル：登録に使っていない2種類の合成音声をAPI経由で識別し、無音を除外する', async () => {
+  worker = new SpeakerWorker(process.env.SPEAKER_PYTHON!, fileURLToPath(new URL('../../../speech/worker.py', import.meta.url)));
+  const realVoice: VoiceProvider = { version: 'sherpa-speaker-v1', source: 'model', extract: (pcm) => worker!.analyze(pcm) };
+  const target = createApp({ ...deps, voice: realVoice });
+  const waves = syntheticWaves();
   const { h, p, roomId, ids } = await setup(target, waves.map((b) => b.subarray(0, 8 * 32000)));
-  expect((await db.collection(`sessions/${roomId}/voiceProfiles`).get()).docs[0].get('embedding')).toHaveLength(192);
+  expect((await db.doc(`users/${p.uid}/voiceProfiles/default`).get()).get('embedding')).toHaveLength(192);
   await begin(h, roomId); const run = (await start(p, roomId).expect(201)).body.runId;
   const report = [];
   for (const [i, wave] of waves.entries()) {
@@ -199,3 +288,54 @@ it.skipIf(!actual)('実Sherpaモデル：登録に使っていない2種類の�
   await h.post(`/rooms/${roomId}/finish`).expect(200);
   expect((await db.collection(`sessions/${roomId}/voiceProfiles`).get()).empty).toBe(true);
 }, 30_000);
+
+it.skipIf(!actual)('実Sherpaモデル：未登録の合成音声をA/Bへ区分し、別区間でもAへ戻し、定常雑音・無音を除外する', async () => {
+  worker?.close();
+  worker = new SpeakerWorker(process.env.SPEAKER_PYTHON!, fileURLToPath(new URL('../../../speech/worker.py', import.meta.url)));
+  const target = createApp({ ...deps, voice: { version: 'sherpa-speaker-v1', source: 'model', extract: (pcm) => worker!.analyze(pcm) } });
+  const { h, p, roomId } = await anonymousRoom(target), waves = syntheticWaves();
+  const run = (await start(p, roomId).expect(201)).body.runId;
+  const noise = Buffer.alloc(32000);
+  let seed = 167;
+  for (let i = 0; i < 16000; i++) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; noise.writeInt16LE(seed % 4000 - 2000, i * 2); }
+  const chunks = [waves[0].subarray(8 * 32000, 9 * 32000), waves[1].subarray(8 * 32000, 9 * 32000), waves[0].subarray(9 * 32000, 10 * 32000), noise, Buffer.alloc(32000)];
+  const labels = [];
+  for (const [sequence, pcm] of chunks.entries()) {
+    now += 1000; await chunk(p, roomId, run, sequence, pcm).expect(200);
+    labels.push((await stateRef(roomId).get()).get('latest')?.label ?? null);
+  }
+  expect(labels).toEqual(['話者A', '話者B', '話者A', null, null]);
+  const result = (await stateRef(roomId).get()).data()!;
+  expect(result.members).toHaveLength(2);
+  expect(result.unknownMs).toBe(0);
+  expect(result.talkMs['anonymous-1']).toBeGreaterThan(result.talkMs['anonymous-2']);
+  expect(result.processedMs).toBe(5000);
+  console.log(JSON.stringify({ actualModel: 'CAM++ / Silero VAD', anonymousLabels: labels, speechMs: result.talkMs, noiseAndSilenceExcluded: true }));
+  await h.post(`/rooms/${roomId}/finish`).expect(200);
+  expect((await db.collection(`sessions/${roomId}/voiceProfiles`).get()).empty).toBe(true);
+}, 30_000);
+it('各自端末モードでは独立したleaseを持ち、同じ秒の同じ話者を重複集計しない',async()=>{
+  const {h,p,q,roomId,ids}=await setup();
+  await h.post(`/rooms/${roomId}/groups/assign`,{uid:q.uid,group:1}).expect(200);
+  await db.doc(`users/${q.uid}/voiceProfiles/default`).update({embedding:vector(2)});
+  await h.post(`/rooms/${roomId}/groups/update`,{group:1,name:'各自端末',recordingMode:'personal'}).expect(200);
+  await begin(h,roomId);
+  const first=(await start(p,roomId).expect(201)).body;await chunk(p,roomId,first.runId).expect(200);
+  const second=(await start(q,roomId).expect(201)).body;
+  expect((await stateRef(roomId).get()).get(`talkMs.${ids[0]}`)).toBe(1000);
+  await chunk(q,roomId,second.runId).expect(200);
+  expect((await stateRef(roomId).get()).get(`talkMs.${ids[0]}`)).toBe(1000);
+  await p.post(`/rooms/${roomId}/speaker/${first.runId}/stop`).expect(200);await q.post(`/rooms/${roomId}/speaker/${second.runId}/stop`).expect(200);
+});
+
+it('複数の個人端末は未指定なら開始時に各自端末方式となり、3秒窓でも発言時間は1秒だけ加算する', async () => {
+  const { h, p, roomId } = await setup();
+  await h.post(`/rooms/${roomId}/groups/update`, { group: 1, name: 'グループ1', recordingMode: 'auto' }).expect(200);
+  await begin(h, roomId);
+  expect((await db.doc(`sessions/${roomId}/groups/1`).get()).get('recordingMode')).toBe('personal');
+  const run = (await start(p, roomId).expect(201)).body.runId;
+  await chunk(p, roomId, run, 0, Buffer.alloc(96000, 1)).expect(200);
+  const state = (await stateRef(roomId).get()).data()!;
+  expect(state.processedMs).toBe(1000);
+  expect(Object.values(state.talkMs as Record<string, number>).reduce((a, b) => a + b, 0) + state.unknownMs).toBe(1000);
+});

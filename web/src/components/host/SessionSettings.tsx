@@ -64,8 +64,9 @@ export function SessionSettings({ roomId, room, embedded = false }: { roomId: st
       <h3 id="set-recorder" className="t-sm">録音を担当する端末</h3>
       {Array.from({ length: room.groups ?? 1 }, (_, i) => i + 1).map((g) => {
         const config = configurations.find((c) => c.number === g);
-        return <form className="stack stack--tight" key={`${g}-${config?.name}-${config?.recorderUid}`} onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); void act("groups/update", { group: g, name: f.get("name") || config?.name || `グループ${g}`, recorderUid: f.get("recorder") || null }); }}>
+        return <form className="stack stack--tight" key={`${g}-${config?.name}-${config?.recorderUid}`} onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); void act("groups/update", { group: g, name: f.get("name") || config?.name || `グループ${g}`, recorderUid: f.get("recorder") || null, ...(room.phase === "collecting" ? {recordingMode:f.get("recordingMode")} : {}) }); }}>
           {many && <div className="field"><label className="field__label" htmlFor={`group-name-${g}`}>グループ{g}の名前</label><input id={`group-name-${g}`} className="input" name="name" defaultValue={config?.name ?? `グループ${g}`} maxLength={60} required /></div>}
+          <label className="field">録音方式<select name="recordingMode" defaultValue={config?.recordingMode ?? "auto"} disabled={room.phase !== "collecting"}><option value="auto">参加端末に合わせる</option><option value="single">代表の端末1台</option><option value="personal">各自の端末（重複を推定して統合）</option></select></label>
           <div className="field"><label className="field__label" htmlFor={`recorder-${g}`}>グループ{g}の録音担当</label><select id={`recorder-${g}`} name="recorder" defaultValue={config?.recorderUid ?? ""}><option value="">グループ内の任意の端末1台</option>{members.filter((m) => m.group === g).map((m, i) => <option key={m.id} value={m.id}>{who(m, i)}（{voice(m)}）</option>)}</select></div>
           <button className="btn" disabled={busy || room.phase === "closed"}>グループ{g}を保存</button>
         </form>;

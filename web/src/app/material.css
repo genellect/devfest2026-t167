@@ -1,6 +1,6 @@
 /* Material Design 3: shared color, shape, typography and state tokens. */
 :root { --md-primary: #0b57d0; --md-on-primary: #fff; --md-surface: #f8fafd; --md-surface-container: #eef2fa; --md-outline: #747775; --md-radius: 24px; }
-body { background: var(--md-surface); color: #1f1f1f; font-family: "Google Sans", "Noto Sans JP", system-ui, sans-serif; }
+body { background: var(--md-surface); color: #1f1f1f; font-family: var(--font); }
 .box, .box--md, .box--lg, .session-card { border: 1px solid #d9dfe8; border-radius: var(--md-radius); box-shadow: none; }
 .box--blue { background: #e8f0fe; color: #12366b; }
 .box--yellow { background: #fef7e0; }
@@ -9,7 +9,7 @@ body { background: var(--md-surface); color: #1f1f1f; font-family: "Google Sans"
 .btn--yellow { background: #c2e7ff; color: #001d35; border-color: transparent; }
 .btn:hover:not(:disabled) { box-shadow: 0 2px 6px #0002; transform: none; }
 .btn:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #0b57d0; outline-offset: 3px; }
-.input, input:not([type=checkbox]), select, textarea { border-radius: 12px; border-width: 1px; }
+.input, :where(input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea) { border-radius: 12px; border-width: 1px; }
 .choice { border-radius: 16px; border-width: 1px; box-shadow: none; }
 .choice[aria-pressed=true] { background: #d3e3fd; color: #041e49; }
 .header, .tabbar { border-width: 1px; background: var(--md-surface); }

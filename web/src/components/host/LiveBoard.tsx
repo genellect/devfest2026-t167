@@ -1,13 +1,18 @@
 "use client";
-import { useEffect, useState } from "react";
-import { HostSpeaking, type SpeakingState } from "@/components/Speaking";
+import { GroupEvidence } from "@/components/analysis/EvidenceAnalysis";
+import { useEffect, useRef, useState } from "react";
+import { type SpeakingState } from "@/components/Speaking";
 import { SourceTag } from "@/components/ui";
 import { ApiError, callApi } from "@/lib/api";
-import { millis, useDoc, useMessages, type Coverage, type Insight, type Member, type Room } from "@/lib/room";
+import { millis, useDoc, useMessages, type Coverage, type Insight, type Member, type Room, type Flow } from "@/lib/room";
 import { useRoomFeed } from "@/lib/room-stream";
+import { GroupDashboard } from "./GroupDashboard";
+
+import { sessionGroups } from "./session-groups";
 
 /** API は分析中の記録を60秒で期限切れにする。画面も同じ期限でボタンを戻す */
 const ANALYSIS_LOCK_MS = 60_000;
+const EMPTY_SPEAKING: SpeakingState[] = [];
 /** 新しいメモが届いたら、前の分析から60秒あけて自動で探す（Gemini の呼び出しは1部屋で1分に1回まで） */
 const AUTO_GAP_MS = 60_000;
 
@@ -22,7 +27,17 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   const coverage = useDoc<Coverage>(`sessions/${roomId}/results/coverage`).data;
   const messages = useMessages(roomId, true);
-  const speaking = (useRoomFeed(roomId).collections[`sessions/${roomId}/speaking`] ?? []) as unknown as SpeakingState[];
+  const incoming = (useRoomFeed(roomId).collections[`sessions/${roomId}/speaking`] ?? EMPTY_SPEAKING) as unknown as SpeakingState[];
+  const latestSpeaking = useRef(incoming);
+  const [speaking, setSpeaking] = useState(incoming);
+  useEffect(() => {
+    latestSpeaking.current = incoming;
+    setSpeaking(current => current.length !== incoming.length || incoming.some(next => {
+      const old = current.find(s => s.group === next.group);
+      return !old || old.mode !== next.mode || old.version !== next.version || next.processedMs < old.processedMs;
+    }) ? incoming : current);
+  }, [incoming]);
+  useEffect(() => { const t = setInterval(() => setSpeaking(latestSpeaking.current), 10_000); return () => clearInterval(t); }, []);
   const pending = insights.filter((i) => i.status === "pending");
   const approved = insights.filter((i) => i.status === "approved");
 
@@ -51,8 +66,8 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
     : coverage ? "新しいメモが届くと、また探します。話が尽きたら、議論を終えて結論を書いてもらいましょう。"
       : "学生がメモを共有すると、AI が事前の意見と照らし合わせて、まだ話されていない論点を探します。";
 
-  return (
-    <div className="teacher__body live">
+  const analysis = <>
+      <p className="t-note">以下の提案・意見の検討率はセッション全体の分析です。グループ別の音声分析とは区別します。</p>
       <section className="tally" aria-label="議論の進み具合">
         <p className="tally__time" role="timer" aria-label="経過時間">{String(Math.floor(elapsed / 60)).padStart(2, "0")}:{String(elapsed % 60).padStart(2, "0")}</p>
         <dl className="tally__list">
@@ -72,10 +87,9 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
             <dd className="tally__sub">{voice.length ? "録音から推定" : "発言メモから"}</dd>
           </div>
         </dl>
-        <FinishButton roomId={roomId} />
       </section>
 
-      <div className="live-grid">
+      <div>
         <section className="next" aria-labelledby="next-title">
           <h2 id="next-title" className="next__title">{headline}</h2>
           <p className="next__lead">{lead}</p>
@@ -108,21 +122,13 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
           )}
         </section>
 
-        <aside className="live-side" aria-label="グループと発言">
-          <section aria-labelledby="groups-title">
-            <h2 id="groups-title" className="live-side__title">グループ</h2>
-            <ul className="group-list">
-              {Array.from({ length: room.groups ?? 1 }, (_, i) => i + 1).map((g) => {
-                const st = room.groupState?.[String(g)];
-                return <li key={g}><span>グループ{g}</span><span className="t-note">{st?.total ?? 0}人{st?.recording?.status ? `・録音の分析：${{ analyzing: "分析中", done: "完了", failed: "失敗" }[st.recording.status]}` : ""}</span></li>;
-              })}
-            </ul>
-          </section>
-          <HostSpeaking roomId={roomId} card />
-        </aside>
       </div>
-    </div>
-  );
+    </>;
+  const results = (useRoomFeed(roomId).collections[`sessions/${roomId}/results`] ?? []) as ({ id: string } & Partial<Flow>)[];
+  const groupViews = sessionGroups(room, members, speaking, results);
+  return <GroupDashboard title={room.theme || room.title} groups={groupViews} pending={pending.length}
+    timerLabel="経過時間" timer={`経過 ${String(Math.floor(elapsed / 60)).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`}
+    actions={<FinishButton roomId={roomId} />} details={group => <><GroupEvidence roomId={roomId} group={group.id} />{analysis}</>} />;
 }
 
 /**

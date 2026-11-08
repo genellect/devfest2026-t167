@@ -2,7 +2,6 @@
 import Link from "next/link";
 import { use, useEffect } from "react";
 import { ErrorScreen, Loading } from "@/components/ui";
-import { HostRoom } from "@/components/host/HostRoom";
 import { TeacherRoom } from "@/components/host/TeacherRoom";
 import { ParticipantRoom } from "@/components/participant/ParticipantRoom";
 import { addHistory } from "@/lib/local";
@@ -21,12 +20,13 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
     if (room.data && role) addHistory(role === "host" ? "host" : "participant", { roomId, title: room.data.title });
   }, [room.data?.title, role, roomId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const back = <Link className="btn btn--blue" href="/join">参加コードを入力する</Link>;
+  const back = <Link className="btn btn--blue" href="/home">ホームへ戻る</Link>;
   if (!room.data && (member.error || room.error)) return <ErrorScreen message={member.error ?? room.error ?? ""} action={back} />;
   if (member.data === null) return <ErrorScreen message="この部屋のメンバーではありません。参加コードを入力して参加してください。" action={back} />;
   if (!room.data || !role) return <Loading />;
+  if (room.data.flowVersion !== 1) return <ErrorScreen message="このセッションは旧形式のため、この画面では利用できません。ホームから新しいセッションを作成・参加してください。" action={back} />;
   const warning = member.error || room.error;
   return <>{warning && <p className="notice notice--warn" role="status">{warning}</p>}{role === "host"
-    ? room.data.flowVersion === 1 ? <TeacherRoom roomId={roomId} room={room.data} /> : <HostRoom roomId={roomId} room={room.data} />
+    ? <TeacherRoom roomId={roomId} room={room.data} />
     : <ParticipantRoom roomId={roomId} room={room.data} uid={uid!} group={member.data?.group ?? (room.data.groupSelection !== "host" && (room.data.groups ?? 1) <= 1 ? 1 : undefined)} />}</>;
 }

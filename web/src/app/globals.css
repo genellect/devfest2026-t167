@@ -446,7 +446,7 @@ textarea.input { resize: vertical; min-height: 96px; }
 @media(max-width: 480px) { .session-overlay { padding: 16px; } .session-card { padding: 24px; } }
 
 /* セッション設定は落ち着いたWorkspace風の白いカードと丸いボタンにする。 */
-.session-screen { background: #f8fafd; color: #1f1f1f; font-family: Arial, "Noto Sans JP", sans-serif; font-weight: 400; }
+.session-screen { background: #f8fafd; color: #1f1f1f; font-family: var(--font); font-weight: 400; }
 .session-screen .header { background: #fff; border-bottom: 1px solid #dadce0; box-shadow: none; }
 .session-screen .header__name { font-size: 22px; font-weight: 500; }
 .session-screen .t-md, .session-screen h2 { font-size: 20px; font-weight: 500; }
@@ -466,3 +466,15 @@ textarea.input { resize: vertical; min-height: 96px; }
 .qr-scan__video { width: 100%; height: 100%; object-fit: cover; display: block; }
 .qr-scan__guide { position: absolute; inset: 18%; border: 3px solid #fff; border-radius: 16px; box-shadow: 0 0 0 999px rgb(0 0 0 / .35); }
 .qr-scan__status { text-align: center; font-size: 16px; min-height: 1.5em; }
+/* ホームからホスト画面へ。更新完了まで元画面を残し、新画面だけを下から重ねる。 */
+html[data-rising-screen]::view-transition-group(root),
+html[data-rising-screen]::view-transition-old(root) { animation: none; }
+html[data-rising-screen]::view-transition-new(root) { animation: discussScreenRise 400ms cubic-bezier(.2,.8,.2,1) both; mix-blend-mode: normal; }
+@keyframes discussScreenRise { from { transform: translateY(100%); } to { transform: translateY(0); } }
+html[data-falling-screen]::view-transition-group(root) { animation: none; }
+html[data-falling-screen]::view-transition-old(root) { z-index: 2; animation: discussScreenFall 400ms cubic-bezier(.4,0,.2,1) both; mix-blend-mode: normal; }
+html[data-falling-screen]::view-transition-new(root) { z-index: 1; animation: none; }
+@keyframes discussScreenFall { from { transform: translateY(0); } to { transform: translateY(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  html[data-rising-screen]::view-transition-new(root), html[data-falling-screen]::view-transition-old(root) { animation: none; }
+}

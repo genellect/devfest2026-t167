@@ -3,6 +3,14 @@ import { emulatorGoogleUser } from "../../firebase/emulator-auth.mjs";
 import { fakeQrCamera, loginStudent } from "./student";
 
 test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可情報・結果を通り、次回は声を再利用する", async ({ page, playwright }) => {
+  await page.addInitScript(() => {
+    const original = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    let denied = false;
+    navigator.mediaDevices.getUserMedia = async constraints => {
+      if (constraints?.audio && !denied) { denied = true; throw new DOMException("Denied", "NotAllowedError"); }
+      return original(constraints);
+    };
+  });
   const host = await playwright.request.newContext({ baseURL: test.info().project.use.baseURL });
   try {
     const user = await emulatorGoogleUser("teacher", `flow-host-${Date.now()}`), headers = { authorization: `Bearer ${user.idToken}` };
@@ -11,24 +19,30 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     const r = await create();
     await fakeQrCamera(page, `${test.info().project.use.baseURL}/join?code=${r.joinCode}`);
     await loginStudent(page);
-    // ホームの参加カードからアプリ内のカメラでQRを読み取ると、ボタンを押さずにそのまま参加する
+    // ホームの参加パネルからアプリ内のカメラで読み取ると、そのまま参加する
+    await page.getByRole("button", { name: "参加する", exact: true }).click();
     await page.getByRole("button", { name: "カメラで読み取る", exact: true }).click();
     await page.getByLabel("参加者1の表示名").fill("架空のGuest");
     await page.getByRole("button", { name: "表示名を保存して進む" }).click();
     await expect(page.getByRole("heading", { name: "声の登録" })).toBeVisible();
-    await page.getByLabel("声の特徴の登録と、上記の利用方法に同意します").check();
+    await expect(page.getByText("いつもの声で9秒ほど自由に話してください。", { exact: true })).toBeVisible();
+    await expect(page.locator(".read-aloud")).toHaveCount(0);
+
     await page.getByRole("button", { name: "声を登録する", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "議論の前に書く" })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("alert").filter({ hasText: "マイクの使用をブラウザで許可" })).toBeVisible();
+    await page.getByRole("button", { name: "声を登録する", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "参加できました" })).toBeVisible({ timeout: 20_000 });
     expect((await host.post(`/api/rooms/${r.roomId}/phase`, { headers, data: { to: "discussing" } })).status()).toBe(200);
-    await expect(page.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
-    await expect(page.getByText("テーマ：秘密のテーマ")).toBeVisible();
+    await expect(page.getByRole("main", { name: "話し合い中", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "秘密のテーマ", exact: true })).toBeVisible();
     // 開始後にホームへ戻っても、同じコードで議論の画面に戻れる
-    await page.getByRole("link", { name: "ホーム", exact: true }).click();
+    await page.getByRole("button", { name: "設定を開く", exact: true }).click();
+    await page.getByRole("button", { name: "ホームへ戻る", exact: true }).click();
     await page.goto(`/join?code=${r.joinCode}`);
     await expect(page).toHaveURL(/\/rooms\//);
-    await expect(page.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
+    await expect(page.getByRole("main", { name: "話し合い中", exact: true })).toBeVisible();
     expect((await host.post(`/api/rooms/${r.roomId}/settings`, { headers, data: { participantView: { theme: false, timer: false, members: false } } })).status()).toBe(200);
-    await expect(page.getByText("テーマ：秘密のテーマ")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "秘密のテーマ", exact: true })).toHaveCount(0);
     await expect(page.getByRole("timer")).toHaveCount(0);
     expect((await host.post(`/api/rooms/${r.roomId}/finish`, { headers, data: {} })).status()).toBe(200);
     await expect(page.getByRole("heading", { name: "結論を自分の言葉で書く" })).toBeVisible();
@@ -37,7 +51,7 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     await expect(page).toHaveURL(/\/rooms\//);
     await page.getByLabel("参加者1の表示名").fill("次回の表示名");
     await page.getByRole("button", { name: "表示名を保存して進む" }).click();
-    await expect(page.getByRole("heading", { name: "議論の前に書く" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "参加できました" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "声の登録" })).toHaveCount(0);
   } finally { await host.dispose(); }
 });

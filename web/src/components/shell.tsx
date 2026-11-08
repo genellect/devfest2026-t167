@@ -1,38 +1,39 @@
 "use client";
+import { APP_NAME } from "@/lib/brand";
 import Link from "next/link";
-import { useHostUser, useIsTeacher } from "@/lib/hostAuth";
+import HistoryMenu from "./history/HistoryMenu";
+import { useFixedHeader } from "@/lib/use-fixed-header";
 
 /**
- * 画面の骨組み（デザイン「黒板と付箋」）。上に1本の帯だけを置き、左のメニューは持たない（Docs「UIフィードバック」：
+ * Google Workspace風ライトUIの共通の骨組み。上に1本の帯だけを置き、左のメニューはホーム・履歴・設定に統一する（Docs「UIフィードバック」：
  * ヘッダーは最小限、使い方のボタンは不要、次に何をするかを画面そのもので伝える）。
- * - 左上：「Discuss」でホームへ（教員は教員のホーム、学生は学生のホーム）。議論の途中では「←」で戻る
- * - 右上：アカウントの丸。押すと設定（端末とセッション、使い方とプライバシー、ログアウト）
- * - tone="board"：教室に投影する教員の部屋。画面全体を黒板の色にする
+ * - 左上：アプリ名でホームへ（全員共通）。議論の途中では「←」で戻る
+ * - 設定への入口は左のサイドバーに集約する
+ * - tone="board"：既存の教員用区分。表示は全画面共通のライトUIにする
  * onLeave は、議論中に別の画面へ移るときの確認（録音を送っていないときなど）。false を返すと移動しない。
  */
 export function AppShell({ title, eyebrow, steps, status, actions, children, onLeave, wide, nav = true, back, tone = "paper" }: {
   title: string; eyebrow?: React.ReactNode; steps?: React.ReactNode; actions?: React.ReactNode;
   children: React.ReactNode; onLeave?: () => boolean; wide?: boolean;
-  /** false にするとホームとアカウントへの入口を出さない（ログイン前に開ける画面） */
+  /** false にするとナビゲーションの入口を出さない（ログイン前に開ける画面） */
   nav?: boolean;
   /** 議論の流れの中では、ロゴの代わりに「←」でホームへ戻る */
   back?: string;
   /** 今の段階を文字で（読み上げ用。進み具合の表示はPC用とスマホ用の2つを描くので、こちらは1つだけ置く） */
   status?: string;
-  /** paper：学生と普段の画面（紙）、board：教室に投影する教員の部屋（黒板） */
+  /** 既存の画面区分。どちらも共通のライトUIで表示する */
   tone?: "paper" | "board";
 }) {
-  const teacher = useIsTeacher();
-  const home = teacher ? "/teacher" : "/home";
+  const fixed = useFixedHeader();
+  const home = "/home";
   const guard = (e: React.MouseEvent) => { if (onLeave && !onLeave()) e.preventDefault(); };
 
   return (
-    <div className="shell" data-tone={tone} data-wide={wide || undefined}>
-      <header className="shell__bar">
-        {nav && back
-          ? <Link href={back} className="shell__back" aria-label="ホーム" onClick={guard}><BackIcon /></Link>
-          : nav ? <Link href={home} className="shell__brand" onClick={guard}>Discuss</Link>
-            : <span className="shell__brand">Discuss</span>}
+    <div ref={fixed.root} className="shell" data-tone={tone} data-wide={wide || undefined}>
+      <header ref={fixed.header} className="shell__bar">
+        {nav && <HistoryMenu view={title === "設定" ? "settings" : ""} homeUrl={home} onLeave={onLeave} />}
+        {nav && back ? <Link href={back} className="shell__back" aria-label="ホーム" onClick={guard}><BackIcon /></Link>
+          : !nav ? <span className="shell__brand">{APP_NAME}</span> : null}
         <div className="shell__title">
           {eyebrow && <p className="shell__eyebrow">{eyebrow}</p>}
           <h1 className="shell__name">{title}</h1>
@@ -40,23 +41,10 @@ export function AppShell({ title, eyebrow, steps, status, actions, children, onL
         {steps && <div className="shell__steps">{steps}</div>}
         {status ? <span className="sr-only" data-testid="phase">{status}</span> : null}
         {actions && <div className="shell__actions">{actions}</div>}
-        {nav && <Account onClick={guard} />}
       </header>
       {steps && <div className="shell__steps-mobile">{steps}</div>}
       <main className="shell__panel">{children}</main>
     </div>
-  );
-}
-
-/** 右上のアカウント。名前の1文字目を丸で表示し、設定を開く */
-function Account({ onClick }: { onClick: (e: React.MouseEvent) => void }) {
-  const user = useHostUser();
-  if (!user) return null;
-  const name = user.displayName || user.email || "?";
-  return (
-    <Link href="/host/profile" className="shell__account" aria-label={`設定（${name}）`} title="設定" onClick={onClick}>
-      <span aria-hidden="true">{name.trim().charAt(0).toUpperCase()}</span>
-    </Link>
   );
 }
 

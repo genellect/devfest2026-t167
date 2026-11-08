@@ -5,6 +5,14 @@ import { authenticatedFetch, handleSessionFailure } from "./session";
 interface RoomFeed { docs: Record<string, unknown>; collections: Record<string, { id: string }[]>; error?: string }
 interface Entry { value: RoomFeed; listeners: Set<() => void>; controller: AbortController }
 const streams = new Map<string, Entry>();
+/** 操作成功後は同じ画面の購読を張り直し、取りこぼした状態をサーバーから取得する。 */
+export function refreshRoomFeed(roomId: string) {
+  const entry = streams.get(roomId);
+  if (!entry) return;
+  entry.controller.abort();
+  entry.controller = new AbortController();
+  void consume(roomId, entry);
+}
 function revive(value: unknown): unknown {
   if (!value || typeof value !== "object") return value;
   if ("__time" in value && typeof value.__time === "number") { const ms = value.__time; return { toMillis: () => ms }; }
@@ -43,7 +51,7 @@ async function consume(roomId: string, entry: Entry) {
         }
         throw new Error("接続を確認しています");
       }
-      entry.value = { docs: {}, collections: {} }; entry.listeners.forEach((fn) => fn());
+      // 再接続中も既存画面と録音を維持する。削除・失効は認可済みの配信で反映する。
       const reader = response.body.getReader(), decoder = new TextDecoder();
       let buffer = "";
       for (;;) {

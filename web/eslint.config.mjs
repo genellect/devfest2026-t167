@@ -14,7 +14,13 @@ const eslintConfig = [
   {
     ignores: [
       "node_modules/**",
+      "playwright-report/**",
+      "test-results/**",
+      "public/pdfjs-*/**", // 固定依存から生成する配信用ファイル
       ".next/**",
+      ".next-real/**",
+      "test-results/**",
+      "playwright-report/**",
       "out/**",
       "build/**",
       "next-env.d.ts",

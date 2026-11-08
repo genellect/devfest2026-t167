@@ -1,0 +1,29 @@
+.settings { color: #202124; font-family: var(--font); font-weight: 400; line-height: 1.6; }
+.settings :global(.shell) { background: #f8fafd; color: #202124; }
+.settings :global(.shell__bar) { background: #f8fafd; border-bottom: 0; backdrop-filter: none; }
+.settings :global(.shell__title) { border: 0; padding: 0; }
+.settings :global(.shell__name) { font-size: 22px; font-weight: 500; }
+.settings :global(.shell__panel) { padding-top: 30px; }
+.content { width: min(760px, 100%); margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+.identity { display: flex; align-items: center; gap: 20px; border: 1px solid #dadce0; background: #fff; border-radius: 24px; padding: 24px; min-width: 0; }
+.accountAvatar { display: grid; place-items: center; width: 64px; height: 64px; flex-shrink: 0; border-radius: 50%; background: #d3e3fd; color: #0b57d0; font-size: 30px; }
+.identity > div { min-width: 0; }
+.identity h2 { font-size: 22px; font-weight: 500; margin: 0; overflow-wrap: anywhere; }
+.identity p { font-size: 14px; color: #5f6368; margin: 4px 0 0; overflow-wrap: anywhere; }
+.card { min-width: 0; }
+.cardTitle { font-size: 16px; font-weight: 500; color: #5f6368; margin: 0 0 14px; }
+.settings .settingRow { display: flex; align-items: center; gap: 18px; min-height: 76px; padding: 16px 8px; color: #202124; text-decoration: none; border-top: 1px solid #dadce0; font-size: 17px; }
+.settingRow:last-child { border-bottom: 1px solid #dadce0; }
+.settingRow:hover { background: #edf3fc; }
+.settingRow svg { flex-shrink: 0; color: #5f6368; }
+.chevron { margin-left: auto; color: #5f6368; font-size: 28px; }
+.logout { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 52px; margin-top: 32px; padding: 12px 20px; border: 1px solid #aeb7c4; border-radius: 18px; color: #0b57d0; background: transparent; font: inherit; cursor: pointer; }
+.logout:hover { background: #edf3fc; }
+.logout svg { width: 21px; height: 21px; }
+@media (max-width: 767px) {
+  .settings :global(.shell__panel) { padding: 24px 18px 32px; }
+  .settings :global(.shell__name) { font-size: 20px; }
+  .identity { padding: 20px; gap: 16px; }
+  .identity h2 { font-size: 20px; }
+  .accountAvatar { width: 56px; height: 56px; font-size: 26px; }
+}

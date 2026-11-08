@@ -4,7 +4,7 @@ import {
   browserLocalPersistence, browserSessionPersistence, connectAuthEmulator,
   getAuth, indexedDBLocalPersistence, initializeAuth, type Auth,
 } from "firebase/auth";
-import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
+import { connectFirestoreEmulator, getFirestore, initializeFirestore, type Firestore } from "firebase/firestore";
 
 const useEmulators = process.env.NEXT_PUBLIC_USE_EMULATORS === "1";
 import { publicFirebaseConfig } from "./firebase-config";
@@ -29,10 +29,14 @@ export function firebase() {
     auth = useEmulators
       ? initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence] })
       : getAuth(app);
-    db = getFirestore(app);
+    const secureEmulator = useEmulators && typeof window !== "undefined" && window.location.protocol === "https:";
+    db = secureEmulator ? initializeFirestore(app, { host: window.location.host, ssl: true, experimentalForceLongPolling: true }) : getFirestore(app);
     if (useEmulators) {
-      connectAuthEmulator(auth, `http://127.0.0.1:${process.env.NEXT_PUBLIC_AUTH_EMULATOR_PORT ?? 9099}`, { disableWarnings: true });
-      connectFirestoreEmulator(db, "127.0.0.1", Number(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT ?? 8080));
+      // Wi-Fi経由の実機では127.0.0.1が端末自身を指す。画面を配信したMacのホストへ接続する。
+      const hostname = typeof window !== "undefined" ? window.location.hostname : "127.0.0.1";
+      const emulatorHost = hostname === "localhost" ? "127.0.0.1" : hostname;
+      connectAuthEmulator(auth, secureEmulator ? window.location.origin : `http://${emulatorHost}:${process.env.NEXT_PUBLIC_AUTH_EMULATOR_PORT ?? 9099}`, { disableWarnings: true });
+      if (!secureEmulator) connectFirestoreEmulator(db, emulatorHost, Number(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT ?? 8080));
     }
   }
   return { app: app!, auth: auth!, db: db! };

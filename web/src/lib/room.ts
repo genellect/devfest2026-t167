@@ -6,6 +6,7 @@ import { useRoomFeed } from "./room-stream";
 import type { Phase } from "@/components/ui";
 
 export interface Room {
+  classroomCourseId?: string; classroomCourseName?: string; classroomCourseSection?: string;
   title: string; flowVersion?: 1; startedAt?: Timestamp; endsAt?: Timestamp; endedAt?: Timestamp; endReason?: "host" | "timeout"; publishOnEnd?: boolean; participantView?: { theme: boolean; timer: boolean; members: boolean; speaking?: boolean }; theme?: string; minutes?: number; groupSelection?: "host" | "participant"; resultsPublished?: boolean; phase: Phase; joinCode?: string; createdBy: string; groups?: number;
   /** 議論を録音して分析するか（既定は録音する）。false の部屋では録音の画面を出さない */
   recording?: boolean;
@@ -54,6 +55,8 @@ export interface Progress {
  * （POST /rooms/{部屋}/groups/recording）。届くまでは、デモのときだけ見本を表示する。
  */
 export interface Flow {
+  recordingMode?: "personal";
+  recordingCount?: number;
   /** false なら、録音から議論を聞き取れなかった */
   speechDetected?: boolean;
   totalMinutes: number;
@@ -99,5 +102,5 @@ export function useCountdown(startMs: number | undefined, minutes: number) {
   return { text: `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`, over: left === 0 };
 }
 
-export interface GroupConfig { id: string; groupId: string; name: string; number: number; recorderUid?: string | null }
+export interface GroupConfig { recordingMode?: "auto" | "single" | "personal"; id: string; groupId: string; name: string; number: number; recorderUid?: string | null }
 export const useGroups = (roomId: string) => (useRoomFeed(roomId).collections[`sessions/${roomId}/groups`] ?? []) as unknown as GroupConfig[];

@@ -62,7 +62,7 @@ h1, h2, h3, .card__title, .t-lg, .t-md, .t-sm, .t-xl, .t-hero { font-weight: 700
 .code__cell[data-filled] { background: var(--container); border-color: var(--line-soft); }
 .code__cell[data-active] { border: 2px solid var(--primary); background: #fff; box-shadow: 0 0 0 3px var(--primary-soft); }
 .code[data-invalid] .code__cell { background: var(--danger); border-color: var(--danger-ink); }
-.input, input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea {
+.input, :where(input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea) {
   border: 1px solid var(--muted); border-radius: 12px; background: #fff; padding: 12px 14px; min-height: 48px; font-weight: 500;
 }
 select {
