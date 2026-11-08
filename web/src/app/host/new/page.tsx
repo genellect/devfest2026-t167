@@ -57,7 +57,7 @@ export default function NewRoom() {
     );
   }
   return (
-    <AppShell title="新しい議論" back="/teacher" wide>
+    <AppShell title="新しい議論" wide>
       <div className="create">
         <form className="panel create__form" onSubmit={create} aria-labelledby="new-title">
           <h2 id="new-title" className="t-md">テーマを決める</h2>
