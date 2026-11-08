@@ -42,7 +42,7 @@ export default function Login() {
     <main className="screen login">
       <section className="login__hero">
         <p className="login__brand">Topos</p>
-        <h1 className="t-hero login__title">誰の考えも埋もれない議論を、<br />すべての教室に。</h1>
+        <h1 className="t-hero login__title"><span>誰の考えも</span><span>埋もれない議論を、</span><br /><span>すべての教室に。</span></h1>
         <p className="login__lead">議論の前に全員の考えを集め、まだ話されていない論点と、合意のずれを AI が見つけます。</p>
         {/* 製品の見本：教員の画面に出る AI の付箋と、結果に出る理解の分かれ方 */}
         <div className="login__board" aria-hidden="true">
