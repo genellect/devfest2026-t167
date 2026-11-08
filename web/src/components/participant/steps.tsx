@@ -117,7 +117,7 @@ export function DiscussionNotes({ roomId, bare = false }: { roomId: string; bare
 const AGREEMENT = ["まったく納得していない", "あまり納得していない", "どちらともいえない", "おおむね納得", "とても納得"];
 
 /** P4 結論の理解を入力。本人だけが読み書きできる */
-export function ConsensusStep({ roomId, uid, title, submitted, total, bare = false }: { roomId: string; uid: string; title: string; submitted?: number; total?: number; bare?: boolean }) {
+export function ConsensusStep({ roomId, uid, submitted, total, bare = false }: { roomId: string; uid: string; title: string; submitted?: number; total?: number; bare?: boolean }) {
   const mine = useDoc<{ text: string; agreement: number; concern?: string }>(`sessions/${roomId}/consensusStatements/${uid}`).data;
   const [text, setText] = useState("");
   const [agreement, setAgreement] = useState(0);
@@ -140,10 +140,6 @@ export function ConsensusStep({ roomId, uid, title, submitted, total, bare = fal
     <Wrap bare={bare}>
       <form className={bare ? "flow-card" : "box box--lg card"} onSubmit={submit}>
         <h2 className="card__title">結論を自分の言葉で書く</h2>
-        <div className="box box--tint" style={{ padding: "10px 14px" }}>
-          <p className="t-small" style={{ fontWeight: 700 }}>議論のテーマ</p>
-          <p className="t-md">{title}</p>
-        </div>
         <div className="field">
           <label className="field__label" htmlFor="stmt">グループの結論を、あなたはどう理解した？</label>
           <textarea id="stmt" className="input" rows={2} maxLength={300} value={text} placeholder="例：将来の仕事に役立つ経験を増やすこと" onChange={(e) => setText(e.target.value)} />
@@ -151,10 +147,15 @@ export function ConsensusStep({ roomId, uid, title, submitted, total, bare = fal
         </div>
         <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
           <legend className="field__label" style={{ marginBottom: 6 }}>その結論に、どのくらい納得している？</legend>
-          <div className="choices choices--scale">
-            {AGREEMENT.map((label, i) => (
-              <button key={label} type="button" className="choice" aria-pressed={agreement === i + 1} onClick={() => setAgreement(i + 1)}>{label}</button>
-            ))}
+          {/* 5段階の目盛り。見た目は数字、読み上げとボタンの名前は「おおむね納得」などの言葉 */}
+          <div className="scale">
+            <div className="scale__options">
+              {AGREEMENT.map((label, i) => (
+                <button key={label} type="button" className="scale__option" aria-label={label} title={label} aria-pressed={agreement === i + 1} onClick={() => setAgreement(i + 1)}>{i + 1}</button>
+              ))}
+            </div>
+            <div className="scale__ends" aria-hidden="true"><span>納得していない</span><span>とても納得</span></div>
+            <p className="scale__value" aria-hidden="true">{agreement ? AGREEMENT[agreement - 1] : "数字を1つ選んでください"}</p>
           </div>
         </fieldset>
         <div className="field">

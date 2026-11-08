@@ -707,3 +707,12 @@ progress::-moz-progress-bar { background: var(--brand); }
 .prompt-empty { padding: 10px 14px; border: 1px dashed var(--line-strong); border-radius: var(--r-control); }
 /* 発言メモの吹き出しは入力欄と見分けられるよう、枠をなくして淡い灰の面にする */
 .memo__feed .bubble { background: var(--surface-2); border-color: transparent; border-radius: 12px 12px 12px 4px; }
+
+/* ---------- 5段階の目盛り（納得の度合い） ---------- */
+.scale { display: flex; flex-direction: column; gap: 6px; }
+.scale__options { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.scale__option { min-height: 48px; border: 1px solid var(--line-strong); border-radius: var(--r-control); background: var(--surface); color: var(--ink); font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; }
+.scale__option:hover { background: var(--surface-2); }
+.scale__option[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: #fff; }
+.scale__ends { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-2); }
+.scale__value { font-size: 14px; font-weight: 600; color: var(--brand-ink); min-height: 1.6em; }
