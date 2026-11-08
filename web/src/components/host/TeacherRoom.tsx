@@ -9,6 +9,7 @@ import { ApiError, callApi } from "@/lib/api";
 import { millis, useDoc, useGroupResults, useInsights, useMembers, type Flow, type Room, type Summary } from "@/lib/room";
 import { ClassResult, ConsensusProgress, GroupResultView } from "./HostRoom";
 import { LiveBoard } from "./LiveBoard";
+import { HostSpeaking } from "@/components/Speaking";
 import { SessionSettings } from "./SessionSettings";
 
 /**
@@ -54,6 +55,7 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
         : <div className="teacher__body">
           <ConsensusProgress roomId={roomId} room={room} results={results} summary={summary ?? null} />
           <ClassResult roomId={roomId} room={room} results={results} summary={summary ?? null} onOpen={setOpenGroup} />
+          <HostSpeaking roomId={roomId} card ended />
           <RecordingReview roomId={roomId} room={room} />
         </div>)}
 

@@ -256,13 +256,23 @@ describe('ライブ配信と既存データの認可', () => {
       await room.update({ participantView: { speaking: true } });
       await stream.until((s) => s.includes('OWN-SPEAKING'));
       await room.update({ endedAt: Timestamp.now(), resultsPublished: false });
-      await room.collection('speaking').doc('1').set({ label: 'FINAL-SPEAKING' });
+      // 終了後は本人の時間と割合だけ：同じグループのほかの人の名前・時間・直近の発言者は渡さない
+      await room.collection('members').doc(c.uid).update({ attendees: [{ id: 'own-attendee', displayName: 'OWN-NAME' }] });
+      await room.collection('speaking').doc('1').set({
+        group: 1, source: 'mock', processedMs: 120_000, unknownMs: 1000,
+        talkMs: { 'own-attendee': 4000, 'peer-attendee': 5000 },
+        members: [{ uid: 'own-attendee', label: 'FINAL-SPEAKING' }, { uid: 'peer-attendee', label: 'PEER-IN-SAME-GROUP' }],
+        latest: { uid: 'peer-attendee', label: 'PEER-IN-SAME-GROUP', confidence: 0.9 },
+        timeline: [{ talkMs: { 'own-attendee': 4000, 'peer-attendee': 5000 }, unknownMs: 1000 }],
+      });
       await room.update({ title: 'speaking-withheld' });
       const withheld = await stream.until((s) => s.includes('speaking-withheld'));
       expect(withheld).not.toContain('FINAL-SPEAKING');
       await room.update({ resultsPublished: true });
       const published = await stream.until((s) => s.includes('FINAL-SPEAKING'));
       expect(published).not.toContain('OTHER-SPEAKING'); expect(published).not.toContain('PRIVATE-VOICE-VECTOR');
+      expect(published).not.toContain('PEER-IN-SAME-GROUP'); expect(published).not.toContain('peer-attendee');
+      expect(published).toContain('"scope":"self"'); expect(published).toContain('"totalMs":10000');
     } finally { await stream.close(); }
   });
   it('メンバー外と失効済みセッションの配信・所属取得を拒否する', async () => {

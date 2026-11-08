@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { FlowTimeline, GoodReview, useFlow } from "@/components/flow";
+import { FlowSpeaking } from "@/components/FlowSpeaking";
 import { SourceTag, Tag } from "@/components/ui";
 import { UnderstandingNotes, describeUnderstanding } from "@/components/understandings";
 import { callApi } from "@/lib/api";
@@ -179,7 +180,7 @@ const ACHIEVED = ["できた", "少しできた", "まだ"];
 const SPOKE = ["言えた", "一部言えた", "言えなかった", "特になかった"];
 
 /** P4-2 認識のちがい ＋ P5 振り返り。グループの結果は全員に、振り返りはこの端末にだけ残す */
-export function ResultStep({ roomId, uid, group, source, title, result }: { roomId: string; uid: string; group: number; source?: string; title: string; result: GroupResult | null }) {
+export function ResultStep({ roomId, uid, group, source, title, result, showSpeaking = false }: { roomId: string; uid: string; group: number; source?: string; title: string; result: GroupResult | null; showSpeaking?: boolean }) {
   const mine = useDoc<{ text: string }>(`sessions/${roomId}/consensusStatements/${uid}`).data;
   const opinion = useDoc<{ text: string }>(`sessions/${roomId}/privateOpinions/${uid}`).data;
   const [r, setR] = useState(() => getReflection(roomId));
@@ -213,9 +214,10 @@ export function ResultStep({ roomId, uid, group, source, title, result }: { room
 
       {(
         <>
-          {flow && <>
+          {/* 録音の分析も、教員が許可した発言の集計もないときは、空の欄を出さない */}
+          {(flow || showSpeaking) && <>
             <h2 className="t-md">グループで何が起きたか</h2>
-            <FlowTimeline flow={flow} compact />
+            {showSpeaking ? <FlowSpeaking roomId={roomId} group={group} flow={flow} /> : <FlowTimeline flow={flow} compact />}
           </>}
           <h2 className="t-md">自分はどう関わっていたか</h2>
           <div className="row">
