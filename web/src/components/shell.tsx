@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { useHostUser, useIsTeacher } from "@/lib/hostAuth";
+import { useGeminiSource } from "@/components/ui";
 
 /**
  * 画面の骨組み（デザイン「黒板と付箋」）。上に1本の帯だけを置き、左のメニューは持たない（Docs「UIフィードバック」：
@@ -24,6 +25,8 @@ export function AppShell({ title, eyebrow, steps, status, actions, children, onL
   tone?: "paper" | "board";
 }) {
   const teacher = useIsTeacher();
+  // デモデータ（Gemini のモック）のときは、どの画面でも上の帯に1回だけ出す。各カードには出さない（ui.tsx の SourceTag）
+  const demo = useGeminiSource() === "mock";
   const home = teacher ? "/teacher" : "/home";
   const guard = (e: React.MouseEvent) => { if (onLeave && !onLeave()) e.preventDefault(); };
 
@@ -40,6 +43,7 @@ export function AppShell({ title, eyebrow, steps, status, actions, children, onL
         </div>
         {steps && <div className="shell__steps">{steps}</div>}
         {status ? <span className="sr-only" data-testid="phase">{status}</span> : null}
+        {demo && <span className="tag tag--yellow shell__demo">デモデータ</span>}
         {actions && <div className="shell__actions">{actions}</div>}
         {nav && <Account onClick={guard} />}
       </header>
