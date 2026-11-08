@@ -95,7 +95,7 @@ test("ホームは開始ボタンと任意のClassroom連携を各画面幅で�
       await menu.click();
       await expect(page.getByRole("dialog", { name: "ホームのメニュー", exact: true })).toBeVisible();
       const drawer = page.getByRole("dialog", { name: "ホームのメニュー", exact: true });
-      await expect(drawer.getByRole("heading", { name: "Tops", exact: true })).toBeFocused();
+      await expect(drawer.getByRole("heading", { name: "Topos", exact: true })).toBeFocused();
       await page.keyboard.press("Tab");
       await expect(drawer.getByRole("link", { name: "ホーム", exact: true })).toBeFocused();
       await expect(drawer.getByRole("link", { name: "ホーム", exact: true })).toHaveCSS("outline-style", "solid");

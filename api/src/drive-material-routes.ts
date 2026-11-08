@@ -16,7 +16,7 @@ export async function workspaceIdentity(req: AuthRequest, workspace: Workspace) 
   if (!token || token.length > 4096 || /\s/.test(token)) throw new HttpError(409, 'google_reconnect', 'Googleサービスとの連携を許可してください');
   const identities = req.ctx.token?.firebase?.identities?.['google.com'];
   const sub = await workspace.identity(token);
-  if (!Array.isArray(identities) || !identities.includes(sub)) throw new HttpError(403, 'google_account_mismatch', 'Topsにログイン中のGoogleアカウントを選んでください');
+  if (!Array.isArray(identities) || !identities.includes(sub)) throw new HttpError(403, 'google_account_mismatch', 'Toposにログイン中のGoogleアカウントを選んでください');
   return token;
 }
 export function registerDriveMaterialRoutes(app: Express, deps: Dependencies, handlers: { authenticate: Handler; member: Handler; host: Handler }) {
