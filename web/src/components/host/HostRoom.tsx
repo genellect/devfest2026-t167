@@ -59,7 +59,6 @@ export function HostRoom({ roomId, room }: Props) {
   return (
     <AppShell wide back="/home" eyebrow={eyebrow} title={typeof current === "number" ? `グループ${current}の話し合い` : room.title}
       actions={<>
-        {source === "mock" && <span className="tag tag--yellow">デモデータ</span>}
         {back && <button className="btn btn--small" onClick={() => setView(back)}>{back === "class" ? "セッション全体に戻る" : "ダッシュボード"}</button>}
         {current === "dashboard" && <button className="btn btn--small" onClick={() => setView("code")}>参加コードを表示</button>}
         {current === "dashboard" && results.length > 0 && <button className="btn btn--small" onClick={() => setView("class")}>セッション全体の結果</button>}

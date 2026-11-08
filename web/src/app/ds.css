@@ -283,6 +283,9 @@ input[type=checkbox] { width: 20px; height: 20px; flex: none; margin: 3px 0 0; a
 .shell__name { font-size: 16px; font-weight: 700; line-height: 1.45; overflow-wrap: anywhere; }
 .shell__actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .shell__actions + .shell__account { margin-left: 0; }
+/* デモデータの印は右に寄せ、スマホでも隠さない */
+.shell__demo { margin-left: auto; flex: none; }
+.shell__demo ~ .shell__actions, .shell__demo ~ .shell__account { margin-left: 0; }
 .shell__account { margin-left: auto; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; text-decoration: none; flex: none; }
 .shell__account span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 14px; font-weight: 600; }
 .shell__account:hover span { box-shadow: 0 0 0 3px var(--brand-soft); }
@@ -301,7 +304,6 @@ input[type=checkbox] { width: 20px; height: 20px; flex: none; margin: 3px 0 0; a
   .shell__steps { display: none; }
   .shell__steps-mobile { display: block; padding: 12px var(--gutter) 0; background: var(--surface); border-bottom: 1px solid var(--line); padding-bottom: 12px; }
   .shell__panel { padding-top: 20px; }
-  .shell__actions .tag--yellow { display: none; }
 }
 
 /* 古い画面の骨組み（.screen・.header・.body）も同じ帯と余白にする */

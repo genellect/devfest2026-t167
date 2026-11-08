@@ -41,7 +41,7 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
     <AppShell wide back="/teacher" tone={room.phase === "collecting" ? "board" : "paper"}
       eyebrow={<>{room.className && <span>{room.className}</span>}<span className={`pill pill--${state === "議論中" ? "live" : state === "終了" ? "done" : "ready"}`}>{state}</span></>}
       title={room.theme || room.title}
-      actions={<>{source === "mock" && <span className="tag tag--yellow">デモデータ</span>}
+      actions={<>
         <button type="button" className="icon-btn" aria-label="設定" title="設定" onClick={() => settings.current?.showModal()}>
           <Settings size={20} strokeWidth={1.75} aria-hidden="true" />
         </button></>}>

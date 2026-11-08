@@ -41,7 +41,6 @@ export function ParticipantRoom({ roomId, room, uid, group }: Props) {
   if (room.flowVersion === 1) return <GuidedGuest roomId={roomId} room={room} uid={uid} group={group} recording={recording} canRecord={canRecord} />;
   return (
     <AppShell eyebrow={group && (room.groups ?? 1) > 1 ? `あなたはグループ${group}` : undefined} title={room.title} back="/home" onLeave={confirmLeave}
-      actions={source === "mock" && <span className="tag tag--yellow">デモデータ</span>}
       steps={<Stepper steps={["事前意見", "議論", "結論", "結果"]} current={STEP_INDEX[phase]} />} status={PHASE_LABEL[phase]}>
       <div className="flow">
       {!showResult && room.groupSelection !== "host" && (!group || choosing) && <GroupSelect roomId={roomId} room={room} current={group} onDone={() => setChoosing(false)} />}
