@@ -22,13 +22,15 @@ export function SpeakingTimeline({ timeline, members, processedMs, self = false 
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(560);
   const [active, setActive] = useState<number | null>(null);
+  // グラフは録音が2分を超えてから描くので、描いた時点で幅の監視を始める（最初から開いている画面でも幅を合わせる）
+  const shown = timeline.length >= 2;
   useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const ro = new ResizeObserver(([e]) => setWidth(Math.max(280, Math.round(e.contentRect.width))));
+    const ro = new ResizeObserver(([e]) => setWidth(Math.max(200, Math.round(e.contentRect.width))));
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [shown]);
 
   const { xs, series } = useMemo(() => {
     // 各分の終わり（最後の分は、録音した長さまで）での累積の割合
@@ -43,8 +45,9 @@ export function SpeakingTimeline({ timeline, members, processedMs, self = false 
       return { total, cum: { ...cum }, unknown };
     });
     const pct = (n: number, total: number) => (total ? (n / total) * 100 : 0);
-    const series: Series[] = members.slice(0, COLORS.length).map((m, i) => ({
-      id: m.uid, label: m.label, color: COLORS[i], values: rows.map((r) => pct(r.cum[m.uid] ?? 0, r.total)),
+    // 色の数を超える人も切り捨てない。色を一巡したら破線にして区別する（凡例・線の端の名前・表でも読める）
+    const series: Series[] = members.map((m, i) => ({
+      id: m.uid, label: m.label, color: COLORS[i % COLORS.length], dashed: i >= COLORS.length, values: rows.map((r) => pct(r.cum[m.uid] ?? 0, r.total)),
     }));
     if (rows.some((r) => r.unknown > 0)) series.push({ id: "unknown", label: "判別不能", color: UNKNOWN, dashed: true, values: rows.map((r) => pct(r.unknown, r.total)) });
     return { xs, series };
@@ -85,7 +88,7 @@ export function SpeakingTimeline({ timeline, members, processedMs, self = false 
         ))}
       </ul>}
       <div ref={box} className="speak-chart__plot">
-        <svg width={w} height={H} role="img" tabIndex={0}
+        <svg width={w} height={H} viewBox={`0 0 ${w} ${H}`} role="img" tabIndex={0}
           aria-label={`発言率の推移。録音開始から${Math.round(maxX)}分まで。値は下の表にもあります。左右の矢印キーで時点を移動できます。`}
           onPointerMove={(e) => setActive(nearest(e.clientX, e.currentTarget.getBoundingClientRect()))}
           onPointerLeave={() => setActive(null)}

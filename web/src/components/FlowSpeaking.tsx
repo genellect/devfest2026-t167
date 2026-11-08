@@ -28,7 +28,7 @@ function Card({ self, flow }: { self: SelfSpeaking; flow: Flow | null }) {
   useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const ro = new ResizeObserver(([e]) => setWidth(Math.max(260, Math.round(e.contentRect.width))));
+    const ro = new ResizeObserver(([e]) => setWidth(Math.max(200, Math.round(e.contentRect.width))));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -87,7 +87,7 @@ function Card({ self, flow }: { self: SelfSpeaking; flow: Flow | null }) {
       <p className="flow-speak__lead">{headline}</p>
 
       <div ref={box} className="speak-chart__plot">
-        <svg width={width} height={H} role="img" tabIndex={0}
+        <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="img" tabIndex={0}
           aria-label={`あなたの発言率の推移。${headline}値は下の表にもあります。左右の矢印キーで時点を移動できます。`}
           onPointerMove={(e) => setActive(nearest(e.clientX, e.currentTarget.getBoundingClientRect()))}
           onPointerLeave={() => setActive(null)}

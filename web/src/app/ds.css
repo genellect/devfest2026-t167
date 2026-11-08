@@ -740,7 +740,8 @@ progress::-moz-progress-bar { background: var(--brand); }
 .speak-chart__legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--ink-2); }
 .speak-chart__legend li { display: inline-flex; align-items: center; gap: 6px; }
 .speak-chart__plot { position: relative; width: 100%; min-width: 0; }
-.speak-chart__plot svg[role="img"] { display: block; max-width: 100%; touch-action: pan-y; }
+/* 幅が合わないときは、切らずに縮めて描く（viewBox） */
+.speak-chart__plot svg[role="img"] { display: block; max-width: 100%; height: auto; touch-action: pan-y; }
 .speak-chart__plot svg[role="img"]:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
 .speak-chart__grid { stroke: var(--line); stroke-width: 1; }
 .speak-chart__axis { font-size: 11px; fill: var(--ink-2); }
