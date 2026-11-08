@@ -50,7 +50,7 @@ export function createMaintenance(deps: Dependencies) {
     } finally { running = false; }
   }
   function start(intervalMs = 10000) {
-    const run = () => { void tick().catch(()=>{}); }; const timer = setInterval(run,intervalMs); timer.unref(); run(); return ()=>clearInterval(timer);
+    const run = () => { void tick().catch(() => console.error('maintenance_tick_failed')); }; const timer = setInterval(run,intervalMs); timer.unref(); run(); return ()=>clearInterval(timer);
   }
   return {tick,start};
 }
