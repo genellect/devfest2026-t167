@@ -87,6 +87,11 @@ test("QR コードの URL から開くと、ログインのあとにそのまま
   await loginStudent(page, "", { home: false });
   await expect(page).toHaveURL(new RegExp(`/rooms/${roomId}$`));
   await expect(page.getByLabel("参加コード")).toHaveCount(0);
+  // 戻るで ?code= のホームに戻り、自動参加で部屋へ連れ戻されない
+  await page.goBack();
+  await page.waitForTimeout(1500);
+  expect(new URL(page.url()).pathname).not.toBe(`/rooms/${roomId}`);
+  expect(new URL(page.url()).searchParams.get("code")).toBeNull();
 });
 
 test("誤った参加コードではエラーが出る", async ({ page }) => {
