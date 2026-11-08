@@ -19,10 +19,10 @@ test("テーマを非公開にすると、参加者の画面・再読み込み�
   await show.uncheck(); await expect(show).not.toBeChecked();
   await page.getByRole("button", { name: "閉じる", exact: true }).click();
 
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const context = await browser.newContext({ baseURL: new URL(page.url()).origin, viewport: { width: 390, height: 844 } });
   try {
     const guest = await context.newPage();
-    await loginStudent(guest, "guest", { home: false });
+    await loginStudent(guest, "guest");
     await guest.goto(`/join?code=${code}`);
     await expect(guest).toHaveURL(/\/rooms\//);
     await guest.getByLabel("参加者1の表示名", { exact: true }).fill("参加者");
