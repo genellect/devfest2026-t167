@@ -18,12 +18,25 @@ test('録音と同じマイクで登録済みの声を照合し、Hostが表示�
     await guest.getByLabel('声の特徴の登録と、上記の利用方法に同意します').check();
     await guest.getByRole('button', { name: '声を登録する', exact: true }).click();
     await expect(guest.getByRole('heading', { name: '議論の前に書く' })).toBeVisible({ timeout: 20_000 });
+    // 同じグループのもう1人（声は登録しない）。録音の担当がだれかを、この人の画面で確かめる
+    const peerContext = await browser.newContext({ baseURL: new URL(page.url()).origin });
+    const peer = await peerContext.newPage(); await loginStudent(peer, 'peer');
+    await peer.goto(`/join?code=${code}`); await expect(peer).toHaveURL(/\/rooms\//);
+    await peer.getByLabel('参加者1の表示名').fill('となりの参加者');
+    await peer.getByRole('button', { name: '表示名を保存して進む' }).click();
+    await peer.getByRole('button', { name: 'あとで登録する', exact: true }).click();
     await page.getByRole('button', { name: '議論を開始', exact: true }).click();
     await expect(guest.getByRole('heading', { name: 'グループで話し合いましょう' })).toBeVisible();
     await expect(guest.getByLabel('グループ全員が録音・声の照合・発言時間の集計に同意しました')).not.toBeChecked();
     await expect(guest.getByRole('button', { name: '録音を始める', exact: true })).toBeDisabled();
     await guest.getByLabel('グループ全員が録音・声の照合・発言時間の集計に同意しました').check();
     await guest.getByRole('button', { name: '録音を始める', exact: true }).click();
+    // 録音を始めた端末が担当になり、ほかの人と教員の画面に担当の名前が出る
+    await expect(guest.getByRole('heading', { name: '録音（この端末が担当）', exact: true })).toBeVisible();
+    await expect(peer.getByText('架空の参加者さんの端末が録音を担当しています。', { exact: true })).toBeVisible();
+    await expect(peer.getByRole('button', { name: '録音を始める', exact: true })).toHaveCount(0);
+    await expect(page.getByLabel('グループと発言').getByText(/録音：架空の参加者さん/)).toBeVisible();
+    await peerContext.close();
     const hostState = page.getByRole('region', { name: 'グループ1の発言時間', exact: true });
     await expect(hostState.getByText('直近の発言者：架空の参加者')).toBeVisible({ timeout: 15_000 });
     await expect(guest.getByRole('region', { name: 'グループ1の発言時間' })).toHaveCount(0);

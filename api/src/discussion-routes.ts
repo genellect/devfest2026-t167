@@ -15,6 +15,8 @@ export function registerDiscussionRoutes(app: Express, deps: Dependencies, guard
   const { authenticate, member, host } = guards;
   const id = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/);
   const groupId = z.coerce.number().int().min(1).max(MAX_GROUPS);
+  /** 録音担当として見せる名前。共用端末は登録した全員の表示名を並べる */
+  const recorderName = (m: FirebaseFirestore.DocumentSnapshot) => ((m.get('attendees') as { displayName: string }[] | undefined)?.map((a) => a.displayName).join('、') || m.get('displayName') || '参加者').slice(0, 80);
   app.post('/rooms/:roomId/check-time', authenticate, member, wrap(async (req, res) => {
     await enforceDiscussionTime(deps, req.params.roomId); res.json({ ok: true });
   }));
@@ -64,8 +66,30 @@ export function registerDiscussionRoutes(app: Express, deps: Dependencies, guard
       if (body.group > room.get('groups')) throw new HttpError(404, 'group_not_found', 'グループがありません');
       const recorder = body.recorderUid ? await tx.get(ref.collection('members').doc(body.recorderUid)) : null;
       if (recorder && (recorder.get('role') !== 'participant' || recorder.get('status') !== 'active' || recorder.get('group') !== body.group)) throw new HttpError(400, 'invalid_recorder', '同じグループの参加者を選んでください');
-      tx.set(ref.collection('groups').doc(String(body.group)), { groupId: String(body.group), number: body.group, name: body.name, recorderUid: body.recorderUid });
+      tx.set(ref.collection('groups').doc(String(body.group)), { groupId: String(body.group), number: body.group, name: body.name, recorderUid: body.recorderUid, recorderName: recorder ? recorderName(recorder) : null });
     }); res.json({ ok: true });
+  }));
+  // 録音の担当を引き受ける／やめる（参加者）。教員が担当を決めていないグループでは、最初に録音を始めた端末が担当になり、
+  // ほかの人の画面に「〇〇さんの端末が録音を担当しています」と出す（Docs「アプリフィードバック」）
+  app.post('/rooms/:roomId/groups/recorder', authenticate, member, wrap(async (req, res) => {
+    const { take } = parse(z.object({ take: z.boolean() }).strict(), req.body);
+    const result = await db.runTransaction(async (tx) => {
+      const ref = db.doc(`sessions/${req.params.roomId}`), room = await tx.get(ref); requireOpenRoom(room);
+      const own = await tx.get(ref.collection('members').doc(req.ctx.uid));
+      if (own.get('role') !== 'participant' || own.get('status') !== 'active' || !Number.isInteger(own.get('group'))) throw new HttpError(403, 'participant_only', '所属グループを確認してください');
+      if (room.get('recording') === false) throw new HttpError(403, 'recording_disabled', 'この部屋では録音しません');
+      if (room.get('endedAt') || room.get('phase') === 'closed') throw new HttpError(409, 'discussion_ended', 'ディスカッションは終了しました');
+      const group = own.get('group') as number, groupRef = ref.collection('groups').doc(String(group)), config = await tx.get(groupRef);
+      const current = config.get('recorderUid') as string | null | undefined;
+      if (take) {
+        if (current && current !== req.ctx.uid) throw new HttpError(409, 'recorder_taken', `${config.get('recorderName') ?? '別の参加者'}さんの端末が録音を担当しています`);
+        tx.set(groupRef, { groupId: String(group), number: group, name: config.get('name') ?? `グループ${group}`, recorderUid: req.ctx.uid, recorderName: recorderName(own) }, { merge: true });
+        return { recorderUid: req.ctx.uid };
+      }
+      if (current === req.ctx.uid) tx.set(groupRef, { recorderUid: null, recorderName: null }, { merge: true });
+      return { recorderUid: current === req.ctx.uid ? null : current ?? null };
+    });
+    res.json(result);
   }));
   app.post('/rooms/:roomId/groups/delete', authenticate, member, host, wrap(async (req, res) => {
     const { group } = parse(z.object({ group: groupId }).strict(), req.body);

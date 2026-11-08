@@ -164,3 +164,26 @@ it('期限前と存在しないセッションの検査では終了を書き込�
   await endDiscussion(deps, 'missing', 'timeout');
   expect((await db.doc('sessions/missing').get()).exists).toBe(false);
 });
+it('録音の担当は、最初に引き受けた端末になる。ほかの人は引き受けられず、担当をやめると引き受けられる', async () => {
+  const { h, p, roomId, joinCode } = await setup(); await enroll(p, roomId, 'personal', ['青木']);
+  const q = await client(); await q.post('/rooms/join', { code: joinCode }).expect(200); await enroll(q, roomId, 'personal', ['佐藤']);
+  await h.post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(200);
+  const group = db.doc(`sessions/${roomId}/groups/1`);
+  await h.post(`/rooms/${roomId}/groups/recorder`, { take: true }).expect(403);
+  expect((await p.post(`/rooms/${roomId}/groups/recorder`, { take: true }).expect(200)).body).toEqual({ recorderUid: p.uid });
+  expect((await group.get()).data()).toMatchObject({ recorderUid: p.uid, recorderName: '青木' });
+  await p.post(`/rooms/${roomId}/groups/recorder`, { take: true }).expect(200); // 同じ端末はもう一度押しても同じ
+  const taken = await q.post(`/rooms/${roomId}/groups/recorder`, { take: true }).expect(409);
+  expect(taken.body.error).toMatchObject({ code: 'recorder_taken', message: '青木さんの端末が録音を担当しています' });
+  await q.post(`/rooms/${roomId}/groups/recorder`, { take: false }).expect(200); // 担当でない人がやめても変わらない
+  expect((await group.get()).get('recorderUid')).toBe(p.uid);
+  await p.post(`/rooms/${roomId}/groups/recorder`, { take: false }).expect(200);
+  expect((await group.get()).data()).toMatchObject({ recorderUid: null, recorderName: null });
+  await q.post(`/rooms/${roomId}/groups/recorder`, { take: true }).expect(200);
+  expect((await group.get()).get('recorderName')).toBe('佐藤');
+  // 教員が担当を指定したときも、担当の名前を残す
+  await h.post(`/rooms/${roomId}/groups/update`, { group: 1, name: 'グループ1', recorderUid: p.uid }).expect(200);
+  expect((await group.get()).data()).toMatchObject({ recorderUid: p.uid, recorderName: '青木' });
+  await h.post(`/rooms/${roomId}/finish`).expect(200);
+  await p.post(`/rooms/${roomId}/groups/recorder`, { take: false }).expect(409);
+});
