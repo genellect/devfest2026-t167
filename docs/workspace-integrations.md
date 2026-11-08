@@ -6,7 +6,7 @@
 
 ホームのメニュー「Classroom連携」から `/classroom` を開く。`classroom.courses.readonly`で`teacherId=me`と`studentId=me`を別々に全ページ取得し、ACTIVEなコースを列挙する。役割はコース単位で教師/生徒を表示し、複数コースは選択できる。名簿を開くときだけ`classroom.rosters.readonly`を追加し、APIで教師所属を再検証する。名簿は表示名とGoogle側IDだけを返し、保存やDiscussの自動入会には使わない。課題・成績・コース自体は変更しない。
 
-セッション作成は、手順書どおり招待済み教員（teacher claim）に限る。Classroomに紐付ける場合は、APIがGoogleへ問い合わせてそのコースでも教師であることを検証し、`classroomCourseId/classroomCourseName`を保存する。Classroom連携によってアプリ全体の教員権限や学校管理者権限を付与しない。
+通常のセッション作成は、Googleログインと有効なアプリセッションがあれば誰でもできる（2026-11-08 の依頼者の明示指示。teacher claim は要求しない）。Classroomに紐付ける場合は、APIがGoogleへ問い合わせてそのコースでも教師であることを検証し、`classroomCourseId/classroomCourseName`を保存する。Classroom連携によってアプリ全体の教員権限や学校管理者権限を付与しない。
 
 作成したセッションは作成者をmembers.role=hostにし、以降は既存のセッション内認可を使う。同じ人が別コースで生徒でもよく、別のセッションではParticipantになれる。コース教師であるだけでは他人が作ったセッションの管理/分析権限を持たない。
 
