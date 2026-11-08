@@ -26,8 +26,9 @@
 
 ## アーキテクチャ
 
-<!-- 提出前に構成図を docs/architecture.png に置き、次の行の先頭と末尾のコメントを外す -->
-<!-- ![構成図](docs/architecture.png) -->
+![Topos の構成図：使う人・画面とログイン・API・AI と、3つの機能のデータの流れ、デプロイの順番](docs/architecture.png)
+
+構成図の元は [docs/architecture.html](docs/architecture.html)。直したら `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium node scripts/render-architecture.cjs`（手元の Chromium なら PW_CHROMIUM_PATH は不要）で PNG を書き出す。
 
 画面・API・データを Google Cloud のマネージドサービスに分け、ブラウザからは同じオリジンの `/api`（JSONと認可済みの変更配信）だけを使う構成。サーバーは使わない時間に0台まで縮む。
 

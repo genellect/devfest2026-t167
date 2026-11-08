@@ -1,0 +1,83 @@
+<!doctype html>
+<!-- Topos の構成図の元。docs/architecture.png はこれを描き出したもの（node scripts/render-architecture.cjs） -->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Topos の構成</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#f5f6f4; --surface:#fff; --line:#e1e5e1; --line-strong:#c5ccc7; --ink:#17211d; --ink-2:#4c5852; --brand:#176b53; --brand-soft:#e4f1eb; --board:#1d3a32; --insight:#ffd84d; --insight-ink:#3a2e00; --blue:#9ad4f5; --pink:#f7b3c8; }
+  * { box-sizing: border-box; margin: 0; }
+  body { width: 1600px; padding: 44px 52px; background: var(--bg); color: var(--ink); font-family: Inter, "Noto Sans JP", sans-serif; }
+  header { display: flex; align-items: baseline; gap: 18px; margin-bottom: 28px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
+  .brand::before { content: ""; width: 24px; height: 24px; border-radius: 3px 3px 9px 3px; background: var(--insight); }
+  header p { font-size: 17px; color: var(--ink-2); }
+  .grid { display: grid; grid-template-columns: 230px 1fr 1fr 1fr; gap: 0 54px; position: relative; }
+  .col h2 { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 10px; }
+  .box { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 14px; }
+  .box h3 { font-size: 17px; font-weight: 700; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .box h3 small { font-size: 12px; font-weight: 600; color: var(--brand); background: var(--brand-soft); border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+  .box p, .box li { font-size: 13.5px; line-height: 1.65; color: var(--ink-2); }
+  .box ul { padding-left: 16px; margin-top: 6px; }
+  .user { display: flex; flex-direction: column; gap: 4px; }
+  .user .tag { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+  .gemini { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
+  .note { border-radius: 4px 4px 12px 4px; padding: 8px 10px; font-size: 13px; font-weight: 600; line-height: 1.5; margin-top: 8px; }
+  .note.y { background: var(--insight); color: var(--insight-ink); }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .note.b { background: var(--blue); } .note.p { background: var(--pink); }
+  .arrow { position: absolute; top: 0; bottom: 0; width: 54px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; color: var(--ink-2); font-size: 11.5px; text-align: center; line-height: 1.4; }
+  .arrow::before { content: ""; width: 34px; height: 2px; background: var(--line-strong); position: relative; }
+  .a1 { left: 230px; } .a2 { left: calc(230px + 54px + (100% - 230px - 162px) / 3); } .a3 { left: calc(230px + 108px + 2 * (100% - 230px - 162px) / 3); }
+  .flows { margin-top: 10px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .flow { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .flow h4 { font-size: 15px; font-weight: 700; margin-bottom: 6px; display: flex; gap: 8px; align-items: center; }
+  .flow h4 span { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 12px; }
+  .flow p { font-size: 13px; line-height: 1.7; color: var(--ink-2); }
+  .deploy { margin-top: 14px; display: flex; align-items: center; gap: 10px; background: var(--board); color: #f2f5f0; border-radius: 12px; padding: 14px 18px; font-size: 13.5px; }
+  .deploy b { color: #fff; font-weight: 700; margin-right: 6px; }
+  .deploy i { font-style: normal; color: #c4d2cb; }
+  .deploy .step { background: rgb(255 255 255 / .08); border: 1px solid rgb(255 255 255 / .16); border-radius: 8px; padding: 5px 10px; white-space: nowrap; }
+</style>
+</head>
+<body>
+<header><span class="brand">Topos</span><p>構成図：画面・API・データ・AI を Google Cloud のマネージドサービスに分け、ブラウザは同じオリジンの /api だけを呼ぶ</p></header>
+
+<div class="grid">
+  <div class="col">
+    <h2>使う人</h2>
+    <div class="box user"><span class="tag">PC・教室の投影</span><h3>教員</h3><p>招待された Google アカウント（teacher claim）。議論を作り、AI の提案を承認するか見送る</p></div>
+    <div class="box user"><span class="tag">スマホ（PWA）</span><h3>学生</h3><p>Google でログインし、6桁の数字か QR で参加。事前意見・発言メモ・結論の一文を書く</p></div>
+  </div>
+  <div class="col">
+    <h2>画面とログイン</h2>
+    <div class="box"><h3>Next.js の画面 <small>App Hosting · asia-east1</small></h3><ul><li>教員の操作画面と、教室に映す投影画面</li><li>学生の画面（ホーム画面に追加できる）</li><li>/api を同じオリジンで受け、Cloud Run へ転送</li></ul></div>
+    <div class="box"><h3>Firebase Authentication</h3><p>学生も教員も Google ログイン。教員は管理側で teacher claim を付けた人だけ</p></div>
+  </div>
+  <div class="col">
+    <h2>API</h2>
+    <div class="box"><h3>Express + TypeScript <small>Cloud Run · asia-northeast1</small></h3><ul><li>独自セッション（1人1台）と認可</li><li>フェーズの進行、分析の排他（jobId）と30秒の間隔</li><li>4つの指標の計算</li><li>変更のリアルタイム配信（/live）。非公開の本文は本人にだけ</li></ul></div>
+    <div class="box"><h3>Cloud Firestore <small>asia-northeast1</small></h3><p>部屋ごとのサブコレクション。Rules はブラウザからの直接アクセスをすべて拒否し、読み書きは API だけ</p></div>
+  </div>
+  <div class="col">
+    <h2>AI</h2>
+    <div class="box gemini"><h3>Gemini 3.5 Flash <small>Vertex AI · global</small></h3><ul><li>事前意見と発言メモを照らし合わせ、まだ話されていない論点を見つける（構造化出力）</li><li>結論の一文を、理解のまとまりに分ける</li><li>同意を得た録音から、議論の流れを読む（音声は保存しない）</li></ul>
+      <div class="note y">まだ話されていない論点：端末を持たない人は、どう参加する？</div>
+      <div class="split"><div class="note b">申告すれば使ってよい<br>3人</div><div class="note p">教員の許可がいる<br>2人</div></div>
+    </div>
+  </div>
+  <div class="arrow a1">HTTPS</div>
+  <div class="arrow a2">/api</div>
+  <div class="arrow a3">本文<br>のみ</div>
+</div>
+
+<div class="flows">
+  <div class="flow"><h4><span>1</span>事前意見収集</h4><p>学生が議論の前に書いた意見は、本人と API だけが読める。教員にも他の学生にも本文は届かない</p></div>
+  <div class="flow"><h4><span>2</span>未検討論点の検出</h4><p>新しい発言メモが届くと、Gemini が事前意見と照合して論点を提案。教員が「全員に表示する」を押したものだけが学生と投影画面に届く</p></div>
+  <div class="flow"><h4><span>3</span>合意の実態検証</h4><p>議論のあと全員が結論を自分の言葉で書き、Gemini が理解のまとまりに分けて「同じ結論でも理解が分かれている」ことを示す</p></div>
+</div>
+
+<div class="deploy"><b>デプロイ</b><span class="step">GitHub の PR</span><i>→</i><span class="step">CI（dev.sh check）</span><i>→</i><span class="step">main へマージ</span><i>→</i><span class="step">Workload Identity 連携（鍵なし）</span><i>→</i><span class="step">Rules</span><i>→</i><span class="step">API（Cloud Run）</span><i>→</i><span class="step">画面（App Hosting）</span><i>同じコミットから順に反映</i></div>
+</body>
+</html>
