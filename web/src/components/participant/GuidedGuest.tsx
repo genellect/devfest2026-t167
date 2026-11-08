@@ -116,7 +116,8 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord }: 
         {!group ? <p className="notice">グループに入っていなかったため、結果はありません。</p>
           : !result && status !== "done" ? <ConsensusStep bare roomId={roomId} uid={uid} title={room.theme || room.title} submitted={gs?.submitted} total={gs?.total} />
           : !room.resultsPublished ? <p className="notice">結果は教員が公開すると表示されます。</p>
-          : <ResultStep roomId={roomId} uid={uid} group={group} title={room.theme || room.title} result={result ?? null} />}
+          : <ResultStep roomId={roomId} uid={uid} group={group} title={room.theme || room.title} result={result ?? null}
+            showSpeaking={room.participantView?.speaking === true} />}
       </>
 
       : !named ? <form className="flow-card" onSubmit={saveNames}>
@@ -155,7 +156,7 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord }: 
 
       : null}
 
-      {group && room.participantView?.speaking === true && ended && room.resultsPublished && <GuestSpeaking roomId={roomId} group={group} />}
+      {/* 終了後の発言時間は、結果の「グループで何が起きたか」（FlowSpeaking、本人の分だけ）に出す */}
     </div>
   </AppShell>;
 }

@@ -70,7 +70,7 @@ export function TeacherRoom({ roomId, room: incomingRoom }: { roomId: string; ro
             (feed.collections[`sessions/${roomId}/results`] ?? []) as ({ id: string } & Partial<Flow>)[])} />
           <ConsensusProgress roomId={roomId} room={room} results={results} summary={summary ?? null} />
           <ClassResult roomId={roomId} room={room} results={results} summary={summary ?? null} onOpen={setOpenGroup} />
-          <HostSpeaking roomId={roomId} card />
+          <HostSpeaking roomId={roomId} card ended />
           <SessionEvidence roomId={roomId} />
           <RecordingReview roomId={roomId} room={room} />
         </div>)}

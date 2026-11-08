@@ -14,6 +14,21 @@ export interface SpeakingState {
   group: number; rosterHash?:string; multi?:boolean; source: 'mock' | 'model'; mode?: 'identified' | 'anonymous'; version: string; processedMs: number; unknownMs: number;
   talkMs: Record<string, number>; members: { uid: string; label: string }[];
   latest: { uid: string | null; label: string; confidence: number | null } | null; updatedAt: number;
+  /** 推移の基準時刻（集計を始めた時刻）。古い文書にはない */
+  timelineStartedAt?: number;
+  /** 録音の1分ごとの発話時間（i番目 = 録音開始から i〜i+1 分）。発言率の推移を描くため。音声や特徴は入れない */
+  timeline?: SpeakingMinute[];
+}
+export interface SpeakingMinute { talkMs: Record<string, number>; unknownMs: number }
+/** 1秒区間の発話時間を、その区間が入る「録音開始から何分目」に足す。前の分が空なら0で埋める */
+export function addToTimeline(timeline: SpeakingMinute[] | undefined, processedMs: number, uid: string | null, speechMs: number): SpeakingMinute[] {
+  const next = (timeline ?? []).map((m) => ({ talkMs: { ...m.talkMs }, unknownMs: m.unknownMs }));
+  const minute = Math.floor(processedMs / 60_000);
+  while (next.length <= minute) next.push({ talkMs: {}, unknownMs: 0 });
+  if (!speechMs) return next;
+  if (uid) next[minute].talkMs[uid] = (next[minute].talkMs[uid] ?? 0) + speechMs;
+  else next[minute].unknownMs += speechMs;
+  return next;
 }
 const error = (code: string, message: string, status = 409) => new HttpError(status, code, message);
 /** 背景送信はactivityに数えない。匿名話者の特徴は非公開の一時領域だけに置き、配信しない。 */
@@ -77,7 +92,7 @@ export function registerSpeakerRoutes(app: Express, deps: Dependencies, guards: 
       const reset = !state.exists || state.get('rosterHash') !== hash || state.get('version') !== deps.voice!.version;
       tx.set(leaseRef, { id, mode, uid: req.ctx.uid, sessionId: req.ctx.session!.sessionId, expiresAt: deps.now() + 30_000, sequence: 0, startedAt: deps.now(), bytes: 0, profilesHash: hash });
       // 名簿やモデルが変わった場合は、以前の集計と混ぜない。
-      if (reset) tx.set(stateRef, { group, mode, rosterHash:hash, multi, source: deps.voice!.source, version: deps.voice!.version, processedMs: 0, unknownMs: 0, talkMs: Object.fromEntries(voices.map((p) => [p.uid, 0])), members: voices.map(({ uid, label }) => ({ uid, label })), latest: null, updatedAt: deps.now() } satisfies SpeakingState);
+      if (reset) tx.set(stateRef, { group, mode, rosterHash:hash, multi, source: deps.voice!.source, version: deps.voice!.version, processedMs: 0, unknownMs: 0, talkMs: Object.fromEntries(voices.map((p) => [p.uid, 0])), members: voices.map(({ uid, label }) => ({ uid, label })), latest: null, updatedAt: deps.now(), timeline: [], timelineStartedAt: deps.now() } satisfies SpeakingState);
       if (reset) tx.delete(temporary(req, group));
       return { runId: id, group, mode, sequence: 0, source: deps.voice!.source };
     });
@@ -137,6 +152,11 @@ export function registerSpeakerRoutes(app: Express, deps: Dependencies, guards: 
           if(multi)tx.set(bucketRef,{group,...delta.bucket});
           for (const [uid, ms] of Object.entries(delta.talk)) state.talkMs[uid] = (state.talkMs[uid] ?? 0) + ms;
           state.unknownMs = Math.max(0, state.unknownMs + delta.unknown);
+          // 発言率の推移（1分ごと）。各自端末では processedMs が端末数ぶん進むため、この1秒の時刻で分を決める
+          const at = typeof state.timelineStartedAt === 'number' ? Math.max(0, lease.get('startedAt') + sequence * 1000 - state.timelineStartedAt) : state.processedMs;
+          state.timeline = addToTimeline(state.timeline, at, null, 0);
+          for (const [uid, ms] of Object.entries(delta.talk)) state.timeline = addToTimeline(state.timeline, at, uid, ms);
+          if (delta.unknown > 0) state.timeline = addToTimeline(state.timeline, at, null, delta.unknown);
           state.processedMs += 1000; state.updatedAt = deps.now();
           state.latest = speechMs ? { ...match, label: voices.find((p) => p.uid === match.uid)?.label ?? '話者不明' } : null;
           tx.set(stateRef, state);

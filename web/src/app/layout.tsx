@@ -5,6 +5,7 @@ import "./material.css";
 import "./app.css";
 import "./board.css";
 import "./present.css";
+import "./speaking.css";
 import { LoginGate } from "@/components/LoginGate";
 
 export const metadata: Metadata = {
