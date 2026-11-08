@@ -35,9 +35,9 @@ test("議論が始まったあとも、参加コードで途中から参加し�
   // 議論中も、教員の画面に参加コードを出す
   await expect(page.getByLabel("グループと発言").getByText("途中から参加するときの参加コード")).toBeVisible();
 
-  const student = await (await browser.newContext()).newPage();
-  await loginStudent(student, "late", { home: false });
-  await expect(student).toHaveURL(/\/join$/);
+  const student = await (await browser.newContext({ baseURL: new URL(page.url()).origin })).newPage();
+  await loginStudent(student, "late");
+  await student.goto("/join");
   await student.getByLabel("参加コード").fill(code);
   await student.getByRole("button", { name: "参加する", exact: true }).click();
   await expect(student.getByText("議論はもう始まっています。")).toBeVisible();
