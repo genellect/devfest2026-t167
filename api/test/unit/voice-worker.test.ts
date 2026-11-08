@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { SpeakerWorker } from '../../src/voice-worker.js';
+import { RestartingSpeakerWorker, SpeakerWorker } from '../../src/voice-worker.js';
 async function fixture(code: string, fn: (w: SpeakerWorker) => Promise<void>, timeouts?: { startupMs: number; analysisMs: number }) {
   const path = await mkdtemp(join(tmpdir(), 'discuss-voice-worker-'));
   await writeFile(join(path, 'worker.cjs'), code);
@@ -37,5 +37,20 @@ describe('音声特徴ワーカーのIPC', () => {
   });
   it('ワーカーが不正なJSONを出したら進行中の登録を止める', async () => {
     await fixture(ready + reader + "console.log('broken-json');});", async (w) => { await expect(w.analyze(Buffer.alloc(10))).rejects.toThrow('speaker_unavailable'); });
+  });
+  it('時間超過で止まったワーカーは、間隔をあけた次の依頼で作り直す', async () => {
+    const path = await mkdtemp(join(tmpdir(), 'discuss-voice-worker-'));
+    // 1回目に起動したプロセスは応答しない。作り直したプロセスは応答する
+    await writeFile(join(path, 'stuck.cjs'), ready + 'process.stdin.resume();');
+    await writeFile(join(path, 'ok.cjs'), ready + reader + "console.log(JSON.stringify({id:data.id,ok:true,segments:[],speechMs:1,embedding:Array(16).fill(.5)}));});");
+    let clock = 0, created = 0;
+    const w = new RestartingSpeakerWorker(() => new SpeakerWorker(process.execPath, join(path, created++ === 0 ? 'stuck.cjs' : 'ok.cjs'), { startupMs: 2000, analysisMs: 200 }), 1000, () => clock);
+    try {
+      await expect(w.analyze(Buffer.alloc(10))).rejects.toThrow('speaker_timeout');
+      await expect(w.analyze(Buffer.alloc(10))).rejects.toThrow('speaker_unavailable'); // 間隔の前は作り直さない
+      clock = 1000;
+      expect((await w.analyze(Buffer.alloc(10))).speechMs).toBe(1);
+      expect(created).toBe(2);
+    } finally { w.close(); await rm(path, { recursive: true }); }
   });
 });

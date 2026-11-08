@@ -2,7 +2,7 @@ import { createMaintenance } from './maintenance.js';
 import { classroomMock } from './classroom-mock.js';
 import { demoFirestore } from './demo-firestore.js';
 import { fileURLToPath } from 'node:url';
-import { SpeakerWorker } from './voice-worker.js';
+import { RestartingSpeakerWorker, SpeakerWorker } from './voice-worker.js';
 import type { VoiceProvider } from './dependencies.js';
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
@@ -24,7 +24,7 @@ const gemini = g.mock
 if (!!process.env.SPEAKER_EMBEDDING_MODEL !== !!process.env.SPEAKER_VAD_MODEL) throw new Error('話者モデルとVADモデルの両方を設定してください');
 let voice: VoiceProvider | undefined;
 if (process.env.SPEAKER_EMBEDDING_MODEL && process.env.SPEAKER_VAD_MODEL) {
-  const worker = new SpeakerWorker(process.env.SPEAKER_PYTHON ?? 'python3', fileURLToPath(new URL('../../speech/worker.py', import.meta.url)));
+  const worker = new RestartingSpeakerWorker(() => new SpeakerWorker(process.env.SPEAKER_PYTHON ?? 'python3', fileURLToPath(new URL('../../speech/worker.py', import.meta.url))));
   voice = { version: process.env.VOICE_MODEL_VERSION ?? 'sherpa-speaker-v1', source: 'model', extract: (pcm) => worker.analyze(pcm) };
   process.once('SIGTERM', () => worker.close()); process.once('SIGINT', () => worker.close());
 }
