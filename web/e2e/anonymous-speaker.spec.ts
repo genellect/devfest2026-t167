@@ -1,0 +1,51 @@
+import { expect, test } from '@playwright/test';
+import { loginGoogle } from './google';
+import { loginStudent } from './student';
+
+test('共有端末は事前の声登録なしで匿名の発言率を表示し、名前と結び付けない', async ({ page, browser }) => {
+  await page.goto('/');
+  await loginGoogle(page, 'teacher', 'anonymous-host');
+  await page.waitForURL(/\/home$/);
+  await page.goto('/host/new');
+  await page.getByLabel('テーマ', { exact: true }).fill('匿名話者の画面確認');
+  await page.getByRole('button', { name: 'セッションを作成', exact: true }).click();
+  await expect(page).toHaveURL(/\/rooms\//);
+  const code = (await page.getByTestId('join-code').textContent())!.replace(/\s/g, '');
+  const context = await browser.newContext({ baseURL: new URL(page.url()).origin });
+  try {
+    const guest = await context.newPage();
+    await loginStudent(guest);
+    const registrations: string[] = [];
+    guest.on('request', request => { if (/\/voice\//.test(request.url())) registrations.push(request.url()); });
+    await guest.goto(`/join?code=${code}`);
+    await guest.getByRole('button', { name: '1台を複数人で使う', exact: true }).click();
+    await guest.getByLabel('参加者1の表示名').fill('声と結び付けない表示名');
+    await guest.getByRole('button', { name: '表示名を保存して進む', exact: true }).click();
+    await expect(guest.getByRole('heading', { name: '参加できました' })).toBeVisible();
+    await expect(guest.getByRole('heading', { name: '声の登録' })).toHaveCount(0);
+    await page.getByRole('button', { name: '議論を開始', exact: true }).click();
+    await guest.getByRole('button', { name: '録音を始める', exact: true }).click();
+    await page.getByRole('button', { name: 'グループ1の詳細を開く', exact: true }).click();
+    const state = page.getByRole('region', { name: 'グループ1の発言時間', exact: true });
+    await expect(state.getByText('直近の発言者：話者A')).toBeVisible({ timeout: 20_000 });
+    await expect(state.locator('dl > div').filter({ hasText: '話者A' })).toContainText('100%');
+    await expect(state).not.toContainText('声と結び付けない表示名');
+    await expect(guest.getByRole('region', { name: 'グループ1の発言時間' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'グループ詳細を閉じる', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'グループ1', exact: true })).not.toBeVisible();
+    await page.getByRole('button', { name: '設定', exact: true }).click();
+    await page.getByLabel('参加者に所属グループの発言時間の推定を表示').check();
+    await page.getByRole('button', { name: '閉じる', exact: true }).click();
+    await guest.getByRole('button', { name: '設定を開く', exact: true }).click();
+    await expect(guest.getByText('直近の発言者：話者A')).toBeVisible();
+    await guest.getByRole('button', { name: '設定を閉じる', exact: true }).click();
+    expect(registrations).toEqual([]);
+    await page.screenshot({ path: '../docs/screenshots/anonymous-speaker-host-phone.png', fullPage: true });
+    await guest.screenshot({ path: '../docs/screenshots/anonymous-speaker-guest-phone.png', fullPage: true });
+    await page.getByRole('button', { name: '議論を終える', exact: true }).click();
+    await page.getByRole('button', { name: '終えて結果を見る', exact: true }).click();
+    await expect(guest.getByRole('heading', { name: '結論を自分の言葉で書く' })).toBeVisible();
+    await expect(guest.getByRole('button', { name: '録音中', exact: true })).toHaveCount(0);
+    await expect(state.getByText('直近の発言者：話者A')).toBeVisible();
+  } finally { await context.close(); }
+});

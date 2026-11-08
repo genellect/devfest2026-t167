@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { Timestamp, type Firestore, type Transaction } from 'firebase-admin/firestore';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { HttpError } from './http.js';
-import { DEFAULT_SESSION_POLICY, FRESH_LOGIN_MS, SECURITY_RETENTION_MS, idleMs, schoolOf, sessionLimit, readSessionPolicy, type SessionPolicy } from './session-policy.js';
+import { DEFAULT_SESSION_POLICY, FRESH_LOGIN_MS, SECURITY_RETENTION_MS, idleMs, schoolOf, sessionLimit, type SessionPolicy } from './session-policy.js';
 
 export const SESSION_REASONS = ['idle_expired', 'replaced', 'logout', 'logout_all', 'admin_revoked', 'class_ended'] as const;
 export type RevokeReason = typeof SESSION_REASONS[number];
@@ -13,7 +13,6 @@ export interface Session {
   revokedAt: Timestamp | null; revokeReason: RevokeReason | null; lockedAt: Timestamp | null;
   reauthenticatedAt: Timestamp; isSharedDevice: boolean; classEndsAt: Timestamp | null;
 }
-export interface SecurityNotification { newSession(input: { uid: string; sessionId: string }): Promise<void> }
 export const hashSession = (secret: string) => createHash('sha256').update(secret).digest('hex');
 const idPattern = /^[a-f0-9]{64}$/;
 export function sessionSecret(value: string | undefined): string {
@@ -34,15 +33,12 @@ export function expiryReason(s: Session, now: number, policy: SessionPolicy): Re
 export function isLocked(s: Session, now: number, policy: SessionPolicy) {
   return s.isSharedDevice && (!!s.lockedAt || now - s.lastActivityAt.toMillis() >= policy.sharedIdleMinutes * 60_000);
 }
-export function createSessions(db: Firestore, now: () => number, notifications?: SecurityNotification) {
+export function createSessions(db: Firestore, now: () => number) {
   const ref = (uid: string, id: string) => db.doc(`users/${uid}/sessions/${id}`);
   const control = (uid: string) => db.doc(`users/${uid}/sessionControl/state`);
   const stamp = () => Timestamp.fromMillis(now());
-  async function policy(token: DecodedIdToken): Promise<SessionPolicy> {
-    const school = schoolOf(token);
-    if (!school) return DEFAULT_SESSION_POLICY;
-    const snap = await db.doc(`schools/${school}/security/policy`).get();
-    return snap.exists ? readSessionPolicy(snap.data()!) : DEFAULT_SESSION_POLICY;
+  async function policy(_token: DecodedIdToken): Promise<SessionPolicy> {
+    return DEFAULT_SESSION_POLICY;
   }
   // 監査データにuid/セッションID/自由入力を含めず、関連付けは非公開のランダムsubjectIdだけ。
   function audit(tx: Transaction, event: string, subjectId: string, reason?: string) {
@@ -87,10 +83,6 @@ export function createSessions(db: Firestore, now: () => number, notifications?:
       tx.set(control(uid), { activeIds: [...live.map((s) => s.sessionId), id], subjectId });
       audit(tx, 'login_success', subjectId); audit(tx, 'session_created', subjectId);
     });
-    if (p.newDeviceNotifications) {
-      // 通知障害は、作成済みセッションを失敗扱いにしない。MVPで配信基盤は追加しない。
-      try { await notifications?.newSession({ uid, sessionId: id }); } catch { /* 独立した通知アダプターの責務 */ }
-    }
     return { secret, session: data, policy: p };
   }
   async function validate(token: DecodedIdToken, secret: string, options: { allowLocked?: boolean; activity?: boolean } = {}) {

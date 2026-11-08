@@ -3,7 +3,7 @@ const mocks = vi.hoisted(() => ({ getIdToken: vi.fn(async () => "synthetic-id-to
 vi.mock("firebase/auth", () => ({ onAuthStateChanged: vi.fn(), signOut: mocks.signOut }));
 vi.mock("./firebase", () => ({ firebase: () => ({ auth: { authStateReady: async () => {}, currentUser: { uid: "synthetic-user", getIdToken: mocks.getIdToken } } }) }));
 vi.mock("./recording-recovery", () => ({ preserveRecordings: mocks.preserve }));
-import { authenticatedFetch, handleSessionFailure, logoutSession, sessionSnapshot } from "./session";
+import { authenticatedFetch, establishSession, handleSessionFailure, logoutSession, sessionSnapshot } from "./session";
 beforeEach(() => { mocks.getIdToken.mockClear(); mocks.signOut.mockClear(); mocks.preserve.mockClear(); });
 afterEach(() => { vi.unstubAllGlobals(); });
 it("セッション失効時にrefreshやセッション再作成で迂回しない", async () => {
@@ -46,4 +46,33 @@ it("Firebase SDKで無効化を検出した場合も、録音保存後にログ�
   await expect(authenticatedFetch("/sessions/current")).rejects.toMatchObject({ status: 401, code: "session_required" });
   await vi.waitFor(() => expect(mocks.signOut).toHaveBeenCalledOnce());
   expect(mocks.preserve).toHaveBeenCalledOnce();
+});
+
+it("Google認証後、Cookieの往復を確認してからログイン状態を確定する", async () => {
+  vi.stubGlobal("window", { matchMedia: () => ({ matches: false }) });
+  const reply = { session: { sessionId: "new-session" }, policy: {}, serverNow: 0 };
+  const fetcher = vi.fn().mockImplementation(async () => Response.json(reply)); vi.stubGlobal("fetch", fetcher);
+  await establishSession({ isSharedDevice: false, classEndsAt: null });
+  expect(fetcher.mock.calls.map(([url]) => url)).toEqual(["/api/sessions", "/api/sessions/current"]);
+  expect(sessionSnapshot().status).toBe("active");
+});
+
+it("Cookieを受け取れない場合はログイン成功にせず、設定の確認を案内する", async () => {
+  vi.stubGlobal("window", { matchMedia: () => ({ matches: false }) });
+  const before = sessionSnapshot();
+  const fetcher = vi.fn().mockResolvedValueOnce(Response.json({ session: { sessionId: "blocked-session" } }))
+    .mockResolvedValueOnce(Response.json({ error: { code: "session_required" } }, { status: 401 }));
+  vi.stubGlobal("fetch", fetcher);
+  await expect(establishSession({ isSharedDevice: false, classEndsAt: null })).rejects.toMatchObject({ code: "cookie_unavailable" });
+  expect(sessionSnapshot()).toBe(before);
+  expect(mocks.signOut).not.toHaveBeenCalled();
+});
+
+it("作成時と別のCookieが返る場合もログイン成功にしない", async () => {
+  vi.stubGlobal("window", { matchMedia: () => ({ matches: false }) });
+  const before = sessionSnapshot();
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(Response.json({ session: { sessionId: "created" } }))
+    .mockResolvedValueOnce(Response.json({ session: { sessionId: "other" } })));
+  await expect(establishSession({ isSharedDevice: false, classEndsAt: null })).rejects.toMatchObject({ code: "cookie_unavailable" });
+  expect(sessionSnapshot()).toBe(before);
 });

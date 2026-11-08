@@ -41,10 +41,6 @@ export function requireOpenRoom(room: DocumentSnapshot) {
   if (isExpired(room)) throw new HttpError(409, 'room_expired', 'このセッションは終了しました');
 }
 
-/** ディスカッションを作れるのは、管理者が招待した教員（Google アカウントの teacher claim）だけ */
-export function requireTeacher(context: Pick<Context, 'token'>): void {
-  if (context.token?.teacher !== true) throw new HttpError(403, 'teacher_required', 'ディスカッションを作れるのは、招待された教員のアカウントだけです');
-}
 export function requireModerator(context: Pick<Context, 'role'>): void {
   if (context.role !== 'host') throw new HttpError(403, 'not_moderator', 'このセッションのHostだけが実行できます');
 }

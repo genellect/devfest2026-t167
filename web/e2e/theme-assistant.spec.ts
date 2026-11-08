@@ -1,0 +1,52 @@
+import { expect, test } from "@playwright/test";
+import { loginGoogle } from "./google";
+
+test("テーマ相談から3候補・出し直し・選択したテーマを作成フォームに引き継ぐ", async ({ page }) => {
+  await page.goto("/");
+  await loginGoogle(page, "teacher", "theme-host");
+  await expect(page).toHaveURL(/\/home$/);
+  const trigger = page.getByRole("button", { name: "Gemini 話し合うテーマを考える" });
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: "Gemini テーマを考える" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("heading", { level: 2 })).toBeFocused();
+  const bounds = await dialog.boundingBox();
+  const viewport = page.viewportSize()!;
+  expect(bounds?.width).toBeCloseTo(viewport.width, 0);
+  expect(bounds?.height).toBeCloseTo(viewport.height, 0);
+  await expect(dialog.getByRole("textbox")).not.toBeFocused();
+  const send = dialog.getByRole("button", { name: "テーマを提案する", exact: true });
+  await expect(send).toBeDisabled();
+  await dialog.getByRole("textbox", { name: "どんなことを話し合いたい？" }).fill("AIと大学生活");
+  await send.click();
+  const candidates = dialog.getByRole("region", { name: "テーマの候補" });
+  await expect(candidates.getByRole("listitem")).toHaveCount(3);
+  await expect(candidates).toContainText("デモ候補");
+  const first = await candidates.getByRole("heading").first().textContent();
+  await dialog.getByRole("button", { name: "別の案を出す" }).click();
+  await expect(candidates.getByRole("heading").first()).not.toHaveText(first!);
+  const chosen = await candidates.getByRole("heading").first().textContent();
+  await candidates.getByRole("link", { name: "このテーマで作成" }).first().click();
+  await expect(page).toHaveURL(/\/host\/new\?theme=/);
+  await expect(page.getByLabel("テーマ", { exact: true })).toHaveValue(chosen!);
+});
+
+test("テーマ相談の失敗・再試行、Escapeのフォーカス復帰、ホームの操作を維持する", async ({ page }) => {
+  await page.route("**/api/themes/suggest", route => route.fulfill({ status: 503, json: { error: { code: "theme_unavailable" } } }));
+  await page.goto("/"); await loginGoogle(page, "student", "theme-guest");
+  await page.getByRole("button", { name: "Gemini 話し合うテーマを考える" }).click();
+  const dialog = page.getByRole("dialog", { name: "Gemini テーマを考える" });
+  await dialog.getByRole("textbox").fill("環境問題");
+  await dialog.getByRole("button", { name: "テーマを提案する", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("もう一度");
+  await page.unroute("**/api/themes/suggest");
+  await dialog.getByRole("button", { name: "テーマを提案する", exact: true }).click();
+  await expect(dialog.getByRole("listitem")).toHaveCount(3);
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Gemini 話し合うテーマを考える" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "参加する", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "メニュー", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "ホームのメニュー", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

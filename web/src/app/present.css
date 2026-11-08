@@ -1,0 +1,48 @@
+/*
+ * 教室に投影する画面（/rooms/[roomId]/present、main #54 の PresentView）。
+ * main の ds.css から投影画面の部分だけを移し、作業側の指示（Google Workspace風のライトUI、黒板配色に戻さない）に合わせて明るい配色にした。
+ * 理解のまとまりの付箋（understandings.tsx）の色もここに置く。
+ */
+.present { --p-ink: #1f1f1f; --p-ink-2: #444746; --p-line: #dadce0; --p-accent: #0b57d0; --p-note: #fef7e0; --p-note-ink: #3c2f00;
+  min-height: 100dvh; display: flex; flex-direction: column; background: #f8fafd; color: var(--p-ink); container-type: inline-size; }
+.present__bar { display: flex; align-items: center; gap: 24px; padding: 2.4vh 3vw; border-bottom: 1px solid var(--p-line); background: #fff; }
+.present__brand { display: inline-flex; align-items: center; gap: 10px; font-size: clamp(16px, 2.2vh, 24px); font-weight: 700; color: var(--p-accent); flex: none; }
+.present__theme { flex: 1; min-width: 0; font-size: clamp(18px, 3vh, 34px); font-weight: 700; line-height: 1.4; }
+.present__tools { display: flex; gap: 8px; flex: none; }
+.present__tool { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 22px; border: 1px solid var(--p-line); background: #fff; color: var(--p-ink-2); cursor: pointer; }
+.present__tool:hover { background: #e9eef6; color: var(--p-ink); }
+.present__tool svg { width: 20px; height: 20px; }
+.present__label, .present__hint { font-size: clamp(16px, 2.4vh, 28px); color: var(--p-ink-2); }
+.present__label { font-weight: 600; }
+.present__headline { font-size: clamp(36px, 7vh, 84px); font-weight: 700; line-height: 1.3; }
+.present__join { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 1fr auto; align-items: center; gap: 2vh 5vw; padding: 4vh 6vw; }
+.present__code { display: flex; flex-direction: column; gap: 2vh; min-width: 0; }
+.present__digits { font-size: min(22vh, 15cqi); font-weight: 700; line-height: 1; letter-spacing: .03em; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--p-accent); }
+.present__qr { width: min(52vh, 34vw); aspect-ratio: 1; background: #fff; padding: 2vh; border: 1px solid var(--p-line); border-radius: 16px; image-rendering: pixelated; }
+.present__count { grid-column: 1 / -1; font-size: clamp(18px, 3vh, 34px); color: var(--p-ink-2); }
+.present__count .num { font-size: 1.6em; font-weight: 700; color: var(--p-ink); margin-right: .2em; }
+.present__live { flex: 1; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); align-items: center; gap: 5vw; padding: 5vh 6vw; }
+.present__timer { display: flex; flex-direction: column; gap: 1vh; }
+.present__time { font-size: min(20vh, 13cqi); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.present__prompts { display: flex; flex-direction: column; gap: 2.4vh; min-width: 0; }
+.present__notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2vh; }
+.present__note { padding: 2.6vh 2.4vw; border-radius: 16px; background: var(--p-note); color: var(--p-note-ink); font-size: clamp(22px, 4.2vh, 48px); font-weight: 700; line-height: 1.45; }
+.present__end { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 3vh; padding: 6vh 6vw; }
+@media (max-aspect-ratio: 1/1) {
+  .present__join, .present__live { grid-template-columns: minmax(0, 1fr); }
+  .present__qr { width: min(60vw, 40vh); }
+}
+@media (max-width: 767px) { .present-link { display: none; } }
+
+.understand { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 12px; }
+.understand__note { display: flex; flex-direction: column; justify-content: space-between; gap: 14px; padding: 16px; border-radius: 12px; color: #1f1f1f; }
+.understand__note--blue { background: #d3e3fd; }
+.understand__note--pink { background: #fde2e7; }
+.understand__note--mint { background: #c4eed0; }
+.understand__note--lilac { background: #e8def8; }
+.understand__label { font-size: 16px; font-weight: 700; line-height: 1.6; }
+.understand__count { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; font-weight: 600; }
+.understand__dots { display: inline-flex; flex-wrap: wrap; gap: 3px; }
+.understand__dots span { width: 10px; height: 10px; border-radius: 50%; background: #1f1f1f; opacity: .7; }
+.split-bar { display: flex; gap: 2px; width: 100%; max-width: 180px; height: 8px; border-radius: 4px; overflow: hidden; }
+.split-bar__part { display: block; flex-basis: 0; }

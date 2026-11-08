@@ -1,0 +1,4 @@
+.screen { min-height: 100dvh; background: #fff; animation: screenRise 400ms cubic-bezier(.2,.8,.2,1) backwards; }
+:global(html[data-rising-screen]) .screen, .screen[data-native-entry] { animation: none; }
+@keyframes screenRise { from { transform: translateY(100dvh); } to { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .screen { animation: none; } }

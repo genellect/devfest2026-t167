@@ -1,13 +1,19 @@
+import { RETENTION } from './processing-types.js';
+import { registerTranscriptRoutes } from './transcript-routes.js';
+import { registerClassroomRoutes, classroomCourse, classroomFields } from './classroom-routes.js';
+import { googleWorkspace } from './workspace.js';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { randomInt, randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
-import { HttpError, wrap, run, parse, requireOpenRoom, requireModerator, requireTeacher } from './http.js';
+import { HttpError, wrap, run, parse, requireOpenRoom, requireModerator } from './http.js';
 import { participantGroup } from './membership.js';
 import { Timestamp } from 'firebase-admin/firestore';
 import { enforceDiscussionTime, requireDiscussionActive } from './discussion-lifecycle.js';
 import { registerSpeakerRoutes } from './speaker-routes.js';
 import { registerOnboardingRoutes } from './onboarding-routes.js';
+import { registerMaterialRoutes } from './material-routes.js';
+import { registerDriveMaterialRoutes } from './drive-material-routes.js';
 import { registerLiveRoutes } from './live-routes.js';
 import { sessionGuards, registerSessionRoutes } from './session-routes.js';
 import { createLimiter } from './limits.js';
@@ -24,6 +30,7 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
   const { db, gemini } = deps;
   const now = deps.now ?? Date.now;
   const runtime = { ...deps, now };
+  const workspace = deps.workspace ?? googleWorkspace();
   const { refreshGroup, analyzeGroup } = createGroupService(runtime);
   const app = express();
 
@@ -54,6 +61,8 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
   const chain = (...fns: ((req: Request, res: Response, next: NextFunction) => void)[]) => fns;
   // 所属確認：パスの roomId のメンバーか
   const member = run(async (req) => {
+    const room = await db.doc(`sessions/${req.params.roomId}`).get();
+    if (room.get('deleting')) throw new HttpError(404, 'room_not_found', 'セッションがありません');
     const snap = await db.doc(`sessions/${req.params.roomId}/members/${req.ctx.uid}`).get();
     if (!snap.exists || snap.get('status') === 'inactive') throw new HttpError(403, 'not_member', 'この部屋のメンバーではありません');
     req.ctx.role = snap.get('role');
@@ -66,17 +75,34 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
   registerLiveRoutes(app, runtime, guards, member);
   registerOnboardingRoutes(app, runtime, { authenticate, member });
   registerSpeakerRoutes(app, runtime, { authenticate, member });
+  registerMaterialRoutes(app, runtime, { authenticate, member });
+  registerDriveMaterialRoutes(app, runtime, { authenticate, member, host: moderator });
   registerDiscussionRoutes(app, runtime, { authenticate, member, host: moderator });
+  registerTranscriptRoutes(app, runtime, { authenticate, member, host: moderator });
+  registerClassroomRoutes(app, runtime, { authenticate, member, host: moderator });
   const roomRef = (id: string) => db.doc(`sessions/${id}`);
   // 稼働確認。Cloud Run は z で終わるパス（/healthz など）を予約していてコンテナに届かないので、/health を使う。
   // /healthz は手元と古い手順のために残す
   app.get(['/health', '/healthz'], (_req, res) => { res.json({ ok: true, gemini: gemini.source }); });
 
-  // 作成は招待された教員だけ（teacher claim）。セッションとHostの所属を同じトランザクションで保存する。
+  // 相談だけでは部屋やHost権限を作らない。入力と候補は保存・ログ出力しない。
+  app.post('/themes/suggest', authenticate, wrap(async (req, res) => {
+    const { request, previous } = parse(z.object({
+      request: z.string().trim().min(1).max(500),
+      previous: z.array(z.string().trim().min(1).max(100)).max(3).default([]),
+    }).strict(), req.body);
+    await limit(req.ctx.uid, 'theme-suggest', 6, 60_000);
+    try { res.json({ themes: await gemini.suggestThemes(request, previous), source: gemini.source }); }
+    catch { throw new HttpError(503, 'theme_unavailable', 'テーマを提案できませんでした。少し待って、もう一度お試しください'); }
+  }));
+
+  // Google本人認証とアプリセッションを検証し、作成者だけに部屋単位のHostを付与する。
   // 作成後の操作の権限は、これまでどおりセッションごとの members.role で決める
   app.post('/rooms', ...chain(authenticate, wrap(async (req, res) => {
-    requireTeacher(req.ctx);
     await limit(req.ctx.uid, 'create', 10, 60 * 60_000);
+    const classroomCourseId = parse(z.string().regex(/^[A-Za-z0-9_-]{1,200}$/).optional(), req.body?.classroomCourseId);
+    const linkedCourse = classroomCourseId ? await classroomCourse(req, workspace, classroomCourseId) : undefined;
+    if (linkedCourse && linkedCourse.course.role !== 'teacher') throw new HttpError(403, 'course_teacher_required', 'このクラスの教員だけが作成できます');
     // recording：グループの議論を録音して分析するか（録音の権限は先生が持つ。既定は録音する）
     const { title, theme, className, minutes, groups, recording, groupSelection, flowVersion, publishOnEnd, participantView } = parse(z.object({
       flowVersion: z.literal(1).optional(), publishOnEnd: z.boolean().default(true), participantView: z.object({ theme: z.boolean().default(true), timer: z.boolean().default(true), members: z.boolean().default(true), speaking: z.boolean().optional() }).default({ theme: true, timer: true, members: true }), title: z.string().trim().min(1).max(100), theme: z.string().trim().max(1000).default(''), minutes: z.number().int().min(1).max(180).optional(), className: z.string().trim().max(40).optional(), groupSelection: z.enum(['participant', 'host']).default('participant'), groups: z.number().int().min(1).max(MAX_GROUPS).default(1), recording: z.boolean().default(true),
@@ -89,7 +115,7 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
         const codeRef = db.doc(`joinCodes/${joinCode}`);
         if ((await tx.get(codeRef)).exists) return false;
         tx.set(codeRef, { roomId });
-        tx.set(roomRef(roomId), { schemaVersion: 3, ...(flowVersion ? { flowVersion } : {}), publishOnEnd, participantView, title, theme, ...(minutes ? { minutes } : {}), ...(className ? { className } : {}), expiresAt: Timestamp.fromMillis(now() + SESSION_TTL_MS), groupSelection, resultsPublished: false, groups, recording, phase: 'collecting', joinCode, createdBy: req.ctx.uid, createdAt: FieldValue.serverTimestamp(), analysis: { status: 'idle' } });
+        tx.set(roomRef(roomId), { schemaVersion: 3, retentionUntil: Timestamp.fromMillis(now() + RETENTION.discussionMs), ...(linkedCourse ? classroomFields(linkedCourse.course) : {}), ...(flowVersion ? { flowVersion } : {}), publishOnEnd, participantView, title, theme, ...(minutes ? { minutes } : {}), ...(!linkedCourse && className ? { className } : {}), expiresAt: Timestamp.fromMillis(now() + SESSION_TTL_MS), groupSelection, resultsPublished: false, groups, recording, phase: 'collecting', joinCode, createdBy: req.ctx.uid, createdAt: FieldValue.serverTimestamp(), analysis: { status: 'idle' } });
         tx.set(db.doc(`sessions/${roomId}/members/${req.ctx.uid}`), { uid: req.ctx.uid, role: 'host', groupId: null, status: 'active', joinedAt: FieldValue.serverTimestamp() });
         tx.set(db.doc(`users/${req.ctx.uid}/discussions/${roomId}`), { sessionId: roomId });
         tx.set(db.doc(`users/${req.ctx.uid}`), { uid: req.ctx.uid, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
@@ -105,10 +131,21 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
   app.post('/rooms/join', ...chain(authenticate, wrap(async (req, res) => {
     await limit(req.ctx.uid, 'join', 30);
     // 新しいコードは6桁の数字。以前に作った英数字6文字のコードも引き続き受け付ける
-    const { code } = parse(z.object({ code: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{6}$/, '参加コードは6桁の数字です') }), req.body);
-    const codeSnap = await db.doc(`joinCodes/${code}`).get();
-    if (!codeSnap.exists) throw new HttpError(404, 'join_code_not_found', '参加コードが見つかりません。数字を確かめてください');
-    const roomId = codeSnap.get('roomId') as string;
+    const body = parse(z.union([z.object({ code: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{6}$/) }), z.object({ classroomRoomId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/) }).strict()]), req.body);
+    let roomId: string;
+    if ('code' in body) {
+      const codeSnap = await db.doc(`joinCodes/${body.code}`).get();
+      if (!codeSnap.exists) throw new HttpError(404, 'join_code_not_found', '参加コードが見つかりません。数字を確かめてください');
+      roomId = codeSnap.get('roomId') as string;
+    } else {
+      roomId = body.classroomRoomId;
+      const candidate = await roomRef(roomId).get();
+      if (!candidate.get('classroomCourseId')) throw new HttpError(403, 'classroom_not_linked', '参加コードから参加してください');
+    }
+    const currentRoom = await roomRef(roomId).get();
+    const previousMembership = await db.doc(`sessions/${roomId}/members/${req.ctx.uid}`).get();
+    const classId = currentRoom.get('classroomCourseId') as string | undefined;
+    const classroom = classId && !previousMembership.exists ? await classroomCourse(req, workspace, classId) : undefined;
     const joinedGroup = await db.runTransaction(async (tx) => {
       const room = await tx.get(roomRef(roomId));
       if (!room.exists) throw new HttpError(404, 'room_not_found', '部屋がありません');
@@ -119,6 +156,8 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
         if (existing.get('status') === 'inactive') throw new HttpError(403, 'not_member', 'このセッションには参加できません');
         return 0;
       }
+      if (classId && !classroom) throw new HttpError(409, 'google_reconnect', 'Classroomを再接続してから参加してください');
+      if (room.get('classroomCourseId') !== classId) throw new HttpError(409, 'classroom_changed', 'クラスの情報が変わりました。もう一度参加してください');
       requireOpenRoom(room); requireDiscussionActive(room);
       if (room.get('flowVersion') === 1 && room.get('phase') !== 'collecting') throw new HttpError(409, 'already_started', '開始済みのセッションには新規参加できません');
       if (room.get('flowVersion') === 1 && room.get('groupSelection') !== 'host') {
@@ -135,14 +174,14 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
           tx.update(room.ref, { groups: group });
           tx.set(room.ref.collection('groups').doc(String(group)), { groupId: String(group), name: `グループ${group}`, number: group });
         }
-        tx.set(mRef, { uid: req.ctx.uid, role: 'participant', groupId: String(group), group, status: 'active', joinedAt: FieldValue.serverTimestamp() });
+        tx.set(mRef, { uid: req.ctx.uid, role: 'participant', ...(classroom ? { classroomUserId: classroom.googleId } : {}), groupId: String(group), group, status: 'active', joinedAt: FieldValue.serverTimestamp() });
         return group;
       }
       const singleGroup = (room.get('groups') ?? 1) <= 1 && room.get('groupSelection') !== 'host';
       if (singleGroup && statusOf(room, 1) !== 'opinions') throw new HttpError(409, 'group_started', 'このグループはもう議論を始めています');
       // グループが1つなら自動でグループ1。複数なら、参加のあとに生徒が自分で選ぶ（groups/choose）
       tx.set(db.doc(`users/${req.ctx.uid}/discussions/${roomId}`), { sessionId: roomId });
-      tx.set(mRef, { uid: req.ctx.uid, role: 'participant', groupId: singleGroup ? '1' : null, status: 'active', ...(singleGroup ? { group: 1 } : {}), joinedAt: FieldValue.serverTimestamp() });
+      tx.set(mRef, { uid: req.ctx.uid, role: 'participant', ...(classroom ? { classroomUserId: classroom.googleId } : {}), groupId: singleGroup ? '1' : null, status: 'active', ...(singleGroup ? { group: 1 } : {}), joinedAt: FieldValue.serverTimestamp() });
       return singleGroup ? 1 : 0;
     });
     if (joinedGroup) await refreshGroup(roomId, joinedGroup);
@@ -160,10 +199,17 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
       if (room.get('flowVersion') === 1 && to === 'discussing') {
         const guests = await tx.get(room.ref.collection('members').where('role', '==', 'participant'));
         // 音声登録は任意（話者の推定に出ないだけ）。開始に要るのは、表示名の登録と所属
-        const notReady = guests.docs.filter((m) => m.get('status') !== 'inactive' && (!(m.get('attendees') as unknown[] | undefined)?.length || !m.get('groupId')));
+        const notReady = guests.docs.filter((m) => m.get('status') !== 'inactive' && (!(m.get('attendees') as { voiceRegistered?: boolean }[] | undefined)?.length || !m.get('groupId') || (m.get('deviceMode') !== 'shared' && (m.get('ready') !== true || (m.get('attendees') as { voiceRegistered?: boolean }[]).some(a => a.voiceRegistered !== true)))));
         // 1人の登録失敗や離脱でセッション全体が始められなくならないよう、Hostが確認したうえで未準備のGuestを外して始められる
-        if (notReady.length && !excludeNotReady) throw new HttpError(409, 'guests_not_ready', `表示名の登録が済んでいない参加者が${notReady.length}人います`, { notReady: notReady.length });
+        if (notReady.length && !excludeNotReady) throw new HttpError(409, 'guests_not_ready', `表示名・音声登録・グループの準備が済んでいない参加者が${notReady.length}人います`, { notReady: notReady.length });
+        const configs = await tx.get(room.ref.collection('groups'));
+        const excluded = new Set(notReady.map(m => m.id));
+        const modes = configs.docs.filter(config => !config.get('recordingMode') || config.get('recordingMode') === 'auto').map(config => {
+          const people = guests.docs.filter(m => m.get('status') !== 'inactive' && !excluded.has(m.id) && m.get('group') === config.get('number'));
+          return { ref: config.ref, mode: people.length > 1 && !config.get('recorderUid') && people.every(m => m.get('deviceMode') === 'personal') ? 'personal' : 'single' };
+        });
         for (const m of notReady) tx.update(m.ref, { status: 'inactive', excludedAt: FieldValue.serverTimestamp() });
+        for (const config of modes) tx.update(config.ref, { recordingMode: config.mode });
       }
       tx.update(roomRef(req.params.roomId), { phase: to, ...(to === 'discussing' ? { startedAt: Timestamp.fromMillis(now()), ...(room.get('minutes') ? { endsAt: Timestamp.fromMillis(now() + room.get('minutes') * 60_000) } : {}) } : {}), [`phaseChangedAt.${to}`]: FieldValue.serverTimestamp() });
     });
@@ -276,7 +322,7 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
 
   // グループの議論の録音を送り、Gemini で文字起こしと分析をする（生徒。チームドキュメント「仕様」F03・F04）。
   // 1グループ1台が前提なので、分析はグループに1回。音声は分析に使うだけで保存しない（結果だけを results/flow-g{番号} に書く）。
-  // 録音への同意（consent=1）がない送信は受け付けない。分析に失敗したら、同じ録音を送り直せる
+  // マイクの許可はブラウザで扱う。所属・録音担当を検査する。分析に失敗したら、同じ録音を送り直せる
   registerRecordingRoutes(app, runtime, { authenticate, member, participantOnly });
 
   // グループの結果を出し直す。生徒は自分のグループ（全員そろっているときだけ）、先生は任意のグループを今ある回答で出せる

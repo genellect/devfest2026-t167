@@ -7,19 +7,21 @@ test("Googleログイン前の参加を防ぎ、生徒に教師権限を自己�
   await expect(page.getByLabel("参加コード")).toHaveCount(0);
   // ログインのあと、QRのコードでそのまま参加を試みる（このコードの部屋はない）
   await loginStudent(page, "", { home: false });
-  await expect(page).toHaveURL(/\/join$/);
-  await expect(page.locator("main").getByRole("alert")).toContainText("参加コードが見つかりません");
+  await expect(page).toHaveURL(/\/home\?code=999999$/);
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText("参加コードが見つかりません");
   await expect(page.getByLabel("参加コード")).toHaveValue("999999");
   await page.goto("/signup");
   await expect(page).toHaveURL(/\/home$/);
-  await expect(page.locator("main").getByLabel("参加コード")).toBeVisible();
+  await expect(page.getByRole("link", { name: "議論を作る", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "参加する", exact: true }).click();
+  await expect(page.getByRole("dialog").getByLabel("参加コード")).toBeVisible();
 });
 
 test("APIがHTMLを返す通信障害でも、内部情報を表示せず入力を保持する", async ({ page }) => {
   await loginStudent(page);
   await page.route("**/api/rooms/join", route => route.fulfill({ status: 502, contentType: "text/html", body: "<html>PRIVATE-UPSTREAM-DETAILS</html>" }));
   await page.goto("/join?code=123456");
-  await expect(page.locator("main").getByRole("alert")).toContainText("サーバーに接続できませんでした");
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText("サーバーに接続できませんでした");
   await expect(page.getByLabel("参加コード")).toHaveValue("123456");
-  await expect(page.locator("main")).not.toContainText("PRIVATE-UPSTREAM-DETAILS");
+  await expect(page.getByRole("dialog")).not.toContainText("PRIVATE-UPSTREAM-DETAILS");
 });

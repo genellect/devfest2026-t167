@@ -22,10 +22,9 @@ async function room(c: Awaited<ReturnType<typeof client>>, patch = {}) {
   return (await c.post('/rooms', { title: '架空のセッション', theme: 'テーマ', minutes: 20, groups: 2, ...patch }).expect(201)).body as { roomId: string; joinCode: string };
 }
 describe('MVPのセッション単位Host/Participant', () => {
-  it('招待された教員はClassroomなしで作成でき、作成とHost付与・グループを一括保存する。教師claimのない利用者は作成できない', async () => {
-    const student = await client();
-    expect((await student.post('/rooms', { title: '作れないセッション' }).expect(403)).body.error.code).toBe('teacher_required');
-    const c = await client('teacher'), r = await room(c);
+  it('教師claimなしでClassroom未連携の部屋を作成でき、Host付与・グループを一括保存する', async () => {
+    const c = await client(), r = await room(c);
+    expect((await auth.getUser(c.uid)).customClaims?.teacher).not.toBe(true);
     const snap = await db.doc(`sessions/${r.roomId}`).get();
     expect(snap.data()).toMatchObject({ title: '架空のセッション', theme: 'テーマ', minutes: 20, resultsPublished: false });
     expect((await snap.ref.collection('members').doc(c.uid).get()).data()).toMatchObject({ uid: c.uid, role: 'host', groupId: null, status: 'active' });
@@ -33,6 +32,13 @@ describe('MVPのセッション単位Host/Participant', () => {
     expect((await c.get('/sessions/current').expect(200)).body.policy.maxConcurrentSessions).toBe(1);
     expect((await db.doc(`users/${c.uid}/sessions/${c.loginId}`).get()).get('role')).toBeUndefined();
     expect((await c.get('/discussions').expect(200)).body.sessions).toContainEqual(expect.objectContaining({ sessionId: r.roomId, role: 'host' }));
+  });
+  it('所属している議論のクラス名だけをホーム一覧に返す', async () => {
+    const h = await client('teacher'), p = await client(), outsider = await client();
+    const r = await room(h, { className: '探究の授業' });
+    await p.post('/rooms/join', { code: r.joinCode }).expect(200);
+    for (const c of [h, p]) expect((await c.get('/discussions').expect(200)).body.sessions).toContainEqual(expect.objectContaining({ sessionId: r.roomId, className: '探究の授業' }));
+    expect((await outsider.get('/discussions').expect(200)).body.sessions).toEqual([]);
   });
   it('同じ利用者がAでHost、BでParticipantとなり、ログインセッションを変更しない', async () => {
     const a = await client('teacher'), b = await client('teacher'), ra = await room(a), rb = await room(b);
@@ -105,7 +111,7 @@ describe('MVPのセッション単位Host/Participant', () => {
   });
   it('Hostになっても学校管理者APIは操作できず、新端末のログインで旧端末は失効する', async () => {
     const c = await client('teacher'), r = await room(c);
-    await c.get('/schools/school/security-policy').expect(403);
+    await c.get('/schools/school/security-policy').expect(404);
     const replacement = await request(app).post('/sessions').set('authorization', `Bearer ${c.account.idToken}`).send({ deviceLabel: '新端末', deviceType: 'phone' }).expect(201);
     await c.get('/sessions/current').expect(401);
     await c.post(`/rooms/${r.roomId}/settings`, { title: '失効済み' }).expect(401);
@@ -126,6 +132,6 @@ describe('MVPのセッション単位Host/Participant', () => {
     await h.post(`/rooms/${r.roomId}/groups/update`, { group: 1, name: '録音班', recorderUid: p.uid }).expect(200);
     await h.post(`/rooms/${r.roomId}/phase`, { to: 'discussing' }).expect(200);
     for (const c of [p, q]) await c.post(`/rooms/${r.roomId}/opinion`, { text: '架空の意見' }).expect(200);
-    await request(app).post(`/rooms/${r.roomId}/groups/recording?consent=1&durationSec=1`).set('authorization', `Bearer ${q.account.idToken}`).set('cookie', q.cookie).set('content-type', 'audio/wav').send(wave()).expect(403);
+    await request(app).post(`/rooms/${r.roomId}/groups/recording?durationSec=1`).set('authorization', `Bearer ${q.account.idToken}`).set('cookie', q.cookie).set('content-type', 'audio/wav').send(wave()).expect(403);
   });
 });

@@ -3,6 +3,8 @@
 #   bash scripts/dev.sh setup     依存を lockfile どおりに入れ、web/.env.local を用意する
 #   bash scripts/dev.sh doctor    ツールと準備の状態を確かめる
 #   bash scripts/dev.sh serve     エミュレータ・テストデータ・API・画面をまとめて起動（Ctrl-C で全部止まる。GEMINI_MOCK=0 で本物の Gemini）
+#   bash scripts/dev.sh serve-google  実Google認証・実Gemini＋専用ローカルDBで起動
+#   bash scripts/dev.sh real-check  公開音声の録音から実Geminiの結果表示まで検査
 #   bash scripts/dev.sh check     CI と同じ検査（--quick でエミュレータを使う試験を省く）
 #   bash scripts/dev.sh speaker-setup  ローカル話者モデルとPython環境を準備
 #   bash scripts/dev.sh speaker-check  合成PCMファイル2本を実モデルで検証（SPEAKER_TEST_VOICESを指定）
@@ -142,6 +144,8 @@ check() {
   node --test tests/speaker-container.test.mjs
   bash tests/demo-deploy.test.sh
   node --test tests/demo-start.test.mjs
+  node --test tests/real-google.test.mjs
+  node --test tests/ipad-proxy.test.mjs
   step "ビルド"
   npm --prefix api run build
   npm --prefix web run build
@@ -153,6 +157,26 @@ check() {
     "npm --prefix firebase test && npm --prefix api run test:coverage && npm --prefix api run test:performance && npm --prefix web run e2e"
   rm -f "$config"; trap - EXIT
   echo; echo "OK: CI と同じ検査がすべて通りました"
+}
+
+
+# 明示した公開音声だけを実APIへ送り、AuthとFirestoreは専用エミュレータを使う。
+real_check() {
+  [ -f "${T167_PUBLIC_AUDIO_FILE:-}" ] || { echo 'NG: T167_PUBLIC_AUDIO_FILEに使用許可のある公開音声WAVを指定してください' >&2; exit 1; }
+  [ -x "${SPEAKER_PYTHON:-}" ] && [ -f "${SPEAKER_EMBEDDING_MODEL:-}" ] && [ -f "${SPEAKER_VAD_MODEL:-}" ] || { echo 'NG: speaker-setupで準備したPythonと話者/VADモデルを指定してください' >&2; exit 1; }
+  assert_free_ports
+  source infra/env.sh
+  EMU_PROJECT=demo-t167-real-$OFFSET
+  export GOOGLE_CLOUD_PROJECT=$EMU_PROJECT VERTEX_PROJECT=$PROJECT_ID GOOGLE_CLOUD_QUOTA_PROJECT=$PROJECT_ID
+  export T167_REAL_GEMINI=1 GEMINI_MOCK=0 CLASSROOM_MOCK=0 NEXT_PUBLIC_CLASSROOM_MOCK=0
+  export NEXT_PUBLIC_USE_EMULATORS=1 NEXT_PUBLIC_FIREBASE_PROJECT_ID=$EMU_PROJECT API_ORIGIN=http://127.0.0.1:$T167_API_PORT
+  npm --prefix api run build
+  npm --prefix web run build
+  local config; config=$(emulator_config)
+  trap 'rm -f "${config:-}"' EXIT
+  "$FB" emulators:exec --config "$config" --project "$EMU_PROJECT" --only auth,firestore \
+    "cd web && npx playwright test --config playwright.real.config.ts"
+  rm -f "$config"; trap - EXIT
 }
 
 
@@ -216,9 +240,11 @@ case "${1:-}" in
   setup) setup ;;
   doctor) doctor ;;
   serve) serve ;;
+  serve-google) source infra/env.sh; node scripts/real-google.mjs ;;
   check) shift; check "$@" ;;
   speaker-setup) bash scripts/speaker.sh setup ;;
   speaker-check) speaker_check ;;
+  real-check) real_check ;;
   pr) shift; pr "$@" ;;
   *) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac

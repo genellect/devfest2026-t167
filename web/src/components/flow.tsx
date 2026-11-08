@@ -2,30 +2,10 @@
 import { SourceTag, Tag } from "@/components/ui";
 import { useDoc, type Flow } from "@/lib/room";
 
-/**
- * 音声の分析がまだ届いていないときに、デモでだけ出す見本。
- * テーマに依存しない一般的な内容にし、画面では必ず「デモデータ」と表示する。
- */
-const DEMO_FLOW: Flow = {
-  totalMinutes: 20,
-  segments: [
-    { topic: "意見の出し合い", minutes: 6 },
-    { topic: "理由の深掘り", minutes: 7 },
-    { topic: "テーマから脱線", minutes: 3, highlight: true },
-    { topic: "まとめ", minutes: 4 },
-  ],
-  flowNote: "脱線した話から、別の見方が出てきました。脱線が悪かったかは、グループで確かめます。",
-  good: [{ at: "6分ごろ", text: "別の見方を出して、話題を広げました。" }],
-  review: [{ at: "12分ごろ", text: "ここで事前の意見を話せたかもしれません。", question: "もしこのとき「どう思う？」と聞かれていたら、何と答える？" }],
-  source: "mock",
-};
-
-/** グループの議論の分析。本物があればそれを、なければデモのときだけ見本を返す */
-export function useFlow(roomId: string, group: number | undefined, geminiSource: string | undefined) {
+/** 未分析の結果を見本で補わず、取得済みの結果だけを表示する。 */
+export function useFlow(roomId: string, group: number | undefined) {
   const { data } = useDoc<Flow>(group ? `sessions/${roomId}/results/flow-g${group}` : undefined);
-  if (data) return { flow: data, demo: false };
-  if (geminiSource === "mock") return { flow: DEMO_FLOW, demo: true };
-  return { flow: null, demo: false };
+  return { flow: data ?? null };
 }
 
 const PENDING = "音声の分析が届くと、ここに表示されます。";
@@ -43,18 +23,19 @@ export function FlowTimeline({ flow, compact }: { flow: Flow | null; compact?: b
   return (
     <section className="box box--md pad stack">
       <div className="heading-row">
-        <h3 className={compact ? "t-sm" : "t-md"}>議論の流れ{flow ? `（${flow.totalMinutes}分）` : ""}</h3>
+        <h3 className={compact ? "t-sm" : "t-md"}>{flow?.recordingMode === "personal" ? "各端末の録音の要約" : "議論の流れ"}{flow ? `（${flow.totalMinutes}分）` : ""}</h3>
         {flow && <SourceTag source={flow.source} />}
       </div>
       {!flow ? <p className="empty">{PENDING}</p> : flow.speechDetected === false ? <p className="empty">{NO_SPEECH}</p> : (
         <>
-          <div className={`timeline${compact ? "" : " timeline--tall"}`} role="img" aria-label={flow.segments.map((s) => `${s.topic} ${s.minutes}分`).join("、")}>
+          {flow.recordingMode === "personal" && <p className="t-note">{flow.recordingCount}台の録音を分析済みです。時刻はそれぞれの端末の録音開始からの目安です。</p>}
+          {!!flow.segments.length && <div className={`timeline${compact ? "" : " timeline--tall"}`} role="img" aria-label={flow.segments.map((s) => `${s.topic} ${s.minutes}分`).join("、")}>
             {flow.segments.map((s, i) => (
               <div key={i} className={`timeline__seg${s.highlight ? " timeline__seg--hl" : ""}`} style={{ flexGrow: s.minutes, "--share": s.minutes / total } as React.CSSProperties}>
                 <span>{s.topic}</span><span>{s.minutes}分</span>
               </div>
             ))}
-          </div>
+          </div>}
           {flow.flowNote && <p className="t-note">{flow.flowNote}</p>}
         </>
       )}
@@ -68,7 +49,7 @@ export function GoodReview({ flow }: { flow: Flow | null }) {
     return (
       <div className="row">
         <section className="box box--md pad stack"><Tag tone="blue">ここがよかった</Tag><p className="empty">{flow ? NO_SPEECH : PENDING}</p></section>
-        <section className="box box--md pad stack"><Tag tone="tint">ここを見直そう</Tag><p className="empty">{flow ? NO_SPEECH : PENDING}</p></section>
+        <section className="box box--md pad stack"><Tag tone="yellow">ここを見直そう</Tag><p className="empty">{flow ? NO_SPEECH : PENDING}</p></section>
       </div>
     );
   }
@@ -84,12 +65,12 @@ export function GoodReview({ flow }: { flow: Flow | null }) {
         ))}
       </section>
       <section className="box box--md pad stack">
-        <div className="heading-row"><span><Tag tone="tint">ここを見直そう</Tag></span><SourceTag source={flow.source} /></div>
+        <div className="heading-row"><span><Tag tone="yellow">ここを見直そう</Tag></span><SourceTag source={flow.source} /></div>
         {flow.review.map((r, i) => (
           <div key={i} className="stack stack--tight">
             <p className="t-small" style={{ fontWeight: 700 }}>{atLabel(r.at)}の場面</p>
             <p className="t-md">{r.text}</p>
-            {r.question && <p className="flow-question">{r.question}</p>}
+            {r.question && <p className="box box--yellow" style={{ padding: "10px 14px" }}>{r.question}</p>}
           </div>
         ))}
       </section>

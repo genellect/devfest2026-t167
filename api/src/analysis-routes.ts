@@ -17,13 +17,14 @@ export function registerAnalysisRoutes(app: Express, deps: Dependencies, guards:
   app.post('/rooms/:roomId/analyze', ...chain(authenticate, member, moderator, wrap(async (req, res) => {
     const roomId = req.params.roomId;
     const { jobId } = await beginAnalysis(roomId, 'analysis');
-    const [ops, msgs] = await Promise.all([
+    const [ops, msgs, speech] = await Promise.all([
       db.collection(`sessions/${roomId}/privateOpinions`).get(),
       db.collection(`sessions/${roomId}/messages`).orderBy('createdAt').get(),
+      db.collection(`sessions/${roomId}/transcripts`).get(),
     ]);
     let points;
     try {
-      points = await trackJob(deps, 'points', jobId, () => gemini.findPoints(ops.docs.map((d) => d.get('text')), msgs.docs.map((d) => d.get('text'))));
+      points = await trackJob(deps, 'points', jobId, () => gemini.findPoints(ops.docs.map((d) => d.get('text')), [...msgs.docs.map((d) => d.get('text')), ...speech.docs.map(d => d.get('text'))]));
     } catch {
       await finishAnalysis(roomId, 'analysis', jobId, (tx) => {
         tx.update(roomRef(roomId), { 'analysis.status': 'failed', 'analysis.error': 'gemini_unavailable' });
@@ -41,7 +42,7 @@ export function registerAnalysisRoutes(app: Express, deps: Dependencies, guards:
       const existing = await tx.get(insightsRef);
       const decided = new Set(existing.docs.filter((d) => d.get('status') !== 'pending').map((d) => d.get('summary') as string));
       fresh = [...new Set(points.filter((x) => !x.discussed).map((x) => x.summary))].filter((s) => !decided.has(s));
-      for (const d of existing.docs) if (d.get('status') === 'pending') tx.delete(d.ref);
+      for (const d of existing.docs) if (d.get('status') === 'pending' && !d.get('group')) tx.delete(d.ref);
       for (const summary of fresh) {
         tx.set(insightsRef.doc(), { summary, status: 'pending', jobId, source: gemini.source, createdAt: FieldValue.serverTimestamp() });
       }

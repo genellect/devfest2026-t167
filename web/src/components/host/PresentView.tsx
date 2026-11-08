@@ -3,10 +3,11 @@ import Link from "next/link";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { Maximize, X } from "lucide-react";
+import { APP_NAME } from "@/lib/brand";
 import { millis, useCountdown, useInsights, useMembers, type Room } from "@/lib/room";
 
 /**
- * 教室に投影する画面（教員だけが開ける）。操作画面とは分け、映してよいものだけを出す（商用の投影モードと同じ考え方）。
+ * 教室に投影する画面（この議論の Host だけが開ける）。操作画面とは分け、映してよいものだけを出す（商用の投影モードと同じ考え方）。
  * - 準備中：参加コードとQR、参加人数
  * - 議論中：テーマ、時間、教員が「全員に表示する」を押した問いかけ（未決定の AI の提案は出さない）
  * - 終了：結論を自分の言葉で書くよう案内する
@@ -27,7 +28,7 @@ export function PresentView({ roomId, room }: { roomId: string; room: Room }) {
   return (
     <main className="present" aria-label="投影画面">
       <header className="present__bar">
-        <p className="present__brand">Topos</p>
+        <p className="present__brand">{APP_NAME}</p>
         <h1 className="present__theme">{room.theme || room.title}</h1>
         <div className="present__tools">
           <button type="button" className="present__tool" onClick={() => void document.documentElement.requestFullscreen?.().catch(() => {})} aria-label="全画面にする" title="全画面にする"><Maximize aria-hidden="true" strokeWidth={1.75} /></button>
@@ -79,7 +80,7 @@ function Live({ room, shown }: { room: Room; shown: string[] }) {
           <ul className="present__notes">{shown.map((s, i) => <li key={i} className="present__note">{s}</li>)}</ul>
         </> : <>
           <h2 className="present__headline">グループで話し合いましょう</h2>
-          <p className="present__hint">話した内容は、スマホの「発言メモ」に短く書いてください。</p>
+          <p className="present__hint">スマホの画面はそのままで、グループで話し合ってください。</p>
         </>}
       </div>
     </section>

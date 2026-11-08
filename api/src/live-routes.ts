@@ -14,11 +14,11 @@ import type { Dependencies } from './dependencies.js';
 export function wireData(value: unknown): unknown {
   if (value instanceof Timestamp) return { __time: value.toMillis() };
   if (Array.isArray(value)) return value.map(wireData);
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, wireData(v)]));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).filter(([k]) => k !== 'classroomUserId').map(([k, v]) => [k, wireData(v)]));
   return value;
 }
 export function mayReadResult(id: string, moderator: boolean, group: number, published = false) {
-  return moderator || (published && group >= 1 && (id === `group-${group}` || id === `flow-g${group}`));
+  return moderator || (published && group >= 1 && (id === `group-${group}` || id === `flow-g${group}` || id === `review-g${group}`));
 }
 export function registerLiveRoutes(app: Express, deps: Dependencies, guards: ReturnType<typeof sessionGuards>, member: Handler) {
   const { db, auth } = deps;
@@ -65,9 +65,17 @@ export function registerLiveRoutes(app: Express, deps: Dependencies, guards: Ret
       return true;
     }
     // イベント配信は直列化し、権限/失効を確認してから必要な文書だけ送る。
-    let queue = Promise.resolve();
-    const enqueue = (payload: { docs?: Record<string, unknown>; collections?: Record<string, unknown[]> }) => {
-      queue = queue.then(async () => {
+    type Payload = { docs?: Record<string, unknown>; collections?: Record<string, unknown[]> };
+    let pumping = false, pending: Payload = {};
+    const enqueue = (incoming: Payload) => {
+      if (closed) return;
+      if (incoming.docs) pending.docs = {...pending.docs, ...incoming.docs};
+      if (incoming.collections) pending.collections = {...pending.collections, ...incoming.collections};
+      if (pumping) return;
+      pumping = true;
+      void (async () => {
+        while (!closed && (pending.docs || pending.collections)) {
+        const payload = pending; pending = {};
         if (closed || !(await check())) return;
         if (!moderator) {
           const room = await db.doc(roomPath).get();
@@ -98,7 +106,8 @@ export function registerLiveRoutes(app: Express, deps: Dependencies, guards: Ret
           }
         }
         if (!res.write(`data: ${JSON.stringify(wireData(payload))}\n\n`)) close();
-      }).catch(fail);
+        }
+      })().catch(fail).finally(() => { pumping = false; if (!closed && (pending.docs || pending.collections)) enqueue({}); });
     };
     const listenDoc = (path: string) => subscriptions.push(db.doc(path).onSnapshot((snap: DocumentSnapshot) => enqueue({ docs: { [path]: snap.exists ? snap.data() : null } }), fail));
     const listenCollection = (name: string, ref: Query<DocumentData> | DocumentReference<DocumentData>, filter?: (id: string) => boolean) => {
@@ -118,11 +127,11 @@ export function registerLiveRoutes(app: Express, deps: Dependencies, guards: Ret
     if (moderator) listenCollection(`${roomPath}/results`, db.collection(`${roomPath}/results`), (id) => mayReadResult(id, true, group));
     else if (group >= 1) {
       const publishResults = async () => {
-        const [ownResult, flow] = await db.getAll(db.doc(`${roomPath}/results/group-${group}`), db.doc(`${roomPath}/results/flow-g${group}`));
-        enqueue({ docs: { [`${roomPath}/results/group-${group}`]: ownResult.data() ?? null, [`${roomPath}/results/flow-g${group}`]: flow.data() ?? null } });
+        const [ownResult, flow, review] = await db.getAll(db.doc(`${roomPath}/results/group-${group}`), db.doc(`${roomPath}/results/flow-g${group}`), db.doc(`${roomPath}/results/review-g${group}`));
+        enqueue({ docs: { [`${roomPath}/results/group-${group}`]: ownResult.data() ?? null, [`${roomPath}/results/flow-g${group}`]: flow.data() ?? null, [`${roomPath}/results/review-g${group}`]: review.data() ?? null } });
       };
       subscriptions.push(db.doc(roomPath).onSnapshot(() => { void publishResults().catch(fail); }, fail));
-      listenDoc(`${roomPath}/results/group-${group}`); listenDoc(`${roomPath}/results/flow-g${group}`);
+      listenDoc(`${roomPath}/results/group-${group}`); listenDoc(`${roomPath}/results/flow-g${group}`); listenDoc(`${roomPath}/results/review-g${group}`);
     }
     if (group >= 1) listenDoc(`${roomPath}/groups/${group}`);
     if (moderator) {

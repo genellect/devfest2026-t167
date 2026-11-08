@@ -25,12 +25,12 @@ describe("画面とAPIの接続", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>invalid</html>", { status: 200 })));
     await expect(callApi("/rooms")).rejects.toMatchObject({ code: "invalid_response" });
   });
-  it("録音Blobと同意・時間を送り、失敗時には再送用の同じBlobを維持する", async () => {
+  it("録音Blobと時間を送り、失敗時には再送用の同じBlobを維持する", async () => {
     const fetcher = vi.fn<typeof fetch>(async () => Response.json({ group: 1, status: "done" }));
     vi.stubGlobal("fetch", fetcher);
     const blob = new Blob(["synthetic"], { type: "audio/wav" });
     await uploadRecording("room", blob, 1.9);
-    expect(fetcher.mock.calls[0][0]).toBe("/api/rooms/room/groups/recording?consent=1&durationSec=2");
+    expect(fetcher.mock.calls[0][0]).toBe("/api/rooms/room/groups/recording?durationSec=2");
     expect(fetcher.mock.calls[0][1]?.body).toBe(blob);
   });
   it("429の待機秒数・追跡IDを保持する", async () => {

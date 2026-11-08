@@ -1,4 +1,5 @@
 "use client";
+import { workspaceToken } from "./workspace";
 import { ensureSignedIn } from "./firebase";
 import { authenticatedFetch } from "./session";
 
@@ -11,7 +12,9 @@ async function send<T>(path: string, contentType: string, body: BodyInit, timeou
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await authenticatedFetch(path, { method: "POST", headers: { "content-type": contentType }, body, signal: controller.signal }, user);
+    let classroomToken: string | undefined;
+    if (path === "/rooms/join") { try { classroomToken = workspaceToken(); } catch { /* 未連携の通常コード参加は維持する。 */ } }
+    const res = await authenticatedFetch(path, { method: "POST", headers: { "content-type": contentType, ...(classroomToken ? { "x-google-access-token": classroomToken } : {}) }, body, signal: controller.signal }, user);
     const requestId = res.headers.get("x-request-id") ?? undefined;
     const data = await res.json().catch(() => undefined);
     if (!res.ok) {
@@ -37,6 +40,6 @@ export const callApi = <T>(path: string, body: object = {}) => send<T>(path, "ap
 /** 音声は同じBlobを保持して再送する。受領済みかはAPIの指紋・受領結果で確認する。 */
 export const uploadRecording = (roomId: string, audio: Blob, durationSec: number) =>
   send<{ group: number; status: "done"; speechDetected: boolean; totalMinutes: number }>(
-    `/rooms/${roomId}/groups/recording?consent=1&durationSec=${Math.max(1, Math.round(durationSec))}`,
+    `/rooms/${roomId}/groups/recording?durationSec=${Math.max(1, Math.round(durationSec))}`,
     audio.type || "audio/webm", audio, 210_000,
   );

@@ -23,3 +23,7 @@ ui-debug.log
 api/coverage/
 .local-data/
 __pycache__/
+
+/web/public/pdfjs-*/
+
+.next-real/

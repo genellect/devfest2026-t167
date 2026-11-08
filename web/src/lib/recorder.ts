@@ -18,6 +18,7 @@ export function useRecorder(roomId?: string) {
   const stopped = useRef<{ blob: Blob; durationMs: number } | null>(null);
   const stopping = useRef<Promise<{ blob: Blob; durationMs: number } | null> | null>(null);
   const stopRef = useRef<() => Promise<unknown>>(() => Promise.resolve());
+  const finalizeRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const [level, setLevel] = useState(0); // 0〜1 の音量。円形の音の表示に使う
   const [elapsedMs, setElapsedMs] = useState(0);
   const rec = useRef<MediaRecorder | null>(null);
@@ -25,11 +26,11 @@ export function useRecorder(roomId?: string) {
   const stream = useRef<MediaStream | null>(null);
   const audio = useRef<AudioContext | null>(null);
   const raf = useRef<number>(0);
-  const clock = useRef({ startedAt: 0, carried: 0 });
+  const clock = useRef({ startedAt: 0, carried: 0, running: false });
 
   const cleanup = useCallback(() => {
     cancelAnimationFrame(raf.current);
-    stream.current?.getTracks().forEach((t) => t.stop());
+    stream.current?.getTracks().forEach((t) => { t.onended = null; t.stop(); });
     audio.current?.close().catch(() => {});
     stream.current = null; audio.current = null;
   }, []);
@@ -72,8 +73,14 @@ export function useRecorder(roomId?: string) {
           void stopRef.current();
         });
       };
-      r.start(15_000);
       rec.current = r;
+      // ブラウザによる許可取り消しなど、外部要因の停止でも最終チャンクを保存する。
+      let resolveCompletion: () => void;
+      const completed = new Promise<void>((resolve) => { resolveCompletion = resolve; });
+      r.onstop = () => { resolveCompletion(); void stopRef.current(); };
+      finalizeRef.current = async () => { await completed; };
+      s.getTracks().forEach((track) => { track.onended = () => { void stopRef.current(); }; });
+      r.start(15_000);
       // 音量を測って、円の大きさに反映する
       const ctx = new AudioContext();
       const analyser = ctx.createAnalyser();
@@ -89,7 +96,7 @@ export function useRecorder(roomId?: string) {
         raf.current = requestAnimationFrame(tick);
       };
       tick();
-      clock.current = { startedAt: Date.now(), carried: 0 };
+      clock.current = { startedAt: Date.now(), carried: 0, running: true };
       setElapsedMs(0);
       setState("recording");
     } catch (e) {
@@ -103,6 +110,7 @@ export function useRecorder(roomId?: string) {
     if (rec.current?.state !== "recording") return;
     rec.current.pause();
     clock.current.carried += Date.now() - clock.current.startedAt;
+    clock.current.running = false;
     setElapsedMs(clock.current.carried);
     setLevel(0);
     setState("paused");
@@ -112,6 +120,7 @@ export function useRecorder(roomId?: string) {
     if (rec.current?.state !== "paused") return;
     rec.current.resume();
     clock.current.startedAt = Date.now();
+    clock.current.running = true;
     setState("recording");
   }, []);
 
@@ -119,11 +128,12 @@ export function useRecorder(roomId?: string) {
   const stop = useCallback(async (): Promise<{ blob: Blob; durationMs: number } | null> => {
     if (stopping.current) return stopping.current;
     const r = rec.current;
-    if (!r || r.state === "inactive") return stopped.current;
+    if (!r || stopped.current) return stopped.current;
     const task = (async () => {
-      const durationMs = clock.current.carried + (r.state === "recording" ? Date.now() - clock.current.startedAt : 0);
-      const done = new Promise<void>((ok) => { r.onstop = () => ok(); });
-      r.stop(); await done;
+      const durationMs = clock.current.carried + (clock.current.running ? Date.now() - clock.current.startedAt : 0);
+      clock.current.running = false;
+      if (r.state !== "inactive") r.stop();
+      await finalizeRef.current();
       cleanup(); setLevel(0); setState("stopped");
       const result = { blob: new Blob(chunks.current, { type: r.mimeType || "audio/webm" }), durationMs };
       stopped.current = result;
@@ -143,7 +153,16 @@ export function useRecorder(roomId?: string) {
     try { return await task; } finally { stopping.current = null; }
   }, [cleanup]);
   stopRef.current = stop;
-  /** 同意の取り消しなどで録音を捨てる。送らず、端末に残した復旧用の録音も消す */
+  /** 分析完了の確認後に、復旧用DBとメモリの音声を消す。失敗は呼び出し元へ伝えて再試行できるようにする。 */
+  const clearCompleted = useCallback(async () => {
+    await stop();
+    await saving.current;
+    const m = manifest.current;
+    if (m) await deleteRecovery(m.uid, m.id);
+    stopped.current = null; manifest.current = null; chunks.current = []; rec.current = null;
+    setSaveError(undefined);
+  }, [stop]);
+  /** 利用者の操作で録音を捨てる。送らず、端末に残した復旧用の録音も消す */
   const discard = useCallback(async () => {
     const m = manifest.current;
     await stop();
@@ -154,7 +173,7 @@ export function useRecorder(roomId?: string) {
   useEffect(() => registerRecordingGuard(async () => { await stop(); }), [stop]);
 
   const capture = useCallback(() => ({ stream: stream.current, context: audio.current }), []);
-  return { state, saveError, level, elapsedMs, start, pause, resume, stop, discard, capture };
+  return { state, saveError, level, elapsedMs, start, pause, resume, stop, discard, clearCompleted, capture };
 }
 
 export const mmss = (ms: number) => {

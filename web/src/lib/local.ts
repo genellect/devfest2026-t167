@@ -1,11 +1,11 @@
 "use client";
 /**
  * この端末だけに残す記録（ブラウザの localStorage）。
- * 個人の目標・振り返り・参加した議論の一覧は、サーバーに送らず本人の端末にだけ置く。
+ * 個人の振り返り・参加した議論の一覧は、サーバーに送らず本人の端末にだけ置く。
  * 読み書きできない環境（プライベートブラウズなど）でも画面は動くようにする。
  */
 export interface HistoryItem { roomId: string; title: string; at: number; note?: string }
-export interface Reflection { goal?: string; achieved?: string; spoke?: string; nextGoal?: string; ifAgain?: string; savedAt?: number }
+export interface Reflection { spoke?: string; ifAgain?: string; savedAt?: number }
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -27,22 +27,7 @@ export function addHistory(role: "host" | "participant", item: Omit<HistoryItem,
 export const getReflection = (roomId: string) => read<Reflection>(`t167.reflection.${roomId}`, {});
 export function saveReflection(roomId: string, patch: Reflection) {
   write(`t167.reflection.${roomId}`, { ...getReflection(roomId), ...patch });
-  if (patch.nextGoal) write("t167.nextGoal", { text: patch.nextGoal, at: Date.now() });
 }
-/** 前回の振り返りで決めた「次に挑戦したいこと」 */
-export const getNextGoal = () => read<{ text: string; at: number } | null>("t167.nextGoal", null);
-
-/** 先生が決めた議論の時間（分）。部屋ごとにこの端末に残す */
-export const getDuration = (roomId: string) => read<number>(`t167.duration.${roomId}`, 15);
-export const setDuration = (roomId: string, minutes: number) => write(`t167.duration.${roomId}`, minutes);
-
-export const shortDate = (at: number) => { const d = new Date(at); return `${d.getMonth() + 1}/${d.getDate()}`; };
-
-/** 先生のプロフィール。この端末にだけ保存する（サーバーには送らない） */
-export interface Profile { name: string; school?: string; className?: string }
-export const getProfile = () => read<Profile | null>("t167.profile", null);
-export const saveProfile = (p: Profile) => write("t167.profile", p);
-
 /** 部屋ごとの「クラス・授業名」（ヘッダーの小さな表示に使う） */
 export const getRoomLabel = (roomId: string) => read<string>(`t167.roomLabel.${roomId}`, "");
 export const setRoomLabel = (roomId: string, label: string) => write(`t167.roomLabel.${roomId}`, label);

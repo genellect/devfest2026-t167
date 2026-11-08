@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { HttpError, parse, run, wrap, type Handler, type AuthRequest } from './http.js';
 import type { Dependencies } from './dependencies.js';
 import { createSessions, hashSession, publicSession, requireFresh, sessionSecret, type Session } from './sessions.js';
-import { schoolOf, sessionPolicySchema } from './session-policy.js';
 
 const local = () => [process.env.FIRESTORE_EMULATOR_HOST, process.env.FIREBASE_AUTH_EMULATOR_HOST].every((v) => /^(127\.0\.0\.1|localhost):\d+$/.test(v ?? ''));
 export const cookieName = () => local() ? 'discuss_session_dev' : '__Host-discuss_session';
@@ -39,7 +38,7 @@ export function sessionGuards(deps: Dependencies) {
     const checked = await sessions.validate(token, secret);
     req.ctx.session = checked.session;
     // 明示的な成功操作だけを延長する。取得・進捗ポーリング・購読・トークン更新は除く。
-    if (req.method === 'POST' && req.path.startsWith('/rooms') && !req.path.endsWith('/progress') && !req.path.includes('/speaker/')) {
+    if (req.method === 'POST' && req.path.startsWith('/rooms') && !req.path.endsWith('/progress') && !req.path.includes('/speaker/') && !req.path.includes('/transcripts/') && !req.path.endsWith('/processing/run')) {
       res.locals.recordActivity = async () => {
         const active = await sessions.validate(token, secret, { activity: true });
         setSessionCookie(res, secret, active.session, deps.now());
@@ -98,19 +97,5 @@ export function registerSessionRoutes(app: Express, deps: Dependencies, guards: 
     const info = parse(sharedSchema, req.body); validEnd(info.classEndsAt);
     if (info.isSharedDevice && (await sessions.policy(req.ctx.token!)).endAtClassEnd && info.classEndsAt === null) throw new HttpError(400, 'class_end_required', '共用端末の授業終了時刻を指定してください');
     await sessions.setShared(req.ctx.token!, cookie(req), info); res.json({ ok: true });
-  }));
-  const admin = run(async (req) => {
-    if (req.ctx.token?.schoolAdmin !== true || schoolOf(req.ctx.token) !== req.params.schoolId) throw new HttpError(403, 'school_admin_required', '所属校の管理者だけが操作できます');
-  });
-  app.get('/schools/:schoolId/security-policy', guards.authenticate, admin, wrap(async (req, res) => { res.json({ policy: await sessions.policy(req.ctx.token!) }); }));
-  app.put('/schools/:schoolId/security-policy', guards.authenticate, admin, wrap(async (req, res) => {
-    const policy = parse(sessionPolicySchema, req.body);
-    await deps.db.doc(`schools/${req.params.schoolId}/security/policy`).set(policy); res.json({ policy });
-  }));
-  app.post('/schools/:schoolId/users/:uid/sessions/revoke', guards.authenticate, admin, wrap(async (req, res) => {
-    if (!/^[A-Za-z0-9_-]{1,128}$/.test(req.params.uid)) throw new HttpError(400, 'bad_request', '利用者を確認してください');
-    const target = await deps.auth.getUser(req.params.uid).catch(() => null);
-    if (!target || target.customClaims?.schoolId !== req.params.schoolId) throw new HttpError(404, 'user_not_found', '対象の利用者が見つかりません');
-    await sessions.revokeMany({ ...req.ctx.token!, uid: target.uid }, undefined, 'admin_revoked'); res.json({ ok: true });
   }));
 }

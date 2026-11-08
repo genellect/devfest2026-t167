@@ -90,10 +90,11 @@ describe('認証と所属', () => {
   it('トークンなしは 401', async () => {
     await api().post('/rooms', { title: 'x' }).expect(401);
   });
-  it('匿名と、招待されていない（教師claimのない）Google利用者は作成できず、教員だけがHostになれる', async () => {
+  it('匿名は作成できず、教師claimなしのGoogle利用者も自分の部屋のHostになれる', async () => {
     await api(await anonymous()).post('/rooms', { title: 'x' }).expect(403);
-    const denied = await api(await anon()).post('/rooms', { title: 'x' }).expect(403);
-    expect(denied.body.error.code).toBe('teacher_required');
+    const student = await anon();
+    const created = await api(student).post('/rooms', { title: 'x' }).expect(201);
+    expect((await db.doc(`sessions/${created.body.roomId}/members/${uidOf(student)}`).get()).get('role')).toBe('host');
     const r = await api(await named()).post('/rooms', { title: 'x' }).expect(201);
     expect(r.body.joinCode).toMatch(/^\d{6}$/);
   });
@@ -352,31 +353,35 @@ describe('グループごとの進行', () => {
 });
 
 describe('録音の分析', () => {
-  const upload = (token: string, roomId: string, q = 'consent=1&durationSec=600', type = 'audio/wav', bytes = 4000) =>
+  const upload = (token: string, roomId: string, q = 'durationSec=600', type = 'audio/wav', bytes = 4000) =>
     request(app).post(`/rooms/${roomId}/groups/recording?${q}`).set('authorization', `Bearer ${token}`).set('cookie', cookies.get(token) ?? '').set('content-type', type).send(bytes === 4000 ? wave() : Buffer.alloc(bytes, 1));
   async function discussingRoom() {
     const r = await setupRoom(true);
     for (const p of [r.p1, r.p2]) await api(p).post(`/rooms/${r.roomId}/opinion`, { text: '意見' }).expect(200);
     return r;
   }
-  it('同意・議論の開始・生徒であることを確かめる', async () => {
+  it('アプリ独自の許可フラグなしで、議論の開始・生徒であることを確かめる', async () => {
     const { roomId, mod, p1, p2 } = await setupRoom(true);
     await upload(p1, roomId).expect(409); // 議論が始まる前
     for (const p of [p1, p2]) await api(p).post(`/rooms/${roomId}/opinion`, { text: '意見' }).expect(200);
-    await upload(p1, roomId, 'durationSec=600').expect(400); // 同意がない
+    await upload(p1, roomId, '').expect(400); // 時間指定がない
     await upload(mod, roomId).expect(403); // 先生は送らない（生徒の端末で録音する）
     await upload(await anon(), roomId).expect(403); // メンバー外
-    await upload(p1, roomId, 'consent=1&durationSec=600', 'text/plain').expect(415);
-    await upload(p1, roomId, 'consent=1&durationSec=2000').expect(413); // 30分を超える
-    await upload(p1, roomId, 'consent=1&durationSec=600', 'audio/webm', 10).expect(400); // 空
+    await upload(p1, roomId, 'durationSec=600', 'text/plain').expect(415);
+    await upload(p1, roomId, 'durationSec=2000').expect(413); // 30分を超える
+    await upload(p1, roomId, 'durationSec=600', 'audio/webm', 10).expect(400); // 空
   });
   it('分析の結果を results/flow-g{番号} に保存し、グループに1回だけ分析する', async () => {
     const { roomId, p1, p2 } = await discussingRoom();
-    const r = await upload(p1, roomId, 'consent=1&durationSec=600', 'audio/wav').expect(200);
+    await db.doc(`sessions/${roomId}`).update({ title: '無題のセッション', theme: '音声分析へ渡すテーマ' });
+    const r = await upload(p1, roomId, 'durationSec=600', 'audio/wav').expect(200);
     expect(r.body).toMatchObject({ group: 1, status: 'done', speechDetected: true, totalMinutes: 10, source: 'mock' });
     const flow = (await db.doc(`sessions/${roomId}/results/flow-g1`).get()).data();
     expect(flow).toMatchObject({ group: 1, totalMinutes: 10, durationSec: 600, source: 'mock' });
+    expect(flow?.receivedAt).toBeDefined();
+    expect(flow?.consentAt).toBeUndefined();
     expect(flow?.segments.length).toBeGreaterThan(0);
+    expect(flow?.segments[0].topic).toBe('音声分析へ渡すテーマ');
     expect(flow?.behaviors).toHaveProperty('questions');
     expect(JSON.stringify(flow)).not.toContain(uidOf(p1)); // 話者を記録しない
     expect((await db.doc(`sessions/${roomId}`).get()).get('groupState')['1'].recording.status).toBe('done');
@@ -397,6 +402,34 @@ describe('録音の分析', () => {
     await upload(p1, roomId).expect(200); // 3回目
     expect((await db.doc(`sessions/${roomId}`).get()).get('groupState')['1'].recording.attempts).toBe(3);
   });
+  it('各自端末では同じグループの2台を同時に分析し、本人の受領だけで完了する', async () => {
+    const { roomId, p1, p2 } = await discussingRoom();
+    await db.doc(`sessions/${roomId}/groups/1`).set({ recordingMode: 'personal' }, { merge: true });
+    for (const p of [p1, p2]) await db.doc(`sessions/${roomId}/members/${uidOf(p)}`).update({ deviceMode: 'personal' });
+    delay = 30;
+    const results = await Promise.all([upload(p1, roomId), upload(p2, roomId)]);
+    expect(results.map(r => r.status)).toEqual([200, 200]);
+    const flow = (await db.doc(`sessions/${roomId}/results/flow-g1`).get()).data();
+    expect(flow).toMatchObject({ recordingMode: 'personal', recordingCount: 2, durationSec: 600, totalMinutes: 10, segments: [], source: 'mock' });
+    for (const p of [p1, p2]) {
+      expect((await db.doc(`sessions/${roomId}/members/${uidOf(p)}`).get()).get('recordingStatus')).toBe('done');
+      expect((await db.doc(`sessions/${roomId}/recordingUploads/${uidOf(p)}`).get()).get('status')).toBe('done');
+      await upload(p, roomId).expect(200); // 同一録音の再送は本人の受領を返す。
+    }
+    expect((await db.doc(`sessions/${roomId}/results/flow-g1`).get()).get('recordingCount')).toBe(2);
+  });
+  it('他端末が完了していても各自端末の分析失敗を完了扱いにせず再試行できる', async () => {
+    const { roomId, p1, p2 } = await discussingRoom();
+    await db.doc(`sessions/${roomId}/groups/1`).set({ recordingMode: 'personal' }, { merge: true });
+    for (const p of [p1, p2]) await db.doc(`sessions/${roomId}/members/${uidOf(p)}`).update({ deviceMode: 'personal' });
+    await upload(p1, roomId).expect(200);
+    fail = true; await upload(p2, roomId).expect(503);
+    expect((await db.doc(`sessions/${roomId}/members/${uidOf(p2)}`).get()).get('recordingStatus')).toBe('failed');
+    expect((await db.doc(`sessions/${roomId}/results/flow-g1`).get()).get('recordingCount')).toBe(1);
+    fail = false; clock += 31_000;
+    await upload(p2, roomId).expect(200);
+    expect((await db.doc(`sessions/${roomId}/results/flow-g1`).get()).get('recordingCount')).toBe(2);
+  });
   it('3回失敗したグループは、それ以上 Gemini を呼ばない', async () => {
     const { roomId, p1 } = await discussingRoom();
     fail = true;
@@ -407,7 +440,7 @@ describe('録音の分析', () => {
   });
   it('大きすぎる録音は 413', async () => {
     const { roomId, p1 } = await discussingRoom();
-    const r = await upload(p1, roomId, 'consent=1&durationSec=600', 'audio/webm', 12 * 1024 * 1024 + 1).expect(413);
+    const r = await upload(p1, roomId, 'durationSec=600', 'audio/webm', 12 * 1024 * 1024 + 1).expect(413);
     expect(r.body.error).toMatchObject({ code: 'too_large' });
   });
   it('先生が録音を使わない設定にした部屋では送れない', async () => {
@@ -581,7 +614,7 @@ describe('P1: 非公開情報と状態変更の回帰', () => {
       [mod, 'groups/start', { group: 1 }], [mod, 'groups/analyze', { group: 1 }],
       [p1, 'groups/analyze', {}], [mod, 'consensus/analyze', {}],
     ] as [string, string, object][]) await api(token).post(`/rooms/${roomId}/${suffix}`, body).expect(409);
-    await request(app).post(`/rooms/${roomId}/groups/recording?consent=1&durationSec=10`)
+    await request(app).post(`/rooms/${roomId}/groups/recording?durationSec=10`)
       .set('authorization', `Bearer ${p1}`).set('cookie', cookies.get(p1) ?? '').set('content-type', 'audio/wav').send(wave(10, 8000)).expect(409);
     expect((await ref.get()).data()).toEqual(before);
     expect((await db.doc(`sessions/${roomId}/consensusStatements/${uidOf(p1)}`).get()).exists).toBe(false);
@@ -640,7 +673,7 @@ describe('P1: 非公開情報と状態変更の回帰', () => {
     } });
     const recording = suffix === 'groups/recording';
     const pending = recording
-      ? request(target).post(`/rooms/${roomId}/${suffix}?consent=1&durationSec=10`).set('authorization', `Bearer ${p1}`).set('cookie', cookies.get(p1) ?? '').set('content-type', 'audio/wav').send(wave(10, 8000)).then((r) => r)
+      ? request(target).post(`/rooms/${roomId}/${suffix}?durationSec=10`).set('authorization', `Bearer ${p1}`).set('cookie', cookies.get(p1) ?? '').set('content-type', 'audio/wav').send(wave(10, 8000)).then((r) => r)
       : postTo(target, mod, `/rooms/${roomId}/${suffix}`, { group: 1 }).then((r) => r);
     await entered.promise;
     try { await api(mod).post(`/rooms/${roomId}/phase`, { to: 'closed' }).expect(200); }
@@ -660,8 +693,9 @@ describe('認証・入力攻撃・再送の境界', () => {
     await api(await anonymous()).post('/rooms/join', { code: joinCode }).expect(403);
     const password = await signUp({ email: `password-${Date.now()}@example.com`, password: 'password' }); // submit-allow: エミュレータ専用のダミー
     await api(password).post('/rooms/join', { code: joinCode }).expect(403);
-    // 本文で教員やHostを名乗っても、作成の権限にも既存の所属にも使わない
-    expect((await api(p1).post('/rooms', { title: '新しいセッション', teacher: true, role: 'host' }).expect(403)).body.error.code).toBe('teacher_required');
+    // 新規作成でHostになるのは新しい部屋だけ。本文のroleで既存の所属を昇格できない。
+    const created = await api(p1).post('/rooms', { title: '新しいセッション', teacher: true, role: 'host' }).expect(201);
+    expect((await db.doc(`sessions/${created.body.roomId}/members/${uidOf(p1)}`).get()).get('role')).toBe('host');
     expect((await db.doc(`sessions/${roomId}/members/${uidOf(p1)}`).get()).get('role')).toBe('participant');
     await api(p1).post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(403);
     await api(p1).post(`/rooms/${roomId}/analyze`, { role: 'host' }).expect(403);
@@ -681,7 +715,7 @@ describe('認証・入力攻撃・再送の境界', () => {
   it('同じ録音を同じ利用者が再送しても結果・試行回数を重複させない', async () => {
     const { roomId, mod, p1 } = await setupRoom();
     await api(mod).post(`/rooms/${roomId}/groups/start`, { group: 1 }).expect(200);
-    const send = () => request(app).post(`/rooms/${roomId}/groups/recording?consent=1&durationSec=2`)
+    const send = () => request(app).post(`/rooms/${roomId}/groups/recording?durationSec=2`)
       .set('authorization', `Bearer ${p1}`).set('cookie', cookies.get(p1) ?? '').set('content-type', 'audio/wav').send(wave(2, 8000));
     const first = await send().expect(200); const second = await send().expect(200);
     expect(second.body).toEqual(first.body);
@@ -690,7 +724,7 @@ describe('認証・入力攻撃・再送の境界', () => {
   it('音声の偽装と入力過大を、分析の試行枠を消費せず拒否する', async () => {
     const { roomId, mod, p1 } = await setupRoom();
     await api(mod).post(`/rooms/${roomId}/groups/start`, { group: 1 }).expect(200);
-    await request(app).post(`/rooms/${roomId}/groups/recording?consent=1&durationSec=2`)
+    await request(app).post(`/rooms/${roomId}/groups/recording?durationSec=2`)
       .set('authorization', `Bearer ${p1}`).set('cookie', cookies.get(p1) ?? '').set('content-type', 'audio/webm').send(wave(2)).expect(400);
     expect((await db.doc(`sessions/${roomId}`).get()).get('groupState.1.recording')).toBeUndefined();
     await api(p1).post(`/rooms/${roomId}/opinion`, { text: 'x'.repeat(40_000) }).expect(413);
@@ -741,5 +775,43 @@ describe('Zod・Admin SDK更新後のAPI互換性', () => {
   it.each([{ groups: '2' }, { recording: 'false' }, { title: '' }])('入力の型・必須値の制約を維持する: %j', async (patch) => {
     const result = await api(await named()).post('/rooms', { title: '依存更新の確認', ...patch }).expect(400);
     expect(result.body.error.code).toBe('bad_request');
+  });
+});
+
+
+describe('ホームのテーマ相談', () => {
+  it('未ログイン・Cookieなし・失効したログインは拒否する', async () => {
+    await api().post('/themes/suggest', { request: '環境' }).expect(401);
+    const token = await anon();
+    await request(app).post('/themes/suggest').set('authorization', `Bearer ${token}`).send({ request: '環境' }).expect(401);
+    await api(token).post('/sessions/logout').expect(200);
+    await api(token).post('/themes/suggest', { request: '環境' }).expect(401);
+  });
+  it('学生・教員とも3候補を取得でき、部屋/Hostを作らず入力も保存しない', async () => {
+    const before = await db.collection('sessions').get();
+    for (const token of [await anon(), await named()]) {
+      const result = await api(token).post('/themes/suggest', { request: '環境問題' }).expect(200);
+      expect(result.body.source).toBe('mock'); expect(result.body.themes).toHaveLength(3);
+      const next = await api(token).post('/themes/suggest', { request: '環境問題', previous: result.body.themes }).expect(200);
+      expect(next.body.themes.every((t: string) => !result.body.themes.includes(t))).toBe(true);
+      const limits = await db.collection('apiLimits').get();
+      expect(JSON.stringify(limits.docs.map(d => d.data()))).not.toContain('環境問題');
+    }
+    expect((await db.collection('sessions').get()).size).toBe(before.size);
+  });
+  it('空白・長過ぎ・型違い・過剰候補を拒否し、6回/分の上限を越えると429', async () => {
+    const token = await anon();
+    for (const body of [{ request: ' ' }, { request: 'a'.repeat(501) }, { request: 4 }, { request: '環境', previous: ['A', 'B', 'C', 'D'] }, { request: '環境', previous: [4] }]) await api(token).post('/themes/suggest', body).expect(400);
+    for (let i = 0; i < 6; i++) await api(token).post('/themes/suggest', { request: '環境' }).expect(200);
+    await api(token).post('/themes/suggest', { request: '環境' }).expect(429);
+    clock += 60_001;
+    await api(token).post('/themes/suggest', { request: '環境' }).expect(200);
+  });
+  it('Gemini失敗時も本文や上流例外を返さず503、復旧後に再試行できる', async () => {
+    const token = await anon(); fail = true;
+    const response = await api(token).post('/themes/suggest', { request: '非公開相談マーカー' }).expect(503);
+    expect(JSON.stringify(response.body)).not.toMatch(/非公開相談マーカー|gemini_mock_failure/);
+    fail = false;
+    await api(token).post('/themes/suggest', { request: '環境' }).expect(200);
   });
 });
