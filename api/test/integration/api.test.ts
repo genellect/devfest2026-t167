@@ -387,6 +387,14 @@ describe('録音の分析', () => {
     expect((await db.doc(`sessions/${roomId}`).get()).get('groupState')['1'].recording.status).toBe('done');
     await upload(p2, roomId).expect(409); // 同じグループの2台目の送信は分析しない
   });
+  it('テーマ非公開のあいだは、録音の分析にテーマ本文を渡さず、参加者に届く結果へ写さない', async () => {
+    const { roomId, p1 } = await discussingRoom();
+    await db.doc(`sessions/${roomId}`).update({ title: '架空の授業', theme: '架空の非公開テーマ：録音分析', 'participantView.theme': false });
+    await upload(p1, roomId, 'durationSec=600', 'audio/wav').expect(200);
+    const flow = (await db.doc(`sessions/${roomId}/results/flow-g1`).get()).data();
+    expect(JSON.stringify(flow)).not.toContain('架空の非公開テーマ');
+    expect(flow?.segments[0].topic).toBe('架空の授業');
+  });
   it('Gemini が失敗したら 503 で、30秒あけて同じ録音を送り直せる。分析はグループごとに3回まで', async () => {
     const { roomId, p1 } = await discussingRoom();
     fail = true;

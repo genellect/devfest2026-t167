@@ -9,6 +9,7 @@ import { validateAudio } from './audio.js';
 import { trackJob } from './job-events.js';
 import { updateDiscussionSummary } from './discussion-results.js';
 import { ANALYZE_COOLDOWN_MS, MAX_RECORDING_ATTEMPTS, RECORDING_TIMEOUT_MS, statusOf } from './policy.js';
+import { recordingAnalysisTheme } from './room-visibility.js';
 
 interface Input { roomId: string; uid: string; audio: Buffer; mimeType: string; durationSec: number; fingerprint: string }
 interface Analysis { result: Discussion; durationSec: number }
@@ -69,7 +70,7 @@ export async function analyzePersonalRecording(deps: Dependencies, input: Input)
   const { group, room } = claimed;
   let result: Discussion;
   try {
-    result = await trackJob(deps, 'recording', jobId, () => gemini.analyzeDiscussion({ audio, mimeType, durationSec, theme: room.get('theme') || room.get('title') || '' }));
+    result = await trackJob(deps, 'recording', jobId, () => gemini.analyzeDiscussion({ audio, mimeType, durationSec, theme: recordingAnalysisTheme(room) }));
   } catch {
     await roomTransaction(db, roomId, async tx => {
       const current = await tx.get(roomRef), upload = await tx.get(uploadRef);

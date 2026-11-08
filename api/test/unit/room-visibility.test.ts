@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { HIDDEN_THEME_TITLE, isThemeCopiedIntoTitle, participantTitle, titleRevealsTheme } from '../../src/room-visibility.js';
+import { HIDDEN_THEME_TITLE, isThemeCopiedIntoTitle, participantTitle, titleRevealsTheme, recordingAnalysisTheme } from '../../src/room-visibility.js';
 import { registerDiscussionRoutes } from '../../src/discussion-routes.js';
 import type { Dependencies } from '../../src/dependencies.js';
 import type { Handler } from '../../src/http.js';
@@ -36,5 +36,17 @@ describe('テーマ非公開時の参加者向けの名前（R1）', () => {
     const response = await request(app).get('/discussions').expect(200);
     expect(response.body.sessions[0]).toMatchObject({ theme: '', title: HIDDEN_THEME_TITLE });
     expect(JSON.stringify(response.body)).not.toContain(SECRET);
+  });
+});
+
+describe('recordingAnalysisTheme', () => {
+  const room = (data: Record<string, unknown>) => ({ get: (field: string) => field.split('.').reduce<unknown>((v, k) => (v as Record<string, unknown> | undefined)?.[k], data) });
+  it('公開中はテーマ、テーマがなければ名前を渡す', () => {
+    expect(recordingAnalysisTheme(room({ title: '名前', theme: 'テーマ本文' }))).toBe('テーマ本文');
+    expect(recordingAnalysisTheme(room({ title: '名前', theme: '' }))).toBe('名前');
+  });
+  it('非公開のあいだは、テーマと重ならない名前だけを渡す', () => {
+    expect(recordingAnalysisTheme(room({ title: '名前', theme: 'テーマ本文', participantView: { theme: false } }))).toBe('名前');
+    expect(recordingAnalysisTheme(room({ title: 'テーマ本', theme: 'テーマ本文', participantView: { theme: false } }))).toBe('話し合い');
   });
 });

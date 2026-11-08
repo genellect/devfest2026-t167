@@ -25,3 +25,14 @@ export function isThemeCopiedIntoTitle(patch: { title?: string; theme?: string }
   const fallback = typeof currentTitle === 'string' ? currentTitle : '';
   return patch.title === (patch.theme || fallback).slice(0, 100) && patch.title !== fallback;
 }
+
+/**
+ * 録音の分析（Gemini）へ渡すテーマ。分析結果（results/flow-g*）は結果の公開後に参加者へ届くため、
+ * テーマを非公開にしているあいだは参加者向けの名前だけを渡し、テーマ本文が結果の話題名などに写らないようにする。
+ */
+export function recordingAnalysisTheme(room: { get(field: string): unknown }): string {
+  const title = typeof room.get('title') === 'string' ? room.get('title') as string : '';
+  const theme = typeof room.get('theme') === 'string' ? room.get('theme') as string : '';
+  if (room.get('participantView.theme') === false) return participantTitle({ title, theme, themeHidden: true });
+  return theme || title;
+}
