@@ -57,21 +57,33 @@ export default function NewRoom() {
     );
   }
   return (
-    <AppShell title="新しい議論">
-      <div className="flow">
-        <form className="flow-card" onSubmit={create} aria-labelledby="new-title">
-          <h2 id="new-title" className="flow-card__title">議論の準備</h2>
+    <AppShell title="新しい議論" wide>
+      <div className="create">
+        <form className="panel create__form" onSubmit={create} aria-labelledby="new-title">
+          <h2 id="new-title" className="t-md">テーマを決める</h2>
           <div className="field">
             <label className="field__label" htmlFor="title">テーマ</label>
             <input id="title" className="input" value={title} maxLength={100} required placeholder="例：大学の課題提出でAIの利用を認めるべきか" onChange={(e) => setTitle(e.target.value)} />
+            <p className="field__hint">賛成と反対、条件付きなど、考えが分かれそうな問いにすると、まだ話されていない論点が見つかりやすくなります。</p>
           </div>
           <div className="field">
             <label className="field__label" htmlFor="label">クラス名（任意）</label>
             <input id="label" className="input" value={label} maxLength={40} placeholder="例：2年3組" onChange={(e) => setLabel(e.target.value)} />
+            <p className="field__hint">作った議論の一覧で見分けるために使います。学生には表示しません。</p>
           </div>
           {error && <p className="notice notice--error" role="alert">{error}</p>}
           <div className="home-actions"><button className="btn btn--blue" type="submit" disabled={busy || !title.trim()}>{busy ? "作成しています…" : "作成する"}</button></div>
         </form>
+        {/* 作ったあとに起きること（実際に順に進むので番号を付ける） */}
+        <aside className="create__next" aria-labelledby="next-steps-title">
+          <h2 id="next-steps-title" className="t-sm">作ったあとの流れ</h2>
+          <ol className="steps-list">
+            <li><b>参加コードと QR を映す</b><span>上の帯の「投影画面」を開き、プロジェクターに映します。</span></li>
+            <li><b>学生が事前の意見を書く</b><span>本文は本人だけが見られ、教員にも届きません。</span></li>
+            <li><b>議論を始める</b><span>AI が、まだ話されていない論点を黄色の付箋で提案します。全員に表示するか、見送るかを選びます。</span></li>
+            <li><b>結論の中身を確かめる</b><span>終わったら全員が結論を一文で書き、理解の分かれ方を色の付箋で見ます。</span></li>
+          </ol>
+        </aside>
       </div>
     </AppShell>
   );

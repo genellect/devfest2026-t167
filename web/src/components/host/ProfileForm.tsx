@@ -35,7 +35,7 @@ export function ProfileForm({ defaultName, submitLabel, onSaved }: { defaultName
         </div>
       </div>
       <p className="field__hint">プロフィールはこの端末にだけ保存します。参加者には表示しません。</p>
-      <button className="btn btn--blue btn--block" type="submit" disabled={!name.trim()}>{submitLabel}</button>
+      <div className="home-actions"><button className="btn btn--blue" type="submit" disabled={!name.trim()}>{submitLabel}</button></div>
     </form>
   );
 }
