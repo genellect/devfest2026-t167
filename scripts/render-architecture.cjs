@@ -5,7 +5,7 @@ const { chromium } = require(require.resolve('playwright', { paths: [path.join(_
 (async () => {
   const root = path.join(__dirname, '..');
   const browser = await chromium.launch(process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {});
-  const page = await browser.newPage({ viewport: { width: 1600, height: 800 }, deviceScaleFactor: 2 });
+  const page = await browser.newPage({ viewport: { width: 1400, height: 810 }, deviceScaleFactor: 2 });
   await page.goto('file://' + path.join(root, 'docs', 'architecture.html'));
   await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: path.join(root, 'docs', 'architecture.png'), fullPage: true });

@@ -32,7 +32,7 @@ Topos（トポス）は、授業のグループディスカッションのため
 
 ## アーキテクチャ
 
-![Topos のシステム構成](docs/images/architecture.webp)
+![Topos のシステム構成](docs/architecture.png)
 
 画面・API・データを Google Cloud のマネージドサービスに分け、ブラウザは画面と同じオリジンの `/api` だけを呼ぶ構成。ログインはブラウザが Firebase Authentication で行い、API が毎回 ID トークンを検証する。画面と API は、使わない時間は0台まで縮む。
 
