@@ -103,6 +103,14 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     await expect(page.getByRole("region", { name: "1グループ中1グループで、同じ結論の理解が分かれました" })).toBeVisible();
     for (const o of [...opinions, ...statements]) await expect(page.locator("main")).not.toContainText(o);
     await expect(a.getByText("同じ結論を、どう理解した？")).toBeVisible();
+    // 振り返りは、自分の言葉で2つとも書くまで保存できない
+    const save = a.getByRole("button", { name: "振り返りを保存", exact: true });
+    await expect(save).toBeDisabled();
+    await a.getByLabel("もう一度話すなら、どうする？").fill("事前の意見を最初に話す");
+    await expect(save).toBeDisabled();
+    await a.getByLabel("次の議論で実践する目標").fill("自分の意見の前に、1つ質問する");
+    await save.click();
+    await expect(a.getByText("保存しました。次の議論の前に表示します。")).toBeVisible();
     await page.screenshot({ path: "../docs/screenshots/unified-host-result-mobile.png", fullPage: true });
     expect(pageErrors).toEqual([]);
   } finally { await Promise.all(contexts.map((c) => c.close())); }
