@@ -1,4 +1,4 @@
-# Google Discuss MVP：セッション内ロールと認証
+# Topos MVP：セッション内ロールと認証
 
 2026-11-06の変更指示を適用する。学校でのTeacher/Studentと議論のHost/Participantを分離し、MVPでは全員がGoogleでログインする。役割選択とClassroom接続は利用条件にしない。
 

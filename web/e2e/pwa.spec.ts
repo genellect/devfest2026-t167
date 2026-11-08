@@ -9,7 +9,7 @@ test("ホーム画面に追加できるよう、マニフェストとアイコ�
   const res = await request.get(href!);
   expect(res.status()).toBe(200);
   const manifest = await res.json();
-  expect(manifest).toMatchObject({ name: "Discuss", short_name: "Discuss", start_url: "/home", display: "standalone" });
+  expect(manifest).toMatchObject({ name: "Topos — 誰の考えも埋もれない議論を、すべての教室に。", short_name: "Topos", start_url: "/home", display: "standalone" });
   const purposes = manifest.icons.map((i: { purpose: string }) => i.purpose);
   expect(purposes).toContain("maskable");
   for (const icon of [...manifest.icons, { src: "/icons/apple-touch-icon.png" }, { src: "/favicon.ico" }]) {

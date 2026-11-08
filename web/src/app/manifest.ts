@@ -4,9 +4,9 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "Discuss",
-    short_name: "Discuss",
-    description: "議論の前に全員の考えを集め、話し合いのずれを見つけるグループディスカッション支援",
+    name: "Topos — 誰の考えも埋もれない議論を、すべての教室に。",
+    short_name: "Topos",
+    description: "議論の前に全員の考えを集め、まだ話されていない論点と合意のずれを AI が見つけるグループディスカッション支援",
     lang: "ja",
     start_url: "/home",
     scope: "/",

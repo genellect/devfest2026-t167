@@ -3,11 +3,12 @@ import "./ds.css";
 import { LoginGate } from "@/components/LoginGate";
 
 export const metadata: Metadata = {
-  title: "Discuss",
-  description: "議論の前に全員の考えを集め、話し合いのずれを見つけるグループディスカッション支援",
-  applicationName: "Discuss",
+  // プロダクト名は Topos（README「Topos という名前」）。タブの題名は「画面名 | Topos」
+  title: { default: "Topos — 誰の考えも埋もれない議論を、すべての教室に。", template: "%s | Topos" },
+  description: "議論の前に全員の考えを集め、まだ話されていない論点と合意のずれを AI が見つけるグループディスカッション支援",
+  applicationName: "Topos",
   // ホーム画面に追加したとき、iPhone でもブラウザの枠なしで開く
-  appleWebApp: { capable: true, title: "Discuss", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Topos", statusBarStyle: "default" },
   icons: { apple: "/icons/apple-touch-icon.png" },
 };
 // viewport-fit=cover で、iPhone の下の余白（env(safe-area-inset-*)）を CSS で扱えるようにする

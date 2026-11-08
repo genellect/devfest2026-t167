@@ -7,7 +7,7 @@ import { useGeminiSource } from "@/components/ui";
 /**
  * 画面の骨組み（デザイン「黒板と付箋」）。上に1本の帯だけを置き、左のメニューは持たない（Docs「UIフィードバック」：
  * ヘッダーは最小限、使い方のボタンは不要、次に何をするかを画面そのもので伝える）。
- * - 左上：「Discuss」でホームへ（教員は教員のホーム、学生は学生のホーム）。議論の途中では「←」で戻る
+ * - 左上：「Topos」でホームへ（教員は教員のホーム、学生は学生のホーム）。議論の途中では「←」で戻る
  * - 右上：アカウントの丸。押すと設定（端末とセッション、使い方とプライバシー、ログアウト）
  * - tone="board"：教室に投影する教員の部屋。画面全体を黒板の色にする
  * onLeave は、議論中に別の画面へ移るときの確認（録音を送っていないときなど）。false を返すと移動しない。
@@ -35,8 +35,8 @@ export function AppShell({ title, eyebrow, steps, status, actions, children, onL
       <header className="shell__bar">
         {nav && back
           ? <Link href={back} className="shell__back" aria-label="ホーム" onClick={guard}><ArrowLeft size={22} strokeWidth={1.75} aria-hidden="true" /></Link>
-          : nav ? <Link href={home} className="shell__brand" onClick={guard}>Discuss</Link>
-            : <span className="shell__brand">Discuss</span>}
+          : nav ? <Link href={home} className="shell__brand" onClick={guard}>Topos</Link>
+            : <span className="shell__brand">Topos</span>}
         <div className="shell__title">
           {eyebrow && <p className="shell__eyebrow">{eyebrow}</p>}
           <h1 className="shell__name">{title}</h1>

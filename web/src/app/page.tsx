@@ -41,9 +41,9 @@ export default function Login() {
   return (
     <main className="screen login">
       <section className="login__hero">
-        <p className="login__brand">Discuss</p>
-        <h1 className="t-hero login__title">話す前に、<br />全員の考えを。</h1>
-        <p className="login__lead">声にならなかった意見と、合意のずれを見つけるグループディスカッション。</p>
+        <p className="login__brand">Topos</p>
+        <h1 className="t-hero login__title">誰の考えも埋もれない議論を、<br />すべての教室に。</h1>
+        <p className="login__lead">議論の前に全員の考えを集め、まだ話されていない論点と、合意のずれを AI が見つけます。</p>
         {/* 製品の見本：教員の画面に出る AI の付箋と、結果に出る理解の分かれ方 */}
         <div className="login__board" aria-hidden="true">
           <p className="login__board-label">議論中、教員の画面に</p>

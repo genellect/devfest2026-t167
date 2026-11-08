@@ -27,7 +27,7 @@ export function PresentView({ roomId, room }: { roomId: string; room: Room }) {
   return (
     <main className="present" aria-label="投影画面">
       <header className="present__bar">
-        <p className="present__brand">Discuss</p>
+        <p className="present__brand">Topos</p>
         <h1 className="present__theme">{room.theme || room.title}</h1>
         <div className="present__tools">
           <button type="button" className="present__tool" onClick={() => void document.documentElement.requestFullscreen?.().catch(() => {})} aria-label="全画面にする" title="全画面にする"><Maximize aria-hidden="true" strokeWidth={1.75} /></button>
