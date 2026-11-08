@@ -42,14 +42,25 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
     finally { setBusyId(undefined); }
   }
 
-  const headline = pending.length ? "この論点を投げかけましょう"
+  // 段階ごとに「今やること」を1つだけ大きく見せる。提案があれば、次に投げかける1つを主役に、残りは下に小さく並べる
+  const [focus, ...rest] = pending;
+  const headline = focus ? "この論点を投げかけましょう"
     : scan.running ? "AI が議論を読み取っています"
       : coverage && coverage.total > 0 && coverage.discussed === coverage.total ? "事前の意見の論点は、すべて話されています"
         : coverage ? "いまは新しい提案はありません"
           : "議論を見守りましょう";
-  const lead = pending.length ? "事前の意見にあったのに、まだ話されていない論点です。「全員に表示する」を押すと、学生の画面に問いかけとして出ます。"
+  const lead = focus ? "事前の意見にあったのに、まだ話されていない論点です。投げかけると、学生のスマホと投影画面に問いかけとして出ます。"
     : coverage ? "新しいメモが届くと、また探します。話が尽きたら、議論を終えて結論を書いてもらいましょう。"
       : "学生がメモを共有すると、AI が事前の意見と照らし合わせて、まだ話されていない論点を探します。";
+  const scanLabel = scan.running ? "分析中…" : scan.wait > 0 ? `あと ${scan.wait} 秒で探せます` : "未検討の論点を探す";
+  const scanNote = scan.paused ? "AI の分析は一時停止中です。議論はそのまま続けられます。" : scan.message || "新しいメモが届くと、60秒ごとに自動でも探します。提案は教員の画面だけに出ます。";
+  // 主役の付箋だけ濃いボタンにする（ほかの候補は控えめにして、視線を1つに集める）
+  const actions = (i: Insight, primary = true) => (
+    <div className="proposal__actions">
+      <button className={`btn${primary ? " btn--ink" : ""}`} disabled={busyId === i.id} onClick={() => void decide(i.id, "approve")}>全員に表示する</button>
+      <button className="btn" disabled={busyId === i.id} onClick={() => void decide(i.id, "dismiss")}>見送る</button>
+    </div>
+  );
 
   return (
     <div className="teacher__body live">
@@ -59,17 +70,15 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
           <div>
             <dt>意見の検討率</dt>
             <dd className="tally__num">{coverage?.reflectionRate == null ? "—" : `${Math.round(coverage.reflectionRate * 100)}%`}</dd>
-            <dd className="tally__sub">{coverage ? `話された論点 ${coverage.discussed}/${coverage.total}` : "AI の分析の前"}</dd>
+            {coverage && <dd className="tally__sub">話された論点 {coverage.discussed}/{coverage.total}</dd>}
           </div>
           <div data-alert={pending.length > 0 || undefined}>
             <dt>未検討の論点</dt>
             <dd className="tally__num">{pending.length}</dd>
-            <dd className="tally__sub">{approved.length ? `全員に表示中 ${approved.length}` : "全員に表示中 0"}</dd>
           </div>
           <div>
             <dt>{spoke.label}</dt>
             <dd className="tally__num">{spoke.count}<small>/{spoke.total}人</small></dd>
-            <dd className="tally__sub">{voice.length ? "録音から推定" : "発言メモから"}</dd>
           </div>
         </dl>
         <FinishButton roomId={roomId} />
@@ -80,35 +89,47 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
           <h2 id="next-title" className="next__title">{headline}</h2>
           <p className="next__lead">{lead}</p>
           {error && <p className="notice notice--error" role="alert">{error}</p>}
-          {pending.length > 0 && (
-            <ul className="next__notes">
-              {pending.map((i) => (
-                <li key={i.id} className="box--yellow proposal">
-                  <div className="proposal__head"><p className="t-label">まだ議論されていない論点</p><SourceTag source={i.source} /></div>
-                  <p className="t-md proposal__text">{i.summary}</p>
-                  <div className="proposal__actions">
-                    <button className="btn btn--ink" disabled={busyId === i.id} onClick={() => void decide(i.id, "approve")}>全員に表示する</button>
-                    <button className="btn" disabled={busyId === i.id} onClick={() => void decide(i.id, "dismiss")}>見送る</button>
-                  </div>
-                </li>
-              ))}
-            </ul>
+          {focus ? (
+            <article className="box--yellow proposal proposal--focus" aria-label="次に投げかける論点">
+              <div className="proposal__head"><p className="t-label">まだ議論されていない論点</p><SourceTag source={focus.source} /></div>
+              <p className="t-md proposal__text">{focus.summary}</p>
+              {actions(focus)}
+            </article>
+          ) : (
+            <div className="next__idle">
+              <button className="btn btn--blue" onClick={() => void scan.run()} disabled={scan.running || scan.wait > 0}>{scanLabel}</button>
+              <p className="t-note" role="status">{scanNote}</p>
+            </div>
           )}
-          <div className="next__scan">
-            <button className="btn" onClick={() => void scan.run()} disabled={scan.running || scan.wait > 0}>
-              {scan.running ? "分析中…" : scan.wait > 0 ? `あと ${scan.wait} 秒で探せます` : "未検討の論点を探す"}
-            </button>
-            <p className="t-note" role="status">{scan.paused ? "AI の分析は一時停止中です。議論はそのまま続けられます。" : scan.message || "提案は教員の画面だけに出ます。"}</p>
-          </div>
-          {approved.length > 0 && (
-            <section className="shown" aria-labelledby="shown-title">
-              <h3 id="shown-title" className="shown__title">全員に表示中</h3>
-              <ul className="shown__list">{approved.map((i) => <li key={i.id} className="note note--paper">{i.summary}</li>)}</ul>
+          {rest.length > 0 && (
+            <section className="queue" aria-labelledby="queue-title">
+              <h3 id="queue-title" className="queue__title">ほかの候補 {rest.length}件</h3>
+              <ul className="queue__list">
+                {rest.map((i) => (
+                  <li key={i.id} className="box--yellow proposal proposal--queued">
+                    <p className="t-label sr-only">まだ議論されていない論点</p>
+                    <p className="t-md proposal__text">{i.summary}</p>
+                    {actions(i, false)}
+                  </li>
+                ))}
+              </ul>
             </section>
+          )}
+          {focus && (
+            <div className="next__scan">
+              <button className="btn btn--small" onClick={() => void scan.run()} disabled={scan.running || scan.wait > 0}>{scanLabel}</button>
+              <p className="t-note" role="status">{scanNote}</p>
+            </div>
           )}
         </section>
 
         <aside className="live-side" aria-label="グループと発言">
+          <section className="shown" aria-labelledby="shown-title">
+            <h2 id="shown-title" className="live-side__title">学生に表示中の問いかけ</h2>
+            {approved.length
+              ? <ul className="shown__list">{approved.map((i) => <li key={i.id} className="note note--paper">{i.summary}</li>)}</ul>
+              : <p className="t-note">まだありません。論点を「全員に表示する」と、ここと学生の画面に出ます。</p>}
+          </section>
           <section aria-labelledby="groups-title">
             <h2 id="groups-title" className="live-side__title">グループ</h2>
             <ul className="group-list">

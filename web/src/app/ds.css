@@ -582,7 +582,35 @@ input[type=checkbox] { width: 20px; height: 20px; flex: none; margin: 3px 0 0; a
 .next { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .next__title { font-size: 22px; font-weight: 700; line-height: 1.45; }
 .next__lead { max-width: 62ch; font-size: 15px; color: var(--ink-2); }
-.next__notes { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; align-items: stretch; }
+/* 次に投げかける1つ：大きな付箋。残りの候補は下に1列で小さく並べる */
+.proposal--focus { gap: 14px; padding: 24px 26px 22px; margin-top: 4px; }
+.proposal--focus .proposal__text { font-size: 22px; line-height: 1.55; }
+.queue { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.queue__title { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.queue__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.proposal--queued { background: var(--insight-soft); flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 12px 14px; box-shadow: none; border-radius: 6px 6px 14px 6px; }
+.proposal--queued .proposal__text { flex: 1 1 280px; font-size: 15px; font-weight: 600; }
+.proposal--queued .proposal__actions { margin-top: 0; }
+.proposal--queued .btn { min-height: 36px; padding: 6px 12px; font-size: 14px; }
+/* 終了後：いまやること（結論の提出待ち・結果をまとめる）を1つだけ大きく */
+.ended-hero { display: flex; flex-direction: column; gap: 14px; padding: 24px 26px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-panel); }
+.ended-hero__title { font-size: 22px; font-weight: 700; line-height: 1.45; }
+.ended-hero__lead { max-width: 62ch; color: var(--ink-2); }
+.ended-hero__count { display: flex; align-items: baseline; gap: 6px; font-size: 44px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.ended-hero__count small { font-size: 16px; font-weight: 600; color: var(--ink-2); letter-spacing: 0; }
+.ended-hero__bar { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.ended-hero__bar span { display: block; height: 100%; background: var(--brand); border-radius: inherit; transition: width .4s ease; }
+.ended-hero__groups { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.ended-hero__groups li { display: inline-flex; align-items: center; gap: 8px; padding: 4px 4px 4px 12px; min-height: 36px; border-radius: 999px; background: var(--surface-2); font-size: 14px; }
+.ended-hero__groups li[data-done] { background: var(--ok-bg); color: var(--ok-ink); padding-right: 12px; }
+.ended-hero__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.ended-hero--quiet { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; padding: 14px 20px; }
+.ended-hero--quiet .ended-hero__title { font-size: 16px; }
+@media (prefers-reduced-motion: reduce) { .ended-hero__bar span { transition: none; } }
+/* グループが1つの結果：「次の授業」と指標を横に並べる（比べる表がないので右が空かないように） */
+@media (min-width: 900px) { .split--single > .stack { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; } .split--single > .stack > p { grid-column: 1 / -1; } }
+.next__idle { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 4px; }
+.next__idle .t-note { margin: 0; max-width: 46ch; }
 .proposal { justify-content: space-between; }
 .proposal__head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .proposal__head .t-label { font-size: 12px; font-weight: 600; }

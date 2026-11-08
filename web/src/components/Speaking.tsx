@@ -44,5 +44,7 @@ export function GuestSpeaking({ roomId, group }: { roomId: string; group: number
 }
 export function HostSpeaking({ roomId, card = false, ended = false }: { roomId: string; card?: boolean; ended?: boolean }) {
   const groups = useRoomFeed(roomId).collections[`sessions/${roomId}/speaking`] ?? [];
+  // 録音して話者を推定したグループがなければ、説明だけの空の欄は出さない
+  if (!groups.length) return null;
   return <section className={card ? "flow-card stack" : "body stack"} aria-label="リアルタイムの発言状況"><h2 className={card ? "t-sm" : undefined}>{ended ? "発言時間と発言率の推移" : "リアルタイムの発言状況"}</h2>{!groups.length && <p>{ended ? "録音担当端末での話者の推定がなかったため、表示するデータはありません。" : "録音担当端末が録音を始めると、登録した声との照合結果が表示されます。"}</p>}{groups.map((g) => <SpeakingRates key={g.id} state={g as unknown as SpeakingState} />)}</section>;
 }
