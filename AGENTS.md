@@ -46,7 +46,7 @@
 2. `git status` で未コミットの作業を確かめ、`git fetch origin main` のあと、最新の `origin/main` からブランチを作る。名前は `<種類>/<内容>`（[CONTRIBUTING](CONTRIBUTING.md#ブランチとコミット)）。ツールが名前を決める場合は `claude/`・`codex/` のままでよい。
 3. 並行して動くエージェントとは、別のブランチと `git worktree` を使い、割り当てられたファイルだけを変える。他の人やエージェントが使っている checkout は編集しない。
 4. 1つの PR では1つの目的だけを扱う。次の組は同じ PR で変える。
-   - API のエンドポイント → `web/` の呼び出し、`api/test/integration`、README の認可の表
+   - API のエンドポイント → `web/` の呼び出し、`api/test/integration`、[API と認可](docs/api.md)の表（読める人が変わるなら README の「プライバシーとセキュリティ」の表も）
    - `firebase/firestore.rules` → `firebase/test/rules.test.mjs`
    - 指標の計算（`api/src/metrics.ts`）→ 単体テストと README の指標の表
    - 起動・検査の手順 → `scripts/dev.sh`、README、CONTRIBUTING
