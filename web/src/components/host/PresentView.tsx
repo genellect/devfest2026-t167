@@ -28,7 +28,7 @@ export function PresentView({ roomId, room }: { roomId: string; room: Room }) {
     <main className="present" aria-label="投影画面">
       <header className="present__bar">
         <p className="present__brand">Discuss</p>
-        <p className="present__theme">{room.theme || room.title}</p>
+        <h1 className="present__theme">{room.theme || room.title}</h1>
         <div className="present__tools">
           <button type="button" className="present__tool" onClick={() => void document.documentElement.requestFullscreen?.().catch(() => {})} aria-label="全画面にする" title="全画面にする"><Maximize aria-hidden="true" strokeWidth={1.75} /></button>
           <Link className="present__tool" href={`/rooms/${roomId}`} aria-label="操作画面に戻る" title="操作画面に戻る"><X aria-hidden="true" strokeWidth={1.75} /></Link>
@@ -52,7 +52,7 @@ export function PresentView({ roomId, room }: { roomId: string; room: Room }) {
 
       {ended && (
         <section className="present__end" aria-label="議論の終了">
-          <h1 className="present__headline">議論を終えました</h1>
+          <h2 className="present__headline">議論を終えました</h2>
           <p className="present__hint">スマホで、グループの結論を自分の言葉で書いてください。</p>
         </section>
       )}
@@ -78,7 +78,7 @@ function Live({ room, shown }: { room: Room; shown: string[] }) {
           <p className="present__label">先生からの問いかけ</p>
           <ul className="present__notes">{shown.map((s, i) => <li key={i} className="present__note">{s}</li>)}</ul>
         </> : <>
-          <h1 className="present__headline">グループで話し合いましょう</h1>
+          <h2 className="present__headline">グループで話し合いましょう</h2>
           <p className="present__hint">話した内容は、スマホの「発言メモ」に短く書いてください。</p>
         </>}
       </div>
