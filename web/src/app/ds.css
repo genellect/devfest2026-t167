@@ -695,3 +695,26 @@ progress::-moz-progress-bar { background: var(--brand); }
 }
 .present-link svg { width: 16px; height: 16px; }
 @media (max-width: 767px) { .present-link { display: none; } }
+
+/* ---------- 学生の議論中：上にテーマと時間、主役は発言メモ ---------- */
+.talk-hero { display: flex; flex-direction: column; gap: 4px; padding: 4px 0 4px; }
+.talk-hero__title { font-size: 22px; font-weight: 700; line-height: 1.4; letter-spacing: -.01em; }
+.talk-hero__theme { font-size: 15px; color: var(--ink-2); }
+.talk-hero__timer { align-self: flex-start; margin-top: 6px; padding: 4px 12px; border-radius: 999px; background: var(--brand-soft); color: var(--brand-ink); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.memo__feed { list-style: none; margin: 0; padding: 0; max-height: 320px; }
+.memo__feed .bubble { max-width: 100%; }
+.memo__composer { display: flex; gap: 8px; align-items: stretch; }
+.memo__composer .input { flex: 1; min-width: 0; }
+@media (max-width: 420px) { .memo__composer { flex-direction: column; } .memo__composer .btn { width: 100%; } }
+.prompt-empty { padding: 10px 14px; border: 1px dashed var(--line-strong); border-radius: var(--r-control); }
+/* 発言メモの吹き出しは入力欄と見分けられるよう、枠をなくして淡い灰の面にする */
+.memo__feed .bubble { background: var(--surface-2); border-color: transparent; border-radius: 12px 12px 12px 4px; }
+
+/* ---------- 5段階の目盛り（納得の度合い） ---------- */
+.scale { display: flex; flex-direction: column; gap: 6px; }
+.scale__options { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.scale__option { min-height: 48px; border: 1px solid var(--line-strong); border-radius: var(--r-control); background: var(--surface); color: var(--ink); font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; }
+.scale__option:hover { background: var(--surface-2); }
+.scale__option[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: #fff; }
+.scale__ends { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-2); }
+.scale__value { font-size: 14px; font-weight: 600; color: var(--brand-ink); min-height: 1.6em; }

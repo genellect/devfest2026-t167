@@ -439,7 +439,7 @@ gcloud iam service-accounts keys list --iam-account="ai-dev@${PROJECT_ID}.iam.gs
 
 | 鍵の ID | だれの鍵か | 登録した環境 | 作った日 |
 |---|---|---|---|
-| （まだない） | — | — | — |
+| 7583f1593f7f5ee100d8191326c701cdb83aa5bc | 松井優知（Claude Code用） | Claude Code / devfest2026-t167（個人用） | 2026-11-08 |
 
 ### 抜けるとき・終わったとき
 

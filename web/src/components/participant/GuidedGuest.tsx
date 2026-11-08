@@ -89,11 +89,15 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord }: 
   const STEPS = ["事前意見", "議論", "結論", "結果"];
   const step = ended ? (result || status === "done" ? 3 : 2) : !named || !voiced || waiting ? 0 : 1;
   const shared = own?.deviceMode === "shared";
-  const question = (
+  // 教員が「全員に表示する」を押した問いかけ。届くまでは黄色にせず、1行の案内だけを置く
+  const question = insights.length ? (
     <section className="sticky" aria-label="教員からの問いかけ">
       <p className="sticky__label">教員からの問いかけ</p>
-      {insights.length === 0 ? <p className="t-note">まだ話されていない論点があると、教員がここに表示します。</p>
-        : insights.map((i) => <p key={i.id} className="sticky__text">{i.summary}</p>)}
+      {insights.map((i) => <p key={i.id} className="sticky__text">{i.summary}</p>)}
+    </section>
+  ) : (
+    <section className="prompt-empty" aria-label="教員からの問いかけ">
+      <p className="t-small">まだ話されていない論点があると、教員がここに問いかけを表示します。</p>
     </section>
   );
   const leave = () => !recording.unsaved || window.confirm("録音がまだ送られていません。ホームに戻ると、録音は送られず分析されません。戻りますか？");
@@ -151,24 +155,29 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord }: 
         : <OpinionStep bare roomId={roomId} uid={uid} total={gs?.total} opinions={gs?.opinions} canChange={false} onChangeGroup={() => {}} />)
 
       : <>
-        {/* 教員が承認した問いかけ（まだ話されていない論点）は、届いたら一番上に出す */}
+        <section className="talk-hero" aria-labelledby="talk-title">
+          <h2 id="talk-title" className="talk-hero__title">グループで話し合いましょう</h2>
+          {room.participantView?.theme !== false && room.theme && <p className="talk-hero__theme">テーマ：{room.theme}</p>}
+          {room.participantView?.timer !== false && room.endsAt && <p className="talk-hero__timer" role="timer">残り時間 {clock.text}</p>}
+        </section>
+        {/* 教員が承認した問いかけ（まだ話されていない論点）は、届いたらメモより上に出す */}
         {insights.length > 0 && question}
-        <section className="flow-card" aria-labelledby="talk-title">
-          <h2 id="talk-title" className="flow-card__title">グループで話し合いましょう</h2>
-          {room.participantView?.theme !== false && room.theme && <p>テーマ：{room.theme}</p>}
-          {room.participantView?.timer !== false && room.endsAt && <p role="timer">残り時間 {clock.text}</p>}
-          {canRecord && room.recording !== false && <>
+        <DiscussionNotes bare roomId={roomId} />
+        {canRecord && room.recording !== false && (
+          <section className="flow-card record-card" aria-labelledby="record-title">
+            <h2 id="record-title" className="t-sm">録音（この端末が担当）</h2>
             <label className="check"><input type="checkbox" checked={recordingConsent} onChange={(e) => { setRecordingConsent(e.target.checked); if (!e.target.checked) void recording.discard(); }} /><span>グループ全員が録音・声の照合・発言時間の集計に同意しました</span></label>
             <p className="t-small">録音はグループで1台です。同意を取り消すと、ここまでの録音は送らずに削除します。</p>
-            <button className="btn btn--blue btn--block" disabled={!recordingConsent || ["asking", "recording", "stopped"].includes(recording.rec.state)} onClick={() => void recording.rec.start()}>{recording.rec.state === "recording" ? "録音中" : recording.rec.state === "stopped" ? "録音は停止済みです" : "録音を始める"}</button>
-            {recorderState === "recording" && <button className="btn btn--block" onClick={() => void recording.rec.stop()}>録音を停止して端末に保管</button>}
-          </>}
-          {!canRecord && room.recording !== false && <p className="t-small">録音は、教員が指定した別の端末が担当します。</p>}
-          {speakerStatus && <p className="t-small" role="status">{speakerStatus}</p>}
-          {recording.rec.saveError && <p className="notice notice--error" role="alert">{recording.rec.saveError}</p>}
-        </section>
+            <div className="home-actions">
+              <button className="btn btn--blue" disabled={!recordingConsent || ["asking", "recording", "stopped"].includes(recording.rec.state)} onClick={() => void recording.rec.start()}>{recording.rec.state === "recording" ? "録音中" : recording.rec.state === "stopped" ? "録音は停止済みです" : "録音を始める"}</button>
+              {recorderState === "recording" && <button className="btn" onClick={() => void recording.rec.stop()}>録音を停止して端末に保管</button>}
+            </div>
+            {speakerStatus && <p className="t-small" role="status">{speakerStatus}</p>}
+            {recording.rec.saveError && <p className="notice notice--error" role="alert">{recording.rec.saveError}</p>}
+          </section>
+        )}
+        {!canRecord && room.recording !== false && <p className="t-small">録音は、教員が指定した別の端末が担当します。</p>}
         {insights.length === 0 && question}
-        <DiscussionNotes bare roomId={roomId} />
       </>}
 
       {group && room.participantView?.speaking === true && (!ended || room.resultsPublished) && <GuestSpeaking roomId={roomId} group={group} />}
