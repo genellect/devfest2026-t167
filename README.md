@@ -108,7 +108,7 @@ health以外は有効なGoogle IDトークンとアプリセッションCookie�
 | `GET /sessions/current` / `GET /sessions` | Google＋独自セッション | 本人 | — | 取得では利用期限を延長しない |
 | `POST /sessions/activity` / `shared-device` / `revoke` / `logout` / `logout-all` | Google＋独自セッション | 本人 | — | ロック/期限/授業終了・本人の端末だけ |
 | `POST /themes/suggest` | Google＋独自セッション | 不要 | — | 相談文500字・前回候補3件からテーマ3件。全員利用可、1人6回/分、入力/結果は保存しない |
-| `GET /discussions` | Google＋独自セッション | 現在も所属する議論だけ | — | クラス名・テーマ・状況・セッション内の役割を返す |
+| `GET /discussions` | Google＋独自セッション | 現在も所属する議論だけ | — | クラス名・テーマ・状況・セッション内の役割を返す。テーマ非公開の議論では、参加者にテーマを返さず、テーマと重なるセッション名も「話し合い」に伏せる（SSE・Classroomの一覧も同じ。Hostには元の値） |
 | `GET /rooms/{部屋}/live` / `me` | Google＋独自セッション | 必要 | 内容に応じて必要 | 非公開意見は本人、結果は自分のグループだけ |
 | `POST /rooms/{部屋}/materials` / `{資料}/remove` | 同上・追加時はDrive OAuth | 必要 | 必要 | 追加はshareCopy:true。解除時にチャンクも削除 |
 | `POST /rooms/{部屋}/transcripts/audio` | Google＋独自セッション | Participantの所属グループ | 許可された録音端末 | 開始後〜終了5分以内。連番・指紋で冪等。利用期限を延長しない |
