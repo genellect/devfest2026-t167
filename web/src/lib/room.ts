@@ -25,7 +25,7 @@ export interface Room {
 export interface Message { id: string; uid: string; text: string; createdAt?: Timestamp }
 export interface Insight { id: string; summary: string; status: "pending" | "approved" | "dismissed"; source?: string; approvedAt?: Timestamp }
 export interface Member { id: string; role: "host" | "participant"; status?: "active" | "inactive"; displayName?: string; ready?: boolean; attendees?: { id: string; displayName: string; voiceRegistered: boolean }[]; group?: number }
-export interface Coverage { total: number; discussed: number; reflectionRate: number | null; source?: string }
+export interface Coverage { total: number; discussed: number; reflectionRate: number | null; source?: string; points?: { summary: string; discussed: boolean }[] }
 export interface Summary {
   respondents: number;
   groups: { label: string; members: number[] }[];

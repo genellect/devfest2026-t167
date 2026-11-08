@@ -130,6 +130,17 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
               ? <ul className="shown__list">{approved.map((i) => <li key={i.id} className="note note--paper">{i.summary}</li>)}</ul>
               : <p className="t-note">まだありません。論点を「全員に表示する」と、ここと学生の画面に出ます。</p>}
           </section>
+          {/* AI が読み取った論点のうち、どれが話されて、どれがまだかを一覧で見る（言い換えた論点だけ。事前意見の本文は出さない） */}
+          {!!coverage?.points?.length && (
+            <section className="points" aria-labelledby="points-title">
+              <h2 id="points-title" className="live-side__title">AI が読み取った論点（話された {coverage.discussed}/{coverage.total}）</h2>
+              <ul className="points__list">
+                {[...coverage.points].sort((a, b) => Number(a.discussed) - Number(b.discussed)).map((p, i) => (
+                  <li key={i} data-discussed={p.discussed || undefined}><span className="points__mark" aria-hidden="true" />{p.summary}<span className="sr-only">{p.discussed ? "（話された）" : "（まだ）"}</span></li>
+                ))}
+              </ul>
+            </section>
+          )}
           <section aria-labelledby="groups-title">
             <h2 id="groups-title" className="live-side__title">グループ</h2>
             <ul className="group-list">

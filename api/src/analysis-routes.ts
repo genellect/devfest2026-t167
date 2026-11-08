@@ -47,6 +47,8 @@ export function registerAnalysisRoutes(app: Express, deps: Dependencies, guards:
       }
       tx.set(db.doc(`sessions/${roomId}/results/coverage`), {
         total: points.length, discussed: points.filter((x) => x.discussed).length,
+        // 教員の画面に「話された論点／まだの論点」を出すため、Gemini が言い換えた論点を残す（事前意見の本文は入れない。教員だけが読める）
+        points: points.map((x) => ({ summary: x.summary, discussed: x.discussed })),
         reflectionRate: reflectionRate(points), source: gemini.source, jobId, updatedAt: FieldValue.serverTimestamp(),
       });
       tx.update(roomRef(roomId), { 'analysis.status': 'done', 'analysis.finishedAt': FieldValue.serverTimestamp() });

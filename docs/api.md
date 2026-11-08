@@ -27,7 +27,7 @@ health以外は有効なGoogle IDトークンとアプリセッションCookie�
 | `POST /rooms` | Google（招待された教員の teacher claim。ない場合は `403 teacher_required`） | —（作成者が司会者になる） | — | テーマと任意のクラス名（`className`）。時間（`minutes`）は任意。作成から3時間後の `expiresAt` を書き、過ぎたセッションは書き込みを `409 room_expired` で断る |
 | `POST /rooms/join` | Google | —（参加コードで部屋を特定） | — | 新しい参加は `closed`・失効以外で、議論の開始前だけ。1本化した流れでは、グループをサーバーが決める（1グループ100人まで。超えたら次のグループを作る）。参加済みの人は開始後・終了後も同じコードで戻れる（外された参加者は `403`） |
 | `POST /rooms/{部屋}/phase` | 必要 | 必要 | 必要 | 1つずつ順に進める。1本化した流れの開始には、全参加者の表示名の登録と所属が必要（音声登録は任意）。未準備がいれば`409 guests_not_ready`（人数 `notReady`）。`excludeNotReady: true`で未準備の参加者を外して開始し、外した参加者は以後この部屋に入れない。時間が設定されていなければ終了時刻を付けない |
-| `POST /rooms/{部屋}/analyze` | 必要 | 必要 | 必要 | `collecting`・`discussing`（授業中） |
+| `POST /rooms/{部屋}/analyze` | 必要 | 必要 | 必要 | `collecting`・`discussing`（授業中）。まだ話されていない論点を提案（`insights`）にし、読み取った論点の一覧（言い換えた文と、話されたかどうか）を `results/coverage` の `points` に残す。教員だけが読める |
 | `POST /rooms/{部屋}/progress` | 必要 | 必要 | 必要 | — |
 | `POST /rooms/{部屋}/groups/choose` | 必要 | 必要 | 生徒のみ | 選ぶグループと今のグループが議論を始める前 |
 | `POST /rooms/{部屋}/opinion` | 必要 | 必要 | 生徒のみ | 自分のグループが議論を始める前 |

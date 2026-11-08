@@ -54,6 +54,8 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     await page.getByRole("button", { name: "未検討の論点を探す", exact: true }).click();
     const proposal = page.locator(".box--yellow").filter({ hasText: "まだ議論されていない論点" }).first();
     await expect(proposal).toBeVisible();
+    // AI が読み取った論点の一覧（話された／まだ）が右の列に出る。本文は出さない
+    await expect(page.getByRole("heading", { name: /AI が読み取った論点（話された \d+\/\d+）/ })).toBeVisible();
     for (const o of opinions) await expect(page.locator("main")).not.toContainText(o);
     const summary = (await proposal.locator(".t-md").innerText()).trim();
     await expect(a.getByRole("region", { name: "教員からの問いかけ" })).not.toContainText(summary);
