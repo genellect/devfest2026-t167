@@ -728,7 +728,9 @@ progress::-moz-progress-bar { background: var(--brand); }
 .ideas__ask { display: flex; flex-wrap: wrap; gap: 8px; }
 .ideas__ask .input { flex: 1 1 220px; min-width: 0; }
 .ideas__ask .btn { flex: none; }
-.ideas .choice { background: var(--surface); line-height: 1.6; }
+.ideas__list { display: flex; flex-direction: column; gap: 8px; }
+.ideas__list .choice { flex: none; background: var(--surface); line-height: 1.6; text-align: left; }
+.ideas__list .choice[aria-pressed="true"] { background: var(--brand-soft); }
 .ideas .field__hint .text-btn { margin-left: 8px; }
 /* 順に進む手順：番号の丸と、太字の見出し＋説明 */
 .steps-list { list-style: none; margin: 0; padding: 0; counter-reset: step; display: flex; flex-direction: column; gap: 14px; }

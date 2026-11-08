@@ -32,7 +32,7 @@ export function ThemeIdeas({ chosen, onPick }: { chosen: string; onPick: (theme:
       </div>
       {error && <p className="notice notice--error" role="alert">{error}</p>}
       {themes.length > 0 && <>
-        <div className="choices choices--scale" role="group" aria-label="テーマ案">
+        <div className="ideas__list" role="group" aria-label="テーマ案">
           {themes.map((t) => <button key={t} type="button" className="choice" aria-pressed={chosen === t} onClick={() => onPick(t)}>{t}</button>)}
         </div>
         <p className="field__hint">押すとテーマの欄に入ります。そのまま書き直せます。<button type="button" className="text-btn" disabled={busy} onClick={() => void suggest(true)}>別の案を出す</button></p>
