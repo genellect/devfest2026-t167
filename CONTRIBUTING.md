@@ -45,7 +45,18 @@ http://localhost:3000 を開き、参加コード `100001` で参加する。Aut
 
 ## 依存を更新する
 
-依存の修正版を選び、package.jsonとlockfileを同じ変更で更新する。メジャー更新では型・入力検証・既定値が維持されるかを確認する。`npm ci`、開発依存を含む`npm audit`、`bash scripts/dev.sh check`を実行し、実APIを使わない検査と実接続の確認を区別して報告する。依存更新に認証・画面・データ構造等の機能変更を混ぜない。固定版とoverridesの用途はREADMEの「依存ライブラリの管理」を参照。
+依存の修正版を選び、package.jsonとlockfileを同じ変更で更新する。メジャー更新では型・入力検証・既定値が維持されるかを確認する。`npm ci`、開発依存を含む`npm audit`、`bash scripts/dev.sh check`を実行し、実APIを使わない検査と実接続の確認を区別して報告する。依存更新に認証・画面・データ構造等の機能変更を混ぜない。固定版と overrides の用途は次のとおり。
+
+Node.jsは22.12以上の22系を使う（`.nvmrc`は22）。Vitest 5の実行要件に合わせ、APIとwebの`engines`にも最低版を記載する。
+
+| 対象 | 固定版・対応 |
+|---|---|
+| Firebase Admin | API・エミュレータ用ツールを14.5.0に統一 |
+| Zod | 4.6.7。型の共通制約を`ZodType`に更新し、入力制約と変換結果を回帰検査 |
+| Vitest | API・webとも5.1.0。webのNode型定義も22系に統一 |
+| 間接依存 | `overrides`で修正版を固定。grpc-js 1.14.7、postcss 8.5.32、OpenTelemetry core 2.8.0、uuid 11.1.1、glob 14.0.4、影響範囲のminimatch 11.0.5 |
+
+`npm audit fix --force`は使わず、必要な互換修正を確認する。auditの0件は実行時点で把握されているアドバイザリの結果で、脆弱性が存在しない保証ではない。
 
 
 ## 開発の流れ
@@ -171,6 +182,10 @@ Firestoreの直接購読は認可済みAPI配信へ移行し、Firestore/Storage
 
 `bash scripts/dev.sh speaker-setup`は.local-dataの専用Python環境とチェックサム検証済みモデルを準備する。`python3 speech/synthetic_samples.py`でmacOSの合成日本語音声を生成できる。`SPEAKER_TEST_VOICES="$PWD/.local-data/speaker-samples/kyoko.wav,$PWD/.local-data/speaker-samples/eddy.wav" T167_TEST_PORT_OFFSET=33000 bash scripts/dev.sh speaker-check`は専用エミュレータで登録・未登録区間の照合・無音除外・終了後の一時プロフィール削除を検証する。実際の児童生徒の音声をテストに使わない。通常のcheckではこの実モデル試験をskipし、認可と画面をモックで検証する。実モデルのローカル画面起動と制約は[設計](docs/mvp-roles.md)を参照。Google Speech APIの有効化・IAM変更・本番反映は行わない。
 
+本番APIの`api/Dockerfile`もPython・固定版の推論依存・SHA-256検証済みモデルを同梱する。ビルドはリポジトリのルートから`docker build -f api/Dockerfile -t <検証用イメージ名> .`。API専用の`Dockerfile.dockerignore`で送信ソースを限定し、端末内音声・認証情報・デモ用Webを含めない。配備設定は2 CPU・2GiB・同時8リクエスト・0〜2台。実コンテナのビルド・Cloud Run上のモデル起動と6グループ同時処理は自動checkに含まれず、配備前に別途確認する。構成の回帰検査3件はcheckで実行する。
+
 ## 非本番の実Geminiデモ
 
 `demo/Dockerfile`と`demo/cloudbuild.yaml`で画面/API/話者モデルを同梱する。`demo/deploy.sh`は既定でplanのみ。applyもweb-previewのタグ付きリビジョン・通常トラフィック0に固定し、本番サービスへデプロイしない。Google認証・Firestore・Vertex AIを実接続し、DEMO_IDの専用領域へ保存する。デモ作成自体は依頼者の許可を得て行い、mainマージと本番反映の承諾とは分ける。詳細は[クラウドデモ](docs/cloud-demo.md)。全checkにはデプロイ対象/通常トラフィックを守る偽gcloudテストを含み、実クラウドの変更は含めない。
+
+APIの正常応答を待ってからNextを起動し、初回ログイン時の転送先不在を防ぐ。APIが起動しなければ有限回で失敗し、子プロセスを停止する。起動順の回帰検査3件は通信をモック化してcheckで実行する。`demo/`の構築変更も追加レビューの対象とし、`pr --approved`では自動マージを設定しない。
