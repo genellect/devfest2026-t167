@@ -4,6 +4,7 @@ import type { Dependencies } from './dependencies.js';
 import { HttpError, parse, run, wrap, isExpired, type AuthRequest, type Handler } from './http.js';
 import { createLimiter } from './limits.js';
 import { googleWorkspace, type Workspace, type Course } from './workspace.js';
+import { participantTitle } from './room-visibility.js';
 
 const courseIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,200}$/);
 /** Google本人をFirebaseの署名済み識別子と照合する。メール・表示名・クライアントの役割を信用しない。 */
@@ -47,7 +48,7 @@ export function registerClassroomRoutes(app: Express, deps: Dependencies, guards
       if ((m.exists && !joined) || (!joined && d.get('phase') !== 'collecting')) return [];
       const canViewTheme = m.get('role') === 'host' || d.get('participantView.theme') !== false;
       // 参加コード・名簿・分析を一覧へ流さない。参加操作では所属を再検証する。
-      return [{ roomId: d.id, title: canViewTheme ? d.get('title') : '話し合い', theme: canViewTheme ? d.get('theme') ?? '' : '', className: course.name, phase: d.get('phase'), joined, host: joined && m.get('role') === 'host' }];
+      return [{ roomId: d.id, title: participantTitle({ title: d.get('title'), theme: d.get('theme'), themeHidden: !canViewTheme }), theme: canViewTheme ? d.get('theme') ?? '' : '', className: course.name, phase: d.get('phase'), joined, host: joined && m.get('role') === 'host' }];
     });
     res.json({ sessions, syncedAt: deps.now() });
   }));

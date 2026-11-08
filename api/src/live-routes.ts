@@ -9,6 +9,7 @@ import { HttpError, parse, run, wrap, type Handler } from './http.js';
 import { participantGroup } from './membership.js';
 import { statusOf } from './policy.js';
 import type { Dependencies } from './dependencies.js';
+import { participantTitle } from './room-visibility.js';
 
 /** JSONを越える時刻は専用の値で渡し、画面側でtoMillisだけを復元する。 */
 export function wireData(value: unknown): unknown {
@@ -87,7 +88,7 @@ export function registerLiveRoutes(app: Express, deps: Dependencies, guards: Ret
                 const data = { ...(room.data() ?? {}) };
                 data.groupState = group ? { [group]: data.groupState?.[group] ?? {} } : {};
                 delete data.analysis;
-                if (data.participantView?.theme === false) data.theme = '';
+                if (data.participantView?.theme === false) { data.title = participantTitle({ title: data.title, theme: data.theme, themeHidden: true }); data.theme = ''; }
                 if (data.participantView?.timer === false) { delete data.endsAt; delete data.minutes; }
                 payload.docs[path] = data;
               }

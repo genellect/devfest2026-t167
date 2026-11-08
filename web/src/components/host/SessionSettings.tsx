@@ -32,7 +32,7 @@ export function SessionSettings({ roomId, room, embedded = false }: { roomId: st
   const content = <div className="stack settings">
     <section className="settings__group" aria-labelledby="set-theme">
       <h3 id="set-theme" className="t-sm">テーマ</h3>
-      <form className="stack stack--tight" key={`${room.title}-${room.theme}`} onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); const theme = String(f.get("theme") ?? "").trim(); void act("settings", { title: (theme || room.title).slice(0, 100), theme }); }}>
+      <form className="stack stack--tight" key={`${room.title}-${room.theme}`} onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); const theme = String(f.get("theme") ?? "").trim(); void act("settings", { theme }); }}>
         <label className="sr-only" htmlFor="set-theme-input">テーマ</label>
         <input id="set-theme-input" className="input" name="theme" defaultValue={room.theme ?? ""} maxLength={1000} disabled={room.phase === "closed"} />
         <button className="btn" disabled={busy || room.phase === "closed"}>テーマを保存</button>
