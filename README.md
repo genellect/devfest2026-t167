@@ -34,30 +34,34 @@ Topos（トポス）は、授業のグループディスカッションのため
 
 ![Topos のシステム構成](docs/images/architecture.webp)
 
-画面・API・データを Google Cloud のマネージドサービスに分け、ブラウザは同じオリジンの `/api` だけを呼ぶ構成。使わない時間、API は0台まで縮む。
+画面・API・データを Google Cloud のマネージドサービスに分け、ブラウザは画面と同じオリジンの `/api` だけを呼ぶ構成。ログインはブラウザが Firebase Authentication で行い、API が毎回 ID トークンを検証する。画面と API は、使わない時間は0台まで縮む。
 
 ```
 議論
-  web/        Next.js（Firebase App Hosting）。/api を同じオリジンで受けて Cloud Run へ転送
-  → api/      Express + TypeScript（Cloud Run）。認可、議論の進行、分析の排他、指標の計算
+  ブラウザ    Firebase Authentication で Google にログインし、ID トークンを付けて /api を呼ぶ
+  → web/      Next.js（Firebase App Hosting）。/api を同じオリジンで受けて Cloud Run へ転送
+  → api/      Express + TypeScript（Cloud Run）。ID トークンとセッションの検証、認可、議論の進行、分析の排他、指標の計算
     → Gemini  gemini-3.5-flash（Vertex AI）。論点の抽出と照合、合意文のまとめ、録音の分析（構造化出力）
-    → Firestore  議論ごとのサブコレクション
+    → Firestore  議論（sessions/{議論}）ごとのサブコレクションと、ログイン中の端末
+    → 話者の推定  API と同じコンテナの Python（ONNX のモデル）。録音担当の端末が1秒ごとに送る音声を、登録した声と照合
 
 リアルタイム更新
   ブラウザ → /api/rooms/{議論}/live → Cloud Run が Firestore を購読し、認可済みの変更だけを配信
 
 デプロイ
   PR → CI（bash scripts/dev.sh check）→ main に squash merge
-  → 鍵なしの認証（Workload Identity 連携）→ Rules → API → 画面を同じコミットから順に反映
+  → 鍵なしの認証（Workload Identity 連携）
+  → Rules と索引 → API（イメージを Artifact Registry に置いて Cloud Run へ）→ 画面（App Hosting）
+    を同じコミットから順に反映
 ```
 
 | 部分 | 実行場所 | Gemini に送るもの |
 |---|---|---|
-| 画面 | Firebase App Hosting（asia-east1） | — |
-| API | Cloud Run（asia-northeast1）。0〜2台 | 事前意見・発言メモ・結論の一文の本文と、同意を得たグループの録音。持ち主の ID は送らず、録音は保存しない |
+| 画面 | Firebase App Hosting（asia-east1）。0〜4台 | — |
+| API | Cloud Run（asia-northeast1）。2 vCPU・2 GiB・0〜2台。話者の推定も同じコンテナで動く | 事前意見・発言メモ・結論の一文の本文と、同意を得たグループの録音。持ち主の ID は送らず、録音は保存しない |
 | Gemini | Vertex AI の global エンドポイント | — |
 | データ | Cloud Firestore（asia-northeast1） | — |
-| ログイン | Firebase Authentication（Google。議論を作れるのは招待した教員だけ） | — |
+| ログイン | Firebase Authentication（Google。議論を作れるのは、管理者が教員の権限を付けたアカウントだけ） | — |
 
 ### 設計の要点
 
@@ -65,7 +69,7 @@ Topos（トポス）は、授業のグループディスカッションのため
 - 教員とほかの学生に届くのは、API が持ち主を伏せて言い換えた論点だけにする。少数意見を出しやすくするため
 - AI の提案は、教員が承認してから学生に表示する。Gemini の出力は毎回少し変わり、誤りもあるため
 - 教室に映す投影画面は操作画面と分け、承認した問いかけだけを映す。決める前の提案を学生に見せないため
-- Gemini には判定に要る本文だけを送り、データと API は東京に置く。Gemini の接続先は global で、処理場所が日本に限られないため
+- Gemini には判定に要る本文と録音だけを送り、データと API は東京に置く。Gemini の接続先は global で、処理場所が日本に限られないため
 - ブラウザは常に同じオリジンの `/api` を呼ぶ。CORS を開かず、画面と API の URL の食い違いをなくすため
 - Rules・API・画面を同じコミットから順に反映し、戻すときも3つをそろえる。新しい画面と古い API が食い違わないため
 - GitHub から Google Cloud へは鍵を使わずに認証する。リポジトリは公開されていて、秘密情報を置けないため
@@ -88,7 +92,7 @@ Topos（トポス）は、授業のグループディスカッションのため
 Gemini が担うのは、文章の意味を比べる2つの判定と、録音の分析だけである。数える・割合を出す・誰に見せるかを決めるのは API が行う。
 
 ```
-未検討論点の検出（議論中。新しいメモが届くと自動で、または教員の操作で）
+未検討論点の検出（議論中。教員の画面が、新しいメモが届いていれば60秒ごとに自動で実行。手動でも実行できる）
   事前意見の本文 + 発言メモ
   → Gemini：論点を最大10個取り出し、それぞれ議論で取り上げられたかを判定
   → API で型・件数・長さを検証し、未検討の論点を「承認待ち」で保存
