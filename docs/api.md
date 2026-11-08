@@ -18,7 +18,7 @@ health以外は有効なGoogle IDトークンとアプリセッションCookie�
 | `POST /sessions` / `POST /sessions/unlock` | fresh Google | 本人 | — | Cookie発行/回転、同時ログイン上限 |
 | `GET /sessions/current` / `GET /sessions` | Google＋独自セッション | 本人 | — | 取得では利用期限を延長しない |
 | `POST /sessions/activity` / `shared-device` / `revoke` / `logout` / `logout-all` | Google＋独自セッション | 本人 | — | ロック/期限/授業終了・本人の端末だけ |
-| `GET /rooms/{部屋}/live` / `me` | Google＋独自セッション | 必要 | 内容に応じて必要 | 非公開意見は本人、結果は自分のグループだけ |
+| `GET /rooms/{部屋}/live` / `me` | Google＋独自セッション | 必要 | 内容に応じて必要 | 非公開意見は本人、結果は自分のグループだけ。テーマを非公開にした部屋では、参加者にテーマを返さず、テーマと重なる議論の名前も「話し合い」に伏せる（`GET /discussions` の一覧と録音の分析に渡すテーマも同じ。教員には元の値） |
 | `POST /rooms/{部屋}/messages` | Google＋独自セッション | 必要 | — | 部屋が`discussing`、またはグループごとに進む部屋で自分のグループが議論中。本人名義 |
 | `GET /rooms/{部屋}/speaker/config` | Google＋独自セッション | 必要 | — | モデル設定の確認 |
 | `POST /rooms/{部屋}/speaker/start` / `{runId}/chunk` / `{runId}/stop` | Google＋独自セッション | 必要 | Participantの録音担当のみ | Host開始後・同意・登録済みの所属グループ。背景送信は利用期限を延長しない |
