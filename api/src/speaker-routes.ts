@@ -1,3 +1,4 @@
+import { acceptSpeech, emptyBucket, type SpeechBucket, type SpeechDelta } from './speech-bucket.js';
 import { roomTransaction } from './room-transaction.js';
 import express, { type Express } from 'express';
 import { createHash, randomUUID } from 'node:crypto';
@@ -127,13 +128,15 @@ export function registerSpeakerRoutes(app: Express, deps: Dependencies, guards: 
             : { uid: null, confidence: null };
           state.mode = claim.mode;
           state.members = voices.map(({ uid, label }) => ({ uid, label }));
-          const eventRef=ref.collection('speechBuckets').doc(`${group}-${Math.floor((lease.get('startedAt') + sequence*1000)/1000)}-${match.uid??'unknown'}`);
-          const bucket=multi?await tx.get(eventRef):undefined;
-          const acceptedMs=multi?Math.max(0,speechMs-Number(bucket?.get('speechMs')??0)):speechMs;
+          // 各自端末では同じ秒を複数の端末が聞くので、秒ごとのまとめ（speechBuckets）で二重に数えない。
+          // 話者不明は、その秒に既に数えた時間を超える分だけを数える（acceptSpeech）。
+          const bucketRef=ref.collection('speechBuckets').doc(`${group}-${Math.floor((lease.get('startedAt') + sequence*1000)/1000)}`);
+          const stored=multi?(await tx.get(bucketRef)).data() as SpeechBucket|undefined:undefined;
+          const delta: SpeechDelta=multi?acceptSpeech(stored,match.uid,speechMs):{talk:match.uid?{[match.uid]:speechMs}:{},unknown:match.uid?0:speechMs,bucket:emptyBucket()};
           if (claim.mode === 'anonymous' && voices.length) tx.set(privateRef, { profiles: voices, version: deps.voice!.version });
-          if(multi)tx.set(eventRef,{group,speakerId:match.uid??null,speechMs:Math.max(speechMs,Number(bucket?.get('speechMs')??0))});
-          if (match.uid) state.talkMs[match.uid] = (state.talkMs[match.uid] ?? 0) + acceptedMs;
-          else state.unknownMs += acceptedMs;
+          if(multi)tx.set(bucketRef,{group,...delta.bucket});
+          for (const [uid, ms] of Object.entries(delta.talk)) state.talkMs[uid] = (state.talkMs[uid] ?? 0) + ms;
+          state.unknownMs = Math.max(0, state.unknownMs + delta.unknown);
           state.processedMs += 1000; state.updatedAt = deps.now();
           state.latest = speechMs ? { ...match, label: voices.find((p) => p.uid === match.uid)?.label ?? '話者不明' } : null;
           tx.set(stateRef, state);
