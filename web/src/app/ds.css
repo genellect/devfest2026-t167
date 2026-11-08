@@ -703,3 +703,5 @@ progress::-moz-progress-bar { background: var(--brand); }
 .memo__composer .input { flex: 1; min-width: 0; }
 @media (max-width: 420px) { .memo__composer { flex-direction: column; } .memo__composer .btn { width: 100%; } }
 .prompt-empty { padding: 10px 14px; border: 1px dashed var(--line-strong); border-radius: var(--r-control); }
+/* 発言メモの吹き出しは入力欄と見分けられるよう、枠をなくして淡い灰の面にする */
+.memo__feed .bubble { background: var(--surface-2); border-color: transparent; border-radius: 12px 12px 12px 4px; }
