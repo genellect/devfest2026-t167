@@ -91,7 +91,7 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     for (const [i, g] of [a, b].entries()) {
       await expect(g.getByRole("heading", { name: "結論を自分の言葉で書く" })).toBeVisible();
       await g.getByLabel("グループの結論を、あなたはどう理解した？").fill(statements[i]);
-      await g.getByRole("button", { name: "おおむね納得", exact: true }).click();
+      await g.getByRole("button", { name: "4 おおむね納得", exact: true }).click();
       await g.getByRole("button", { name: "提出する", exact: true }).click();
     }
 

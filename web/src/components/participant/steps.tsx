@@ -147,11 +147,11 @@ export function ConsensusStep({ roomId, uid, submitted, total, bare = false }: {
         </div>
         <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
           <legend className="field__label" style={{ marginBottom: 6 }}>その結論に、どのくらい納得している？</legend>
-          {/* 5段階の目盛り。見た目は数字、読み上げとボタンの名前は「おおむね納得」などの言葉 */}
+          {/* 5段階の目盛り。見た目は数字、ボタンの名前は「4 おおむね納得」のように数字と言葉（見える文字を名前に含める） */}
           <div className="scale">
             <div className="scale__options">
               {AGREEMENT.map((label, i) => (
-                <button key={label} type="button" className="scale__option" aria-label={label} title={label} aria-pressed={agreement === i + 1} onClick={() => setAgreement(i + 1)}>{i + 1}</button>
+                <button key={label} type="button" className="scale__option" title={label} aria-pressed={agreement === i + 1} onClick={() => setAgreement(i + 1)}>{i + 1}<span className="sr-only"> {label}</span></button>
               ))}
             </div>
             <div className="scale__ends" aria-hidden="true"><span>納得していない</span><span>とても納得</span></div>
