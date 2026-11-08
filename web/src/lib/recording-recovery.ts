@@ -1,12 +1,12 @@
 "use client";
 /** 録音の所有者はFirebase UIDで分離する。内容をログ/サーバーへ出さない。 */
-export interface RecoveryRecording { id: string; uid: string; roomId?: string; createdAt: number; mimeType: string; complete: boolean; chunks: number; durationMs?: number; error?: string }
+export interface RecoveryRecording { id: string; uid: string; roomId?: string; createdAt: number; mimeType: string; complete: boolean; chunks: number; durationMs?: number; error?: string; deleteAfter?: number }
 const guards = new Set<() => Promise<void>>();
 export function registerRecordingGuard(stopAndSave: () => Promise<void>) { guards.add(stopAndSave); return () => { guards.delete(stopAndSave); }; }
 export async function preserveRecordings() { await Promise.all([...guards].map((save) => save())); }
 const memory = new Map<string, { recording: RecoveryRecording; blob: Blob }>();
 export function retainUnsavedAudio(recording: RecoveryRecording, blob: Blob) { memory.set(recording.id, { recording, blob }); }
-export function unsavedAudio(uid: string) { return [...memory.values()].filter((r) => r.recording.uid === uid); }
+export function unsavedAudio(uid: string) { for (const [id, row] of memory) if ((row.recording.deleteAfter ?? Infinity) <= Date.now()) memory.delete(id); return [...memory.values()].filter((r) => r.recording.uid === uid && (r.recording.deleteAfter ?? Infinity) > Date.now()); }
 let opening: Promise<IDBDatabase> | undefined;
 function database() {
   return opening ??= new Promise<IDBDatabase>((resolve, reject) => {
@@ -24,13 +24,34 @@ async function write(store: "recordings" | "chunks", value: unknown) {
 }
 export const saveRecording = (recording: RecoveryRecording) => write("recordings", recording);
 export const saveChunk = (recordingId: string, sequence: number, blob: Blob) => write("chunks", { recordingId, sequence, blob });
-export async function recoveryRecordings(uid: string): Promise<RecoveryRecording[]> {
+async function storedRecordings(uid: string): Promise<RecoveryRecording[]> {
   const db = await database();
   return new Promise((resolve, reject) => { const r = db.transaction("recordings").objectStore("recordings").getAll(); r.onsuccess = () => resolve((r.result as RecoveryRecording[]).filter((v) => v.uid === uid)); r.onerror = () => reject(new Error("保存済み録音を確認できません")); });
 }
+export async function recoveryRecordings(uid: string): Promise<RecoveryRecording[]> {
+  const all = await storedRecordings(uid);
+  const expired = all.filter(row => row.deleteAfter !== undefined && row.deleteAfter <= Date.now());
+  for (const row of expired) await deleteRecovery(uid, row.id);
+  return all.filter(row => row.deleteAfter === undefined || row.deleteAfter > Date.now());
+}
+export async function expireRoomRecordings(uid: string, roomId: string, deleteAfter: number) {
+  for (const [id, held] of memory) if (held.recording.uid === uid && held.recording.roomId === roomId) {
+    held.recording.deleteAfter = Math.min(held.recording.deleteAfter ?? Infinity, deleteAfter);
+    if (deleteAfter <= Date.now()) memory.delete(id);
+  }
+  const records = await storedRecordings(uid);
+  for (const row of records.filter(row => row.roomId === roomId)) {
+    if (deleteAfter <= Date.now()) await deleteRecovery(uid, row.id);
+    else await saveRecording({...row, deleteAfter: Math.min(row.deleteAfter ?? Infinity, deleteAfter)});
+  }
+
+}
 export async function recoveryAudio(uid: string, id: string): Promise<Blob> {
   const pending = memory.get(id);
-  if (pending?.recording.uid === uid) return pending.blob;
+  if (pending?.recording.uid === uid) {
+    if ((pending.recording.deleteAfter ?? Infinity) <= Date.now()) { memory.delete(id); throw new Error("録音の保存期限を過ぎました"); }
+    return pending.blob;
+  }
   const recordings = await recoveryRecordings(uid), recording = recordings.find((r) => r.id === id);
   if (!recording?.complete) throw new Error("途中で停止した録音は、再生できることを確認できません");
   const db = await database();
@@ -45,7 +66,8 @@ export async function recoveryAudio(uid: string, id: string): Promise<Blob> {
 export function releaseUnsavedAudio(id: string) { memory.delete(id); }
 export async function deleteRecovery(uid: string, id: string) {
   const held = memory.get(id);
-  const stored = await recoveryRecordings(uid).catch(() => []);
+  // 読取エラーを空と扱わず、期限切れも含めて所有権を確認する。
+  const stored = await storedRecordings(uid);
   if (held?.recording.uid !== uid && !stored.some((r) => r.id === id)) throw new Error("この録音を削除できません");
   if (stored.some((r) => r.id === id)) {
     const db = await database();

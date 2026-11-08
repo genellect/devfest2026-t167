@@ -153,7 +153,16 @@ export function useRecorder(roomId?: string) {
     try { return await task; } finally { stopping.current = null; }
   }, [cleanup]);
   stopRef.current = stop;
-  /** 同意の取り消しなどで録音を捨てる。送らず、端末に残した復旧用の録音も消す */
+  /** 分析完了の確認後に、復旧用DBとメモリの音声を消す。失敗は呼び出し元へ伝えて再試行できるようにする。 */
+  const clearCompleted = useCallback(async () => {
+    await stop();
+    await saving.current;
+    const m = manifest.current;
+    if (m) await deleteRecovery(m.uid, m.id);
+    stopped.current = null; manifest.current = null; chunks.current = []; rec.current = null;
+    setSaveError(undefined);
+  }, [stop]);
+  /** 利用者の操作で録音を捨てる。送らず、端末に残した復旧用の録音も消す */
   const discard = useCallback(async () => {
     const m = manifest.current;
     await stop();
@@ -164,7 +173,7 @@ export function useRecorder(roomId?: string) {
   useEffect(() => registerRecordingGuard(async () => { await stop(); }), [stop]);
 
   const capture = useCallback(() => ({ stream: stream.current, context: audio.current }), []);
-  return { state, saveError, level, elapsedMs, start, pause, resume, stop, discard, capture };
+  return { state, saveError, level, elapsedMs, start, pause, resume, stop, discard, clearCompleted, capture };
 }
 
 export const mmss = (ms: number) => {

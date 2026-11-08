@@ -9,7 +9,7 @@ import { mmss } from "@/lib/recorder";
 import { useAppSession } from "@/lib/session";
 import { MAX_RECORDING_MS, useGroupRecording } from "@/lib/recording";
 import { recordingPhase } from "@/lib/recording-phase";
-import { groupStatus, useDoc, useInsights, useMembers, type GroupResult, type GroupStatus, type Room } from "@/lib/room";
+import { groupStatus, millis, useDoc, useInsights, useMembers, type GroupResult, type GroupStatus, type Room } from "@/lib/room";
 
 interface Props { roomId: string; room: Room; uid: string; group?: number }
 
@@ -34,7 +34,7 @@ export function ParticipantRoom({ roomId, room, uid, group }: Props) {
   // 録音は議論の画面を閉じても残し、議論が終わったら送る
   const groupConfig = useDoc<{ recorderUid?: string | null; name?: string }>(group ? `sessions/${roomId}/groups/${group}` : undefined).data;
   const canRecord = groupConfig !== undefined && (!groupConfig?.recorderUid || groupConfig.recorderUid === uid);
-  const recording = useGroupRecording(roomId, discussing && canRecord, gs?.recording?.status);
+  const recording = useGroupRecording(roomId, discussing && canRecord, gs?.recording?.status, millis(room.endedAt) ?? undefined);
   // 録音中・未送信の録音があるときにホームへ戻ると、録音が消える。確かめてから戻る
   const confirmLeave = () => !recording.unsaved || window.confirm("録音がまだ送られていません。ホームに戻ると、録音は消えます。戻りますか？");
   const phase: Phase = closed ? "closed" : STEP_OF[showResult ? "done" : writing ? "consensus" : status];
@@ -179,7 +179,7 @@ function VoiceStep({ roomId, recording }: { roomId: string; recording: ReturnTyp
             <span>グループ全員が、録音することに同意しました</span>
           </label>
         )}
-        {rec && <p className="t-small">録音はグループで1台だけ。議論を終えると、録音を Gemini に送って議論の流れを分析します。音声はサーバーには保存しません。このブラウザには保管するので、「端末とセッション」で確認して削除してください。だれが話したかは記録しません。共用端末は{lockMinutes}分無操作で録音を停止・保存し、画面をロックします。録音中に画面を閉じたり、ほかのアプリに切り替えたりすると、録音が止まることがあります。</p>}
+        {rec && <p className="t-small">録音はグループで1台だけ。議論を終えると、録音を Gemini に送って議論の流れを分析します。音声はサーバーには保存しません。送るまではこのブラウザに保管し、分析が終わると自動で消します（送れなかった録音も、議論の終了から5分で消します）。だれが話したかは記録しません。共用端末は{lockMinutes}分無操作で録音を停止・保存し、画面をロックします。録音中に画面を閉じたり、ほかのアプリに切り替えたりすると、録音が止まることがあります。</p>}
       </section>
       <aside className="stack" style={{ flex: "1 1 360px", maxWidth: "100%" }}>
         <section className="box box--md box--yellow pad stack">
