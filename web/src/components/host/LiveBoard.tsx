@@ -109,6 +109,7 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
         </section>
 
         <aside className="live-side" aria-label="グループと発言">
+          {room.joinCode && <p className="live-side__code">途中から参加するときの参加コード<strong aria-label={room.joinCode.split("").join(" ")}>{room.joinCode.slice(0, 3)} {room.joinCode.slice(3)}</strong></p>}
           <section aria-labelledby="groups-title">
             <h2 id="groups-title" className="live-side__title">グループ</h2>
             <ul className="group-list">

@@ -83,7 +83,9 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord }: 
   const ended = !!room.endedAt || room.phase === "closed";
   const waiting = room.phase === "collecting";
   const named = !!own?.attendees?.length;
-  const voiced = !!own?.ready || voiceSkipped;
+  // 途中から参加した人は、声を登録せずに議論へ進む（議論中の話者の推定には加えない）
+  const late = room.phase !== "collecting";
+  const voiced = !!own?.ready || voiceSkipped || late;
   const gs = group ? room.groupState?.[String(group)] : undefined;
   // 進み具合（Figma「最新」）：事前意見（表示名・声・意見）→ 議論 → 結論 → 結果
   const STEPS = ["事前意見", "議論", "結論", "結果"];
@@ -121,6 +123,7 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord }: 
 
       : !named ? <form className="flow-card" onSubmit={saveNames}>
         <h2 className="flow-card__title">表示名を設定</h2>
+        {late && <p className="flow-card__lead">議論はもう始まっています。表示名を決めると、そのまま話し合いに加われます。</p>}
         <div className="choices" role="group" aria-label="参加する端末">
           <button type="button" className="choice" aria-pressed={mode === "personal"} onClick={() => { setMode("personal"); setNames([names[0] ?? ""]); }}>自分の端末で参加</button>
           <button type="button" className="choice" aria-pressed={mode === "shared"} onClick={() => setMode("shared")}>1台を複数人で使う</button>

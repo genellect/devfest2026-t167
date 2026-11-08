@@ -57,8 +57,8 @@ it('共用端末は全員を毎回登録し、終了時にその回の声の特�
   await h.get(`/rooms/${roomId}/results/session-summary`).expect(200);
   await p.get(`/rooms/${roomId}/results/session-summary`).expect(403);
 });
-it('未登録・無音・途中の登録では開始できず、Hostの開始後に登録や新規参加をさせない', async () => {
-  const { h, p, roomId, joinCode } = await setup();
+it('未登録・無音・途中の登録では開始できず、Hostの開始後は登録済みの人の登録を変えさせない', async () => {
+  const { h, p, roomId } = await setup();
   await h.post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(409);
   await p.post(`/rooms/${roomId}/onboarding`, { mode: 'personal', names: ['A', 'B'] }).expect(400);
   await h.post(`/rooms/${roomId}/onboarding`, { mode: 'personal', names: ['Host'] }).expect(403);
@@ -72,7 +72,29 @@ it('未登録・無音・途中の登録では開始できず、Hostの開始後
   for (const row of rows) await request(app).post(`/rooms/${roomId}/voice/${row.id}?consent=1`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(9 * 32000)).expect(200);
   await h.post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(200);
   await p.post(`/rooms/${roomId}/onboarding`, { mode: 'personal', names: ['変更'] }).expect(409);
+  await request(app).post(`/rooms/${roomId}/voice/${rows[0].id}?consent=1`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(9 * 32000)).expect(409);
+});
+it('議論の途中からも参加できる。表示名だけを登録し、声は議論中の推定に加えない。終了後は新しく参加できない', async () => {
+  const { h, p, roomId, joinCode } = await setup(); await enroll(p, roomId);
+  // 前の回で声を登録した人が、途中から参加する
+  const late = await client();
+  const before = (await h.post('/rooms', { title: '前の回', groups: 1, flowVersion: 1 }).expect(201)).body;
+  await late.post('/rooms/join', { code: before.joinCode }).expect(200);
+  await enroll(late, before.roomId);
+  await h.post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(200);
+  expect((await late.post('/rooms/join', { code: joinCode }).expect(200)).body).toEqual({ roomId });
+  const joined = await member(roomId, late.uid).get();
+  expect(joined.get('group')).toBe(1); expect(joined.get('status')).toBe('active');
+  expect((await db.doc(`sessions/${roomId}`).get()).get('groupState')['1'].total).toBe(2);
+  expect((await late.post(`/rooms/${roomId}/onboarding`, { mode: 'personal', names: ['途中の人'] }).expect(200)).body.reused).toBe(false);
+  const rows = (await member(roomId, late.uid).get()).get('attendees') as { id: string; voiceRegistered: boolean }[];
+  expect(rows.map((r) => r.voiceRegistered)).toEqual([false]);
+  await late.post(`/rooms/${roomId}/onboarding`, { mode: 'personal', names: ['もう一度'] }).expect(409);
+  await request(app).post(`/rooms/${roomId}/voice/${rows[0].id}?consent=1`).set(late.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(9 * 32000, 1)).expect(409);
+  await late.post(`/rooms/${roomId}/messages`, { text: '途中からの発言' }).expect(200);
+  await h.post(`/rooms/${roomId}/finish`).expect(200);
   await (await client()).post('/rooms/join', { code: joinCode }).expect(409);
+  expect((await late.post('/rooms/join', { code: joinCode }).expect(200)).body).toEqual({ roomId });
 });
 it('未準備のGuestがいても、Hostが確認すればそのGuestを外して開始できる', async () => {
   const { h, p, roomId } = await setup(); await enroll(p, roomId);
@@ -88,14 +110,13 @@ it('未準備のGuestがいても、Hostが確認すればそのGuestを外し�
   await p.post(`/rooms/${roomId}/messages`, { text: '開始後の発言' }).expect(200);
   expect((await db.doc(`sessions/${roomId}`).get()).get('groupState')['1'].total).toBe(1);
 });
-it('参加済みのGuestは、開始後も終了後も同じコードで部屋に戻れる。外されたGuestと新しい参加者は入れない', async () => {
+it('参加済みのGuestは、開始後も終了後も同じコードで部屋に戻れる。外されたGuestと、終了後の新しい参加者は入れない', async () => {
   const { h, p, roomId, joinCode } = await setup(); await enroll(p, roomId);
   const late = await client();
   await late.post('/rooms/join', { code: joinCode }).expect(200);
   await h.post(`/rooms/${roomId}/phase`, { to: 'discussing', excludeNotReady: true }).expect(200);
   expect((await p.post('/rooms/join', { code: joinCode }).expect(200)).body).toEqual({ roomId });
   await late.post('/rooms/join', { code: joinCode }).expect(403);
-  await (await client()).post('/rooms/join', { code: joinCode }).expect(409);
   await h.post(`/rooms/${roomId}/finish`).expect(200);
   expect((await p.post('/rooms/join', { code: joinCode }).expect(200)).body).toEqual({ roomId });
   await (await client()).post('/rooms/join', { code: joinCode }).expect(409);
