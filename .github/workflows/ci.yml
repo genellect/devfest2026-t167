@@ -42,6 +42,17 @@ jobs:
         run: npx playwright install --with-deps chromium
       # 手元の bash scripts/dev.sh check とまったく同じ検査
       - run: bash scripts/dev.sh check
+      # 検査を通った中身（PR を main に重ねたツリー）を、名前に入れた成果物で記録する。
+      # deploy は、main に入った中身のツリーが同じなら検査をやり直さない（docs/infra-manual.md「CI とデプロイ」）
+      - name: Record the tested tree
+        if: github.event_name == 'pull_request'
+        run: echo "TESTED_TREE=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_ENV"
+      - if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tested-tree-${{ env.TESTED_TREE }}
+          path: .nvmrc   # 中身は使わない。名前のツリーが検査を通ったことだけを表す
+          retention-days: 30
       - if: failure()
         uses: actions/upload-artifact@v4
         with:

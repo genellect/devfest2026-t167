@@ -17,13 +17,44 @@ permissions:
   id-token: write
   actions: read   # ロールバック先が過去にデプロイに成功したかを確かめる
 jobs:
-  ci:
+  # main に入った中身（ツリー）が、PR の CI で検査を通った中身と同じかを確かめる。
+  # 同じなら検査をやり直さない。PR のあとに main が進んで中身が変わったときだけ、ここで検査する
+  tested:
     if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ok: ${{ steps.find.outputs.ok }}
+    steps:
+      - id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO_ID: ${{ github.repository_id }}
+        run: |
+          TREE=$(gh api "repos/${GITHUB_REPOSITORY}/git/commits/${GITHUB_SHA}" --jq .tree.sha)
+          # このリポジトリのブランチの PR が残した、期限内の記録だけを数える（フォークの PR の記録は使わない）
+          N=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=tested-tree-${TREE}&per_page=100" \
+            --jq "[.artifacts[] | select(.expired | not) | select(.workflow_run.head_repository_id == ${REPO_ID})] | length")
+          if [ "${N:-0}" -gt 0 ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "| 検査 | ツリー ${TREE} は PR の CI で検査を通った中身と同じ。やり直さない |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "| 検査 | ツリー ${TREE} は検査を通った記録がない（PR のあとに main が進んだ）。やり直す |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+  ci:
+    needs: tested
+    # 記録を確かめられなかったとき（API の失敗を含む）も検査する
+    if: always() && github.event_name == 'push' && needs.tested.outputs.ok != 'true'
     uses: ./.github/workflows/ci.yml
   deploy:
-    needs: ci
-    # push は CI 通過後のみ。手動の再デプロイ（ロールバック）は、過去に CI を通ったコミットを使う
-    if: always() && (needs.ci.result == 'success' || (github.event_name == 'workflow_dispatch' && needs.ci.result == 'skipped'))
+    needs: [tested, ci]
+    # push は、検査を通った中身と同じか、ここでの CI を通ったときだけ。手動の再デプロイ（ロールバック）は、過去に CI を通ったコミットを使う
+    if: >-
+      always() && (
+        needs.ci.result == 'success' ||
+        (github.event_name == 'push' && needs.tested.outputs.ok == 'true' && needs.ci.result == 'skipped') ||
+        (github.event_name == 'workflow_dispatch' && needs.ci.result == 'skipped'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

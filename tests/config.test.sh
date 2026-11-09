@@ -156,6 +156,19 @@ EOF
 PATH="$T/bin:$PATH" GEMINI_MOCK=0 bash "$ROOT/scripts/dev.sh" serve > "$T/out" 2>&1
 [ $? -ne 0 ] && grep -q "application-default login" "$T/out" && ok "ADC がなければ login を案内して止まる" || ng "ADC がないときの案内（$(cat "$T/out")）"
 
+# 検査をやり直さない条件：PR の CI が検査を通ったツリーを記録し、deploy が同じ名前で照合する（docs/infra-manual.md「CI とデプロイ」）
+CI="$ROOT/.github/workflows/ci.yml"
+awk '/run: bash scripts\/dev.sh check/{c=1} c && /name: tested-tree-\$\{\{ env.TESTED_TREE \}\}/{print "ok"; exit}' "$CI" | grep -q ok \
+  && ok "PR の CI は、検査を通ったあとでだけツリーを記録する" || ng "ci.yml が検査の前にツリーを記録しているか、記録していない"
+grep -q 'artifacts?name=tested-tree-${TREE}' "$DEPLOY" && ok "deploy は main のツリーと同じ名前の記録を探す" || ng "deploy.yml が ci.yml の記録の名前と一致しない"
+grep -q "needs.tested.outputs.ok != 'true'" "$DEPLOY" && ok "記録がないか確かめられないときは、deploy の中で検査する" || ng "deploy.yml が記録のないときに検査しない"
+# 期限切れの記録と、フォークの PR の記録は数えない（deploy.yml の jq の式を取り出して確かめる）
+JQ=$(grep -o '\[\.artifacts\[\][^"]*length' "$DEPLOY" | sed 's/\${REPO_ID}/42/')
+printf '%s' '{"artifacts":[{"expired":false,"workflow_run":{"head_repository_id":42}},{"expired":true,"workflow_run":{"head_repository_id":42}},{"expired":false,"workflow_run":{"head_repository_id":7}}]}' > "$T/artifacts.json"
+same "期限内で、このリポジトリのブランチの記録だけを数える" "1" "$(jq "$JQ" "$T/artifacts.json" 2>&1)"
+printf '%s' '{"artifacts":[{"expired":true,"workflow_run":{"head_repository_id":42}},{"expired":false,"workflow_run":{"head_repository_id":7}}]}' > "$T/artifacts.json"
+same "期限切れとフォークの記録しかなければ 0 件" "0" "$(jq "$JQ" "$T/artifacts.json" 2>&1)"
+
 echo "結果: ${pass} 件成功、${fail} 件失敗"
 [ "$fail" -eq 0 ] && echo "ALL PASS"
 [ "$fail" -eq 0 ]
