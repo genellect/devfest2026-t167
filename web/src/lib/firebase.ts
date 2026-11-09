@@ -4,7 +4,7 @@ import {
   browserLocalPersistence, browserSessionPersistence, connectAuthEmulator,
   getAuth, indexedDBLocalPersistence, initializeAuth, type Auth,
 } from "firebase/auth";
-import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
+import { connectFirestoreEmulator, getFirestore, initializeFirestore, type Firestore } from "firebase/firestore";
 
 const useEmulators = process.env.NEXT_PUBLIC_USE_EMULATORS === "1";
 import { publicFirebaseConfig } from "./firebase-config";
@@ -29,12 +29,17 @@ export function firebase() {
     auth = useEmulators
       ? initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence] })
       : getAuth(app);
-    db = getFirestore(app);
+    // スマホのlocalhostはスマホ自身。LAN確認では画面と同じ入口でエミュレータを中継する。
+    const preview = useEmulators && typeof window !== "undefined"
+      && (window.location.protocol === "https:" || !["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname));
+    db = preview ? initializeFirestore(app, {
+      host: window.location.host, ssl: window.location.protocol === "https:", experimentalForceLongPolling: true,
+    }) : getFirestore(app);
     if (useEmulators) {
       // 同じWi-Fiの別端末でも、Next.js経由でMac内の認証エミュレータへ接続する。
       const authOrigin = typeof window === "undefined" ? `http://127.0.0.1:${process.env.NEXT_PUBLIC_AUTH_EMULATOR_PORT ?? 9099}` : window.location.origin;
       connectAuthEmulator(auth, authOrigin, { disableWarnings: true });
-      connectFirestoreEmulator(db, "127.0.0.1", Number(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT ?? 8080));
+      if (!preview) connectFirestoreEmulator(db, "127.0.0.1", Number(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT ?? 8080));
     }
   }
   return { app: app!, auth: auth!, db: db! };

@@ -41,7 +41,7 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
   }, [room.endsAt, room.phase, ended, roomId]);
 
   return (
-    <AppShell wide back="/teacher"
+    <AppShell wide back="/home"
       hero={!ended && room.phase === "collecting"} hideBack={!ended && room.phase !== "collecting"}
       eyebrow={<>{room.className && <span>{room.className}</span>}<span className={`pill pill--${state === "議論中" ? "live" : state === "終了" ? "done" : "ready"}`}>{state}</span></>}
       title={room.theme || room.title}
@@ -63,7 +63,7 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
           {results.length > 0 && <ClassResult roomId={roomId} room={room} results={results} summary={summary ?? null} onOpen={setOpenGroup} />}
           <HostSpeaking roomId={roomId} card ended />
           <RecordingReview roomId={roomId} room={room} />
-          <p><Link className="text-btn" href="/teacher">教員のホームに戻る</Link></p>
+          <p><Link className="text-btn" href="/home">ホームに戻る</Link></p>
         </div>)}
 
       <dialog ref={settings} className="dialog" aria-labelledby="settings-title" onClick={(e) => { if (e.target === settings.current) settings.current?.close(); }}>

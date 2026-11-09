@@ -1,0 +1,4 @@
+.panel { position: fixed; z-index: 10; inset: 0; overflow-y: auto; overscroll-behavior: contain; background: #fff; outline: none; animation: slideUp 340ms cubic-bezier(.2,.8,.2,1); }
+.panel > :global(.shell) { min-height: 100%; background: #fff; }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .panel { animation: none; } }

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { ArrowRight, ScanLine } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { QrScanner } from "@/components/QrScanner";
@@ -7,6 +8,7 @@ import { callApi } from "@/lib/api";
 import { sessionRequest } from "@/lib/session";
 import { signOutHost } from "@/lib/hostAuth";
 import { normalizeJoinCode, typedJoinCode, pendingJoinCode, clearJoinCode } from "@/lib/join-code";
+import styles from "./join-card.module.css";
 
 const CODE_LENGTH = 6;
 
@@ -14,7 +16,7 @@ const CODE_LENGTH = 6;
  * 「議論に参加する」カード（Figma「最新」02-S）。参加コードの6マスと、参加・カメラで読み取るの2つのボタン。
  * ホームと /join の両方で使う。QR コードやリンク（?code=000000）で開いたときは、ボタンを押さずにそのまま参加する。
  */
-export function JoinForm({ autoJoin = false }: { autoJoin?: boolean }) {
+export function JoinForm({ autoJoin = false, simple = false }: { autoJoin?: boolean; simple?: boolean }) {
   const router = useRouter();
   const params = useSearchParams();
   const input = useRef<HTMLInputElement>(null);
@@ -78,10 +80,10 @@ export function JoinForm({ autoJoin = false }: { autoJoin?: boolean }) {
 
   const active = Math.min(code.length, CODE_LENGTH - 1);
   return (
-    <form className="flow-card join-card" aria-labelledby="join-title" onSubmit={(e) => { e.preventDefault(); void join(code); }} noValidate>
-      <h2 id="join-title" className="flow-card__title">議論に参加する</h2>
+    <form className={`flow-card join-card ${styles.card}`} aria-labelledby="join-title" onSubmit={(e) => { e.preventDefault(); void join(code); }} noValidate>
+      <h2 id="join-title" className="flow-card__title">{simple ? "参加する" : "議論に参加する"}</h2>
       <div className="field">
-        <label className="home-code-label" htmlFor="code">参加コード（数字6桁）</label>
+        <label className={simple ? "sr-only" : "home-code-label"} htmlFor="code">参加コード（数字6桁）</label>
         {/* 見た目は6マス。入力欄は透明な1つだけなので、貼り付け・自動入力・読み上げはふつうの入力欄と同じに動く */}
         <div className="code" data-invalid={error ? true : undefined}>
           {Array.from({ length: CODE_LENGTH }, (_, i) => (
@@ -101,8 +103,10 @@ export function JoinForm({ autoJoin = false }: { autoJoin?: boolean }) {
       <div className="home-actions">
         <button className="btn btn--blue" type="submit" disabled={busy || code.length !== CODE_LENGTH}>
           {busy ? "参加しています…" : "参加する"}
+          <ArrowRight className={styles.icon} size={20} aria-hidden="true" />
         </button>
-        <button type="button" className="btn" onClick={() => { setError(""); setScanning(true); }} disabled={busy}>カメラで読み取る</button>
+        <span className={styles.divider} aria-hidden="true">または</span>
+        <button type="button" className="btn" onClick={() => { setError(""); setScanning(true); }} disabled={busy}><ScanLine className={styles.icon} size={20} aria-hidden="true" />カメラで読み取る</button>
       </div>
     </form>
   );

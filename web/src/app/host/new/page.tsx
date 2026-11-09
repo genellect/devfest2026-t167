@@ -6,8 +6,8 @@ import { Loading } from "@/components/ui";
 import { AppShell } from "@/components/shell";
 import { callApi } from "@/lib/api";
 import { useHostUser, useIsTeacher } from "@/lib/hostAuth";
-import { addHistory, getProfile, setRoomLabel } from "@/lib/local";
-import { ThemeIdeas } from "@/components/host/ThemeIdeas";
+import { addHistory } from "@/lib/local";
+import styles from "@/components/mobile/action-form.module.css";
 
 
 /** 議論を作る（教員だけ） */
@@ -15,21 +15,23 @@ export default function NewRoom() {
   const router = useRouter();
   const user = useHostUser();
   const teacher = useIsTeacher();
-  const [title, setTitle] = useState("");
-  const [label, setLabel] = useState("");
-  useEffect(() => { setLabel(getProfile()?.className ?? ""); }, []);
+  const [title, setTitle] = useState("無題のセッション");
+  const [theme, setTheme] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const suggested = new URLSearchParams(window.location.search).get("theme");
+    if (suggested) setTheme(suggested.slice(0, 1000));
+  }, []);
 
-  // 入力はテーマとクラス名だけ。グループ・時間・録音はサーバーと既定値で決める（Docs「UIフィードバック」）
+  // セッション名とテーマは別々に保存する。グループ・時間・録音は既定値を使う。
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setError("");
     try {
-      const theme = title.trim(), className = label.trim();
-      const { roomId } = await callApi<{ roomId: string }>("/rooms", { title: theme, theme, ...(className ? { className } : {}), flowVersion: 1 });
-      if (className) setRoomLabel(roomId, className);
-      addHistory("host", { roomId, title: theme });
+      const sessionName = title.trim();
+      const { roomId } = await callApi<{ roomId: string }>("/rooms", { title: sessionName, theme: theme.trim(), flowVersion: 1 });
+      addHistory("host", { roomId, title: sessionName });
       router.push(`/rooms/${roomId}`);
     } catch (err) { setError((err as Error).message); setBusy(false); }
   }
@@ -46,7 +48,7 @@ export default function NewRoom() {
   if (!teacher) {
     // 作成は招待された教員だけ。APIでも同じ条件で断る
     return (
-      <AppShell title="新しい議論">
+      <AppShell back="/home" title="ホストする" className={styles.shell} account={false} showDemo={false}>
         <div className="flow">
           <section className="flow-card">
             <p role="status">議論を作れるのは、招待された教員のアカウントだけです。</p>
@@ -58,35 +60,20 @@ export default function NewRoom() {
     );
   }
   return (
-    <AppShell title="新しい議論" wide>
-      <div className="create">
-        <form className="panel create__form" onSubmit={create} aria-labelledby="new-title">
-          <h2 id="new-title" className="t-md">テーマを決める</h2>
-          <div className="field">
-            <label className="field__label" htmlFor="title">テーマ</label>
-            <input id="title" className="input" value={title} maxLength={100} required placeholder="例：大学の課題提出でAIの利用を認めるべきか" onChange={(e) => setTitle(e.target.value)} />
-            <p className="field__hint">賛成と反対、条件付きなど、考えが分かれそうな問いにすると、まだ話されていない論点が見つかりやすくなります。</p>
-          </div>
-          <ThemeIdeas chosen={title} onPick={setTitle} />
-          <div className="field">
-            <label className="field__label" htmlFor="label">クラス名（任意）</label>
-            <input id="label" className="input" value={label} maxLength={40} placeholder="例：2年3組" onChange={(e) => setLabel(e.target.value)} />
-            <p className="field__hint">作った議論の一覧で見分けるために使います。学生には表示しません。</p>
-          </div>
-          {error && <p className="notice notice--error" role="alert">{error}</p>}
-          <div className="home-actions"><button className="btn btn--blue" type="submit" disabled={busy || !title.trim()}>{busy ? "作成しています…" : "作成する"}</button></div>
-        </form>
-        {/* 作ったあとに起きること（実際に順に進むので番号を付ける） */}
-        <aside className="create__next" aria-labelledby="next-steps-title">
-          <h2 id="next-steps-title" className="t-sm">作ったあとの流れ</h2>
-          <ol className="steps-list">
-            <li><b>参加コードと QR を映す</b><span>上の帯の「投影画面」を開き、プロジェクターに映します。</span></li>
-            <li><b>学生が事前の意見を書く</b><span>本文は本人だけが見られ、教員にも届きません。</span></li>
-            <li><b>議論を始める</b><span>AI が、まだ話されていない論点を黄色の付箋で提案します。全員に表示するか、見送るかを選びます。</span></li>
-            <li><b>結論の中身を確かめる</b><span>終わったら全員が結論を一文で書き、理解の分かれ方を色の付箋で見ます。</span></li>
-          </ol>
-        </aside>
-      </div>
+    <AppShell back="/home" title="ホストする" className={styles.shell} account={false} showDemo={false} wide>
+      <form className={styles.form} onSubmit={create} aria-labelledby="new-title">
+        <h2 id="new-title" className={styles.title}>ホストする</h2>
+        <div className="field">
+          <label className="field__label" htmlFor="session-name">セッション名</label>
+          <input id="session-name" className="input" value={title} maxLength={100} required onChange={event => setTitle(event.target.value)} />
+        </div>
+        <div className="field">
+          <label className="field__label" htmlFor="theme">テーマ</label>
+          <textarea id="theme" className="input" value={theme} maxLength={1000} required rows={2} onChange={event => setTheme(event.target.value)} />
+        </div>
+        {error && <p className="notice notice--error" role="alert">{error}</p>}
+        <button className="btn btn--blue" type="submit" disabled={busy || !title.trim() || !theme.trim()}>{busy ? "作成しています…" : "作成する"}</button>
+      </form>
     </AppShell>
   );
 }

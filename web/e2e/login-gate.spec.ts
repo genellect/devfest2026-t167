@@ -23,11 +23,21 @@ test("ログアウト後の戻る・再読込でもホームへ進めない", as
   await page.goto("/student");
   await page.reload();
   await expect(page.getByRole("button", { name: "Googleでログイン", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "あなたのホーム" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "ホーム", exact: true })).toHaveCount(0);
 });
 
 test("ログイン前のプライバシー説明にはホームのタブを表示しない", async ({ page }) => {
   await page.goto("/about");
   await expect(page.getByRole("heading", { name: "使い方とプライバシー" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "メニュー" })).toHaveCount(0);
+});
+
+test("Googleログインの主ボタンは模擬アカウントへ切り替えずGoogle認証を開く", async ({ page }) => {
+  await page.goto("/");
+  const popupPromise = page.waitForEvent("popup");
+  await page.getByRole("button", { name: "Googleでログイン", exact: true }).click();
+  const popup = await popupPromise;
+  await expect(popup).toHaveURL(/\/emulator\/auth\/handler/);
+  await expect(page).toHaveURL(/\/$/);
+  await popup.close();
 });

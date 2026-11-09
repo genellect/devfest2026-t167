@@ -14,13 +14,13 @@ export async function loginStudent(page: Page, person = "", { home = true }: { h
     await route.continue({ postData: JSON.stringify({ ...data, postBody: body.toString() }) });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
-  // 学生はログインのあと参加コードの入力へ進む。QRやリンクから来た人は、そのまま参加する
+  await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）", includeHidden: true }).evaluate(element => (element as HTMLButtonElement).click());
+  // QR・リンク参加以外は、教員と同じ共通ホームへ進む。
   if (home) {
+    await expect(page).toHaveURL(/\/home$/);
+    await expect(page.getByRole("heading", { name: "ホーム", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "参加する", exact: true }).click();
     await expect(page).toHaveURL(/\/join$/);
-    await expect(page.getByRole("heading", { name: "議論に参加する" })).toBeVisible();
-    await page.goto("/home");
-    await expect(page.getByRole("heading", { name: "あなたのホーム" })).toBeVisible();
   }
   return subject;
 }

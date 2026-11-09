@@ -1,0 +1,22 @@
+.icon, .divider { display: none; }
+
+@media (max-width: 767px) {
+  .card {
+    padding: 12px 0 0;
+    gap: 24px;
+    border: 0;
+    border-radius: 0;
+  }
+  .card :global(.flow-card__title) { font-size: 26px; letter-spacing: -.035em; }
+  .card :global(.field) { gap: 12px; }
+  .card :global(.home-code-label) { font-size: 14px; }
+  .card :global(.code) { width: 100%; gap: 8px; }
+  .card :global(.code__cell) { height: 60px; border-radius: 12px; font-size: 26px; background: #fff; }
+  .card :global(.home-actions) { display: grid; gap: 16px; }
+  .card :global(.btn) { min-height: 52px; border-radius: 999px; gap: 10px; font-size: 15px; }
+  .card :global(.btn--blue) { min-height: 56px; }
+  .card :global(.btn--blue):disabled { color: #6b7586; background: #edf0f5; }
+  .icon { display: inline-block; flex: none; }
+  .divider { display: flex; align-items: center; gap: 16px; font-size: 12px; color: var(--ink-3); }
+  .divider::before, .divider::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+}

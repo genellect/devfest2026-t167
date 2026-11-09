@@ -25,15 +25,18 @@ test("別ブラウザの生徒ログインで旧端末が失効し、再読込�
 });
 
 test("共用端末は15分の無操作で再認証画面になり、元画面の操作を隠す", async ({ page }) => {
-  await page.goto("/"); await page.getByLabel("学校の共用端末で利用する").check();
+  await loginStudent(page); await page.goto("/sessions");
   const end = new Date(Date.now() + 3600_000), local = new Date(end.getTime() - end.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
   await page.getByLabel("授業終了時刻").fill(local);
-  await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
-  await page.waitForURL(/\/join$/);
+  const configured = page.waitForResponse(response => response.url().endsWith("/api/sessions/shared-device") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "この端末を共用端末として設定", exact: true }).click();
+  expect((await configured).ok()).toBe(true);
+  await page.reload();
+  await expect(page.getByText("共用端末・無操作で画面ロック", { exact: true })).toBeVisible();
   await page.clock.install(); await page.clock.fastForward(15 * 60_000 + 1000);
   await expect(page.getByRole("dialog", { name: "再認証" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Googleで本人確認" })).toBeVisible();
-  await expect(page.getByLabel("参加コード")).toBeHidden();
+  await expect(page.getByRole("heading", { name: "ログインしている端末" })).toBeHidden();
 });
 
 test("録音中の失効は音声を保存してからログアウトし、再ログイン後に再生できる", async ({ page, request }) => {
@@ -61,8 +64,8 @@ test("録音中の失効は音声を保存してからログアウトし、再�
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(page).toHaveURL(/\/$/); await expect(page.getByRole("status")).toContainText("7日間利用がなかった");
   await page.unroute("**/api/sessions/current");
-  await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）" }).click();
-  await page.waitForURL(/\/join$/); await page.goto("/sessions");
+  await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）", includeHidden: true }).evaluate(element => (element as HTMLButtonElement).click());
+  await page.waitForURL(/\/home$/); await page.goto("/sessions");
   await expect(page.getByText(/保存済み・/)).toBeVisible();
   await page.getByRole("button", { name: "再生・ダウンロード" }).click();
   const audio = page.locator("audio"); await expect(audio).toBeVisible();
@@ -94,5 +97,5 @@ test("復元時にAPIが未反映・通信障害でもログイン画面が読�
   await expect(page.getByText("接続できません。録音は端末に残し、接続の回復後に再確認します。")).toBeVisible();
   await page.unroute("**/api/sessions/current");
   await page.getByRole("button", { name: "接続を再確認" }).click();
-  await expect(page).toHaveURL(/\/join$/);
+  await expect(page).toHaveURL(/\/home$/);
 });
