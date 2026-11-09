@@ -15,15 +15,17 @@ if(STATIC){root.classList.add('static');root.querySelectorAll('.faq details').fo
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const mobile=()=>innerWidth<=734;
 
-/* waveform */
-root.querySelectorAll('[data-wave]').forEach((svg,k)=>{
-  const N=96,W=1440,H=340,bw=6,A=[76,141,246],B=[155,92,255],C=[255,106,213];
+/* waveform：画面の横幅いっぱいに描く。棒の間隔は約15pxで、幅が変わったら描き直す */
+const waves=[...root.querySelectorAll('[data-wave]')];
+const drawWaves=()=>waves.forEach((svg,k)=>{
+  const W=Math.max(320,Math.round(svg.clientWidth||innerWidth)),H=340,N=Math.max(24,Math.round(W/15)),bw=6,A=[76,141,246],B=[155,92,255],C=[255,106,213];
+  if(svg.dataset.w===String(W))return;svg.dataset.w=String(W);svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
   const L=(a,b,t)=>a.map((v,i)=>Math.round(v+(b[i]-v)*t));let s='';
   for(let i=0;i<N;i++){const t=i/(N-1);let h=(0.35+0.65*Math.abs(Math.sin(i*0.37+.3)*Math.cos(i*0.11+.6)))*H*.95*(0.55+0.45*Math.sin(Math.PI*t));h=Math.max(h,12);
     const c=t<.5?L(A,B,t*2):L(B,C,(t-.5)*2);const x=i*(W/N)+(W/N-bw)/2;
     s+=`<rect x="${x.toFixed(1)}" y="${((H-h)/2).toFixed(1)}" width="${bw}" height="${h.toFixed(1)}" rx="3" fill="rgb(${c})" style="animation-delay:${(-(i*0.13+k*0.4)%2.4).toFixed(2)}s"/>`;}
-  svg.innerHTML=s;
-});
+  svg.innerHTML=s;});
+drawWaves();on('resize',drawWaves);
 
 /* recreated app screens */
 const pc=`<div class="top"><div><div class="t1">クラス全体 ＞ グループ1</div><div class="t2">グループ1の話し合い</div></div><div><span class="demo">デモデータ</span><span class="av">T</span></div></div>
@@ -43,7 +45,11 @@ refl:hd(4,'ステップ 4/4：結果')+`<div class="cd" style="border:2px solid 
 root.querySelectorAll('[data-app="pc"]').forEach(e=>e.innerHTML=pc);
 root.querySelectorAll('[data-m]').forEach(e=>e.innerHTML=M[e.dataset.m]);
 const stage=$id('stage'),sw=$id('sw');
-const fitStage=()=>{const h=sw.clientHeight,w=innerWidth;const mob=mobile();const dh=mob?400:560,dw=mob?390:1320;const k=Math.max(.42,Math.min(1,h/dh,w/dw));stage.style.transform=`scale(${k})`};fitStage();on('resize',fitStage);
+const hwave=root.querySelector('.sw .hw');
+const fitStage=()=>{const h=sw.clientHeight,w=innerWidth;const mob=mobile();const dh=mob?470:760,dw=mob?390:1320;const top=stage.offsetTop;const k=Math.max(.3,Math.min(1,(h-top)/dh,w/dw));stage.style.transform=`scale(${k})`;
+  // 波はデバイスの中心の高さに置く（PC はノートの画面、スマホは電話の中心）
+  const cy=top+(mob?250:400)*k,wh=Math.max(mob?170:220,(mob?220:380)*k);hwave.style.top=`${(cy-wh/2).toFixed(0)}px`;hwave.style.height=`${wh.toFixed(0)}px`;};
+fitStage();on('resize',fitStage);
 const fitM=()=>root.querySelectorAll('.m').forEach(m=>{const w=m.parentElement.clientWidth;if(w)m.style.transform=`scale(${w/390})`});fitM();on('resize',fitM);
 
 /* statement chars */
