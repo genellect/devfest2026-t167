@@ -349,13 +349,14 @@ export function ClassResult({ roomId, room, results, summary, onOpen }: { roomId
           <h2 id="class-understand-title" className="t-md">{split > 0 ? `${results.length}グループ中${split}グループで、同じ結論の理解が分かれました` : "どのグループも、結論の理解はほぼそろっていました"}</h2>
           {results.map((r) => (
             <div key={r.group} className="class-understand">
-              <p className="class-understand__group">グループ{r.group}<span>{describeUnderstanding(r.clusters)}</span></p>
+              <div className="heading-row"><p className="class-understand__group">グループ{r.group}<span>{describeUnderstanding(r.clusters)}</span></p>
+                {groupCount === 1 && <button className="btn btn--small" onClick={() => onOpen(r.group)}>詳しく見る</button>}</div>
               <UnderstandingNotes clusters={r.clusters} />
             </div>
           ))}
         </section>
       )}
-      <div className="split split--result">
+      <div className={`split${groupCount > 1 ? " split--result" : " split--single"}`}>
         <div className="stack" style={{ gap: 20 }}>
           <section className="box box--lg box--blue pad stack">
             <div className="heading-row"><p className="t-label">次の授業で扱えそうなこと</p><SourceTag source={source} /></div>
@@ -366,19 +367,20 @@ export function ClassResult({ roomId, room, results, summary, onOpen }: { roomId
                 : results.length ? "結論の理解はそろっていました。次は、結論を支える理由を一人ひとりが説明できるか確かめます。" : "グループの全員が結論を書くと、ここにまとめが出ます。"}
             </p>
           </section>
-          <section className="panel metric-list" aria-label="指標">
+          {/* 値のない指標は出さない（「データなし」を並べない） */}
+          {signals.some((s) => s.value !== null) && <section className="panel metric-list" aria-label="指標">
             <dl>
-              {signals.map((s) => (
+              {signals.filter((s) => s.value !== null).map((s) => (
                 <div key={s.title}>
                   <dt><span>{s.title}</span><span className="t-small">{s.note}</span></dt>
-                  <dd>{s.value === null ? <span className="t-small">データなし</span> : `${Math.round(s.value * 100)}%`}</dd>
+                  <dd>{`${Math.round(s.value! * 100)}%`}</dd>
                 </div>
               ))}
             </dl>
-          </section>
+          </section>}
           <p className="t-small">{source === "mock" ? "数値はデモデータです。" : "数値には Gemini による推定を含みます。"}実測の改善効果とは区別してください。</p>
         </div>
-        <section className="box box--lg pad stack">
+        {groupCount > 1 && <section className="box box--lg pad stack">
           <h2 className="t-md">グループを比べる</h2>
           <table className="table table--stack">
             <thead><tr><th>グループ</th><th>認識のちがい</th><th>一致度</th><th>回答</th><th><span className="sr-only">操作</span></th></tr></thead>
@@ -397,7 +399,7 @@ export function ClassResult({ roomId, room, results, summary, onOpen }: { roomId
               })}
             </tbody>
           </table>
-        </section>
+        </section>}
       </div>
     </div>
   );

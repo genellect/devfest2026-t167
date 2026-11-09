@@ -7,6 +7,7 @@ import { AppShell } from "@/components/shell";
 import { callApi } from "@/lib/api";
 import { useHostUser, useIsTeacher } from "@/lib/hostAuth";
 import { addHistory, getProfile, setRoomLabel } from "@/lib/local";
+import { ThemeIdeas } from "@/components/host/ThemeIdeas";
 
 
 /** 議論を作る（教員だけ） */
@@ -66,6 +67,7 @@ export default function NewRoom() {
             <input id="title" className="input" value={title} maxLength={100} required placeholder="例：大学の課題提出でAIの利用を認めるべきか" onChange={(e) => setTitle(e.target.value)} />
             <p className="field__hint">賛成と反対、条件付きなど、考えが分かれそうな問いにすると、まだ話されていない論点が見つかりやすくなります。</p>
           </div>
+          <ThemeIdeas chosen={title} onPick={setTitle} />
           <div className="field">
             <label className="field__label" htmlFor="label">クラス名（任意）</label>
             <input id="label" className="input" value={label} maxLength={40} placeholder="例：2年3組" onChange={(e) => setLabel(e.target.value)} />

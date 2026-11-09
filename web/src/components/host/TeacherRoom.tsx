@@ -6,8 +6,8 @@ import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
 import { useGeminiSource } from "@/components/ui";
 import { ApiError, callApi } from "@/lib/api";
-import { millis, useDoc, useGroupResults, useInsights, useMembers, type Flow, type Room, type Summary } from "@/lib/room";
-import { ClassResult, ConsensusProgress, GroupResultView } from "./HostRoom";
+import { millis, useDoc, useGroupResults, useInsights, useMembers, type Flow, type GroupResult, type Room, type Summary } from "@/lib/room";
+import { ClassResult, GroupResultView } from "./HostRoom";
 import { LiveBoard } from "./LiveBoard";
 import { HostSpeaking } from "@/components/Speaking";
 import { SessionSettings } from "./SessionSettings";
@@ -53,10 +53,12 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
       {ended && (openGroup
         ? <div className="teacher__body"><button className="text-btn" onClick={() => setOpenGroup(undefined)}>セッション全体に戻る</button><GroupResultView result={results.find((r) => r.group === openGroup) ?? null} group={openGroup} roomId={roomId} source={source} /></div>
         : <div className="teacher__body">
-          <ConsensusProgress roomId={roomId} room={room} results={results} summary={summary ?? null} />
-          <ClassResult roomId={roomId} room={room} results={results} summary={summary ?? null} onOpen={setOpenGroup} />
+          {/* いまやることを1つだけ大きく：結論の提出待ち → 結果をまとめる。データのない欄は出さない */}
+          <EndedFocus roomId={roomId} room={room} results={results} summary={summary ?? null} />
+          {results.length > 0 && <ClassResult roomId={roomId} room={room} results={results} summary={summary ?? null} onOpen={setOpenGroup} />}
           <HostSpeaking roomId={roomId} card ended />
           <RecordingReview roomId={roomId} room={room} />
+          <p><Link className="text-btn" href="/teacher">教員のホームに戻る</Link></p>
         </div>)}
 
       <dialog ref={settings} className="dialog" aria-labelledby="settings-title" onClick={(e) => { if (e.target === settings.current) settings.current?.close(); }}>
@@ -108,18 +110,84 @@ function Lobby({ roomId, room, seats, opinions }: { roomId: string; room: Room; 
   );
 }
 
+/**
+ * 終了後の主役。学生が結論を書いているあいだは提出の進み具合、全グループがそろったら「結果をまとめる」、
+ * まとめたあとは目立たない帯（まとめ直す）にする。
+ */
+function EndedFocus({ roomId, room, results, summary }: { roomId: string; room: Room; results: GroupResult[]; summary: Summary | null }) {
+  const [busy, setBusy] = useState<string>(), [message, setMessage] = useState("");
+  const groups = Array.from({ length: room.groups ?? 1 }, (_, i) => i + 1);
+  const states = groups.map((g) => ({ g, done: results.some((r) => r.group === g), submitted: room.groupState?.[String(g)]?.submitted ?? 0, total: room.groupState?.[String(g)]?.total ?? 0 }));
+  const submitted = states.reduce((n, s) => n + s.submitted, 0), total = states.reduce((n, s) => n + s.total, 0);
+  const allDone = states.every((s) => s.done || s.total === 0) && results.length > 0;
+  const running = room.consensusAnalysis?.status === "running";
+  async function run(path: string, body: object, key: string) {
+    setBusy(key); setMessage("");
+    try { await callApi(`/rooms/${roomId}/${path}`, body); }
+    catch (e) { setMessage((e as Error).message); }
+    finally { setBusy(undefined); }
+  }
+  const summarize = (primary: boolean, label: string) => (
+    <button className={`btn${primary ? " btn--blue" : ""}`} disabled={!!busy || running || results.length === 0} onClick={() => void run("consensus/analyze", {}, "all")}>
+      {busy === "all" || running ? "まとめています…" : label}
+    </button>
+  );
+  const groupList = (
+    <ul className="ended-hero__groups" aria-label="グループごとの提出">
+      {states.map((s) => <li key={s.g} data-done={s.done || undefined}><span>グループ{s.g}：{s.done ? "結果あり" : `提出 ${s.submitted}/${s.total}人`}</span>
+        {!s.done && s.submitted > 0 && <button className="btn btn--small" disabled={!!busy} onClick={() => void run("groups/analyze", { group: s.g }, `g${s.g}`)}>{busy === `g${s.g}` ? "分析しています…" : "今の回答で結果を出す"}</button>}
+      </li>)}
+    </ul>
+  );
+  const error = message && <p className="notice notice--warn" role="alert">{message}</p>;
+  if (summary) return (
+    <section className="ended-hero ended-hero--quiet" aria-labelledby="ended-title">
+      <h2 id="ended-title" className="ended-hero__title">結果をまとめました</h2>
+      {summarize(false, "結果をまとめ直す")}
+      {error}
+    </section>
+  );
+  if (total === 0) return (
+    <section className="ended-hero" aria-labelledby="ended-title">
+      <h2 id="ended-title" className="ended-hero__title">この議論には参加者がいませんでした</h2>
+      <p className="ended-hero__lead">結論の一文がないので、結果はありません。</p>
+    </section>
+  );
+  if (allDone) return (
+    <section className="ended-hero" aria-labelledby="ended-title">
+      <h2 id="ended-title" className="ended-hero__title">全員の結論がそろいました</h2>
+      <p className="ended-hero__lead">結果をまとめると、同じ結論でも理解がどう分かれたかと、議論の指標が出ます。</p>
+      {groupList}
+      <div className="ended-hero__actions">{summarize(true, "結果をまとめる")}</div>
+      {error}
+    </section>
+  );
+  return (
+    <section className="ended-hero" aria-labelledby="ended-title">
+      <h2 id="ended-title" className="ended-hero__title">学生が結論を書いています</h2>
+      <p className="ended-hero__count" aria-label={`提出 ${submitted}/${total}人`}>{submitted}<small>/{total}人が提出</small></p>
+      <div className="ended-hero__bar" aria-hidden="true"><span style={{ width: `${total ? Math.round(submitted / total * 100) : 0}%` }} /></div>
+      <p className="ended-hero__lead">グループの全員が書くと、そのグループの結果が自動で出ます。来ていない人がいるときは、今の回答で結果を出せます。</p>
+      {groupList}
+      {results.length > 0 && <div className="ended-hero__actions">{summarize(false, "結果をまとめる")}<span className="t-note">結果の出たグループだけでまとめます。</span></div>}
+      {error}
+    </section>
+  );
+}
+
 interface SessionSummary { analyzedGroups: number; good: { group: number; text: string }[]; review: { group: number; text: string }[]; source: string }
 
 /** 終了後：録音の分析から、議論の進め方の振り返り（録音しなかったグループは出ない） */
 function RecordingReview({ roomId, room }: { roomId: string; room: Room }) {
   const summary = useDoc<SessionSummary>(`sessions/${roomId}/results/session-summary`).data;
   const groups = Array.from({ length: room.groups ?? 1 }, (_, i) => i + 1);
+  // 録音を送ったグループがなければ、空の欄は出さない
+  if (room.recording === false || !groups.some((g) => room.groupState?.[String(g)]?.recording?.status)) return null;
   return (
     <section className="flow-card stack" aria-labelledby="review-title">
       <div className="heading-row"><h2 id="review-title" className="t-sm">録音の振り返り</h2></div>
       <p className="t-note">分析済み {summary?.analyzedGroups ?? 0}/{room.groups ?? 1}グループ</p>
       {groups.map((g) => <ReviewGroup key={g} roomId={roomId} group={g} />)}
-      <Link className="btn btn--blue" href="/teacher" style={{ alignSelf: "flex-start" }}>ホームに戻る</Link>
     </section>
   );
 }

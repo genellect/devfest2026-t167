@@ -72,6 +72,18 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
   // /healthz は手元と古い手順のために残す
   app.get(['/health', '/healthz'], (_req, res) => { res.json({ ok: true, gemini: gemini.source }); });
 
+  // テーマ案（Gemini）。議論を作れる教員だけが使える。依頼の本文はログにも DB にも残さない
+  app.post('/themes/suggest', ...chain(authenticate, wrap(async (req, res) => {
+    requireTeacher(req.ctx);
+    const { request, previous } = parse(z.object({
+      request: z.string().trim().min(1).max(500),
+      previous: z.array(z.string().trim().min(1).max(100)).max(3).default([]),
+    }).strict(), req.body);
+    await limit(req.ctx.uid, 'theme-suggest', 6);
+    try { res.json({ themes: await gemini.suggestThemes(request, previous), source: gemini.source }); }
+    catch { throw new HttpError(503, 'theme_unavailable', 'テーマ案を出せませんでした。少し待って、もう一度試してください'); }
+  })));
+
   // 作成は招待された教員だけ（teacher claim）。セッションとHostの所属を同じトランザクションで保存する。
   // 作成後の操作の権限は、これまでどおりセッションごとの members.role で決める
   app.post('/rooms', ...chain(authenticate, wrap(async (req, res) => {

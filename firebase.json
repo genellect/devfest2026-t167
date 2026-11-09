@@ -32,7 +32,12 @@
         ".git",
         "firebase-debug.log",
         "firebase-debug.*.log",
-        "functions"
+        "functions",
+        ".env.local",
+        ".env*.local",
+        ".next-real",
+        "test-results",
+        "playwright-report"
       ]
     },
     {
@@ -43,7 +48,12 @@
         ".git",
         "firebase-debug.log",
         "firebase-debug.*.log",
-        "functions"
+        "functions",
+        ".env.local",
+        ".env*.local",
+        ".next-real",
+        "test-results",
+        "playwright-report"
       ]
     }
   ],

@@ -134,6 +134,10 @@ describe('未検討論点の分析', () => {
     const cov = await db.doc(`sessions/${roomId}/results/coverage`).get();
     expect(cov.get('reflectionRate')).toBe(0.5);
     expect(cov.get('source')).toBe('mock');
+    // 教員の画面に出す論点の一覧：言い換えた論点と、話されたかどうかだけ。事前意見の本文は入れない
+    expect(cov.get('points')).toHaveLength(2);
+    expect(cov.get('points').map((p: { discussed: boolean }) => p.discussed).sort()).toEqual([false, true]);
+    for (const text of ['透明性を確保すべき', '費用の負担が心配']) expect(JSON.stringify(cov.get('points'))).not.toContain(text);
     clock += 10_000;
     const again = await api(mod).post(`/rooms/${roomId}/analyze`).expect(429);
     expect(again.body.error.retryAfterSec).toBe(20);
