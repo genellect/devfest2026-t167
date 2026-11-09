@@ -134,6 +134,10 @@ describe('未検討論点の分析', () => {
     const cov = await db.doc(`sessions/${roomId}/results/coverage`).get();
     expect(cov.get('reflectionRate')).toBe(0.5);
     expect(cov.get('source')).toBe('mock');
+    // 教員の画面に出す論点の一覧：言い換えた論点と、話されたかどうかだけ。事前意見の本文は入れない
+    expect(cov.get('points')).toHaveLength(2);
+    expect(cov.get('points').map((p: { discussed: boolean }) => p.discussed).sort()).toEqual([false, true]);
+    for (const text of ['透明性を確保すべき', '費用の負担が心配']) expect(JSON.stringify(cov.get('points'))).not.toContain(text);
     clock += 10_000;
     const again = await api(mod).post(`/rooms/${roomId}/analyze`).expect(429);
     expect(again.body.error.retryAfterSec).toBe(20);
@@ -381,6 +385,24 @@ describe('録音の分析', () => {
     expect(JSON.stringify(flow)).not.toContain(uidOf(p1)); // 話者を記録しない
     expect((await db.doc(`sessions/${roomId}`).get()).get('groupState')['1'].recording.status).toBe('done');
     await upload(p2, roomId).expect(409); // 同じグループの2台目の送信は分析しない
+  });
+  it('事前の意見と照らし合わせた論点は、先生だけが読む results/points-g{番号} に保存し、意見の本文を写さない', async () => {
+    const { roomId, mod, p1, p2 } = await setupRoom(true);
+    await api(p1).post(`/rooms/${roomId}/opinion`, { text: '架空の非公開意見：申告すべき' }).expect(200);
+    await api(p2).post(`/rooms/${roomId}/opinion`, { text: '架空の非公開意見：アイデア出しだけ' }).expect(200);
+    await upload(p1, roomId).expect(200);
+    const points = (await db.doc(`sessions/${roomId}/results/points-g1`).get()).data();
+    expect(points).toMatchObject({ group: 1, opinions: 2, source: 'mock' });
+    expect(points?.points).toHaveLength(2);
+    expect(JSON.stringify(points)).not.toContain('架空の非公開意見');
+    expect(JSON.stringify(points)).not.toContain(uidOf(p1));
+    const flow = (await db.doc(`sessions/${roomId}/results/flow-g1`).get()).data();
+    expect(flow).not.toHaveProperty('points');
+    await db.doc(`sessions/${roomId}`).update({ resultsPublished: true });
+    const get = (t: string) => request(app).get(`/rooms/${roomId}/results/points-g1`).set('authorization', `Bearer ${t}`).set('cookie', cookies.get(t) ?? '');
+    await get(p1).expect(403); // 公開後も、学生は読めない
+    await request(app).get(`/rooms/${roomId}/results/flow-g1`).set('authorization', `Bearer ${p1}`).set('cookie', cookies.get(p1) ?? '').expect(200);
+    expect((await get(mod).expect(200)).body.points).toHaveLength(2);
   });
   it('テーマ非公開のあいだは、録音の分析にテーマ本文を渡さず、参加者に届く結果へ写さない', async () => {
     const { roomId, p1 } = await discussingRoom();

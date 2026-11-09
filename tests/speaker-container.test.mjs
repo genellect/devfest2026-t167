@@ -6,7 +6,9 @@ const read = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf
 test('本番のAPIビルドは音声処理を含むルートcontextと専用Dockerfileを使用する', () => {
   const workflow = read('.github/workflows/deploy.yml');
   assert.match(workflow, /docker build -f api\/Dockerfile -t "\$IMAGE" \./);
-  assert.match(workflow, /--cpu 2 --memory 2Gi --concurrency 8 --min-instances 0 --max-instances 2/);
+  assert.match(workflow, /--cpu 2 --memory 2Gi --concurrency 8 --min-instances "\$API_MIN_INSTANCES" --max-instances 2/);
+  // 最小インスタンス数は Variables で変えられるが、未登録なら 0（授業のない時間の計算資源の費用を 0 にする）
+  assert.match(workflow, /API_MIN_INSTANCES: \$\{\{ vars\.API_MIN_INSTANCES \|\| '0' \}\}/);
 });
 
 test('本番ランタイムにPython・固定依存・モデルを同梱し非rootで起動する', () => {

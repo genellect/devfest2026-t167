@@ -56,7 +56,7 @@ if run --approved; then
 else ng "--approved の PR（$(cat "$T/out")）"; fi
 run --merge-now && ng "知らない指定は止まる" || ok "知らない指定は止まる"
 
-for rules_path in firebase/firestore.rules firebase/storage.rules demo/deploy.sh; do
+for rules_path in firebase/firestore.rules firebase/storage.rules demo/deploy.sh .claude/settings.json .codex/setup.sh scripts/claude-gcp-login.sh; do
   fresh
   (cd "$T/w" && git switch -qc fix/rules && mkdir -p "$(dirname "$rules_path")" && echo x > "$rules_path" && G add -A && G commit -qm "fix(infra): protected configuration")
   if run --approved; then

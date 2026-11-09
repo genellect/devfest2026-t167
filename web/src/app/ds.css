@@ -610,6 +610,12 @@ input[type=checkbox] { width: 20px; height: 20px; flex: none; margin: 3px 0 0; a
 @media (prefers-reduced-motion: reduce) { .ended-hero__bar span { transition: none; } }
 /* グループが1つの結果：「次の授業」と指標を横に並べる（比べる表がないので右が空かないように） */
 @media (min-width: 900px) { .split--single > .stack { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; } .split--single > .stack > p { grid-column: 1 / -1; } }
+/* AI が読み取った論点：まだの論点は黄色の印、話された論点は主色のチェック */
+.points__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.points__list li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: start; font-size: 14px; line-height: 1.55; }
+.points__mark { width: 12px; height: 12px; margin-top: 5px; border-radius: 3px 3px 6px 3px; background: var(--insight); box-shadow: 0 0 0 2px var(--insight-soft); }
+.points__list li[data-discussed] { color: var(--ink-2); }
+.points__list li[data-discussed] .points__mark { border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 2px var(--brand-soft); }
 .next__idle { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 4px; }
 .next__idle .t-note { margin: 0; max-width: 46ch; }
 .proposal { justify-content: space-between; }

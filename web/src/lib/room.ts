@@ -25,7 +25,7 @@ export interface Room {
 export interface Message { id: string; uid: string; text: string; createdAt?: Timestamp }
 export interface Insight { id: string; summary: string; status: "pending" | "approved" | "dismissed"; source?: string; approvedAt?: Timestamp }
 export interface Member { id: string; role: "host" | "participant"; status?: "active" | "inactive"; displayName?: string; ready?: boolean; attendees?: { id: string; displayName: string; voiceRegistered: boolean }[]; group?: number }
-export interface Coverage { total: number; discussed: number; reflectionRate: number | null; source?: string }
+export interface Coverage { total: number; discussed: number; reflectionRate: number | null; source?: string; points?: { summary: string; discussed: boolean }[] }
 export interface Summary {
   respondents: number;
   groups: { label: string; members: number[] }[];
@@ -63,6 +63,17 @@ export interface Flow {
   review: { at: string; text: string; question?: string }[];
   /** 先生向けの指導の提案（個人名を挙げない） */
   teacherSuggestions?: string[];
+  source?: string;
+}
+
+/**
+ * 録音と事前の意見を照らし合わせた論点（グループごと）。rooms/{部屋}/results/points-g{グループ番号} に API が書く。
+ * 非公開の意見から作るので、先生だけに配信される。at は、その論点に最初に触れた録音の経過時間
+ */
+export interface GroupPoints {
+  points: { summary: string; discussed: boolean; at?: string }[];
+  /** 照らし合わせた事前の意見の数 */
+  opinions: number;
   source?: string;
 }
 

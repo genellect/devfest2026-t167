@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, uploadRecording } from "./api";
+import { firebase } from "./firebase";
+import { expireRoomRecordings } from "./recording-recovery";
 import { useRecorder } from "./recorder";
 
 /** 録音は30分まで（チームドキュメント F03）。超えたら止めて、そこまでを送る */
@@ -18,38 +20,66 @@ export type ServerRecordingStatus = "analyzing" | "done" | "failed" | undefined;
  * - 別の送信を分析中（409）なら録音を残したまま、部屋の状態（serverStatus）が完了か失敗になるのを待つ
  * - 録音中にページを離れようとしたら、ブラウザに確かめさせる
  */
-export function useGroupRecording(roomId: string, discussing: boolean, serverStatus: ServerRecordingStatus) {
+export function useGroupRecording(roomId: string, discussing: boolean, serverStatus: ServerRecordingStatus, endedAt?: number) {
   const rec = useRecorder(roomId);
-  const { stop, state, elapsedMs, discard: discardRecorder } = rec;
+  const { stop, state, elapsedMs, discard: discardRecorder, clearCompleted } = rec;
   const [upload, setUpload] = useState<{ state: UploadState; message?: string }>({ state: "none" });
   const pending = useRef<{ blob: Blob; durationMs: number } | null>(null);
   const finishing = useRef(false);
   const discarding = useRef(false);
   const inFlight = useRef(false);
+  // 通信の途切れ・混雑など一時的な失敗は、自動で3回まで送り直す（API の「失敗から30秒あける」の指示があればそれに従う）
+  const transient = useRef(false), autoAttempts = useRef(0), waitMs = useRef(0);
+
+  const complete = useCallback(async () => {
+    await clearCompleted();
+    pending.current = null;
+    setUpload({ state: "done" });
+  }, [clearCompleted]);
 
   const retry = useCallback(async () => {
     const p = pending.current;
     if (!p || inFlight.current) return;
     inFlight.current = true;
+    transient.current = false;
     setUpload({ state: "uploading" });
     try {
       await uploadRecording(roomId, p.blob, p.durationMs / 1000);
-      pending.current = null;
-      setUpload({ state: "done" });
+      await complete();
     } catch (e) {
       const code = e instanceof ApiError ? e.code : "";
-      if (code === "already_analyzed") { pending.current = null; setUpload({ state: "done" }); }
+      if (code === "already_analyzed") {
+        try { await complete(); }
+        catch (cleanupError) { setUpload({ state: "failed", message: (cleanupError as Error).message }); }
+      }
       else if (code === "analysis_in_progress") setUpload({ state: "waiting", message: "グループの別の送信を分析しています。終わるまで、録音はこの端末に残します。" });
-      else setUpload({ state: "failed", message: (e as Error).message });
+      else {
+        transient.current = e instanceof ApiError && [0, 408, 429, 503].includes(e.status);
+        waitMs.current = e instanceof ApiError && e.retryAfterSec ? e.retryAfterSec * 1000 : 0;
+        setUpload({ state: "failed", message: (e as Error).message });
+      }
     } finally { inFlight.current = false; }
-  }, [roomId]);
+  }, [roomId, complete]);
+
+  useEffect(() => {
+    if (upload.state !== "failed" || !transient.current || autoAttempts.current >= 3) return;
+    const resume = () => {
+      if (autoAttempts.current >= 3 || (endedAt && Date.now() >= endedAt + 5 * 60_000)) return;
+      autoAttempts.current++; void retry();
+    };
+    const timer = setTimeout(resume, Math.max(5000 * (autoAttempts.current + 1), waitMs.current));
+    window.addEventListener("online", resume, { once: true });
+    return () => { clearTimeout(timer); window.removeEventListener("online", resume); };
+  }, [upload.state, retry, endedAt]);
 
   // 別の送信の分析が終わったら完了に、失敗したら送り直せるようにする
   useEffect(() => {
     if (upload.state !== "waiting") return;
-    if (serverStatus === "done") { pending.current = null; setUpload({ state: "done" }); }
+    if (serverStatus === "done") {
+      void complete().catch((error: Error) => setUpload({ state: "failed", message: error.message }));
+    }
     else if (serverStatus === "failed") setUpload({ state: "failed", message: "グループの別の送信の分析に失敗しました。この端末の録音を送ってください。" });
-  }, [serverStatus, upload.state]);
+  }, [serverStatus, upload.state, complete]);
 
   const finish = useCallback(async () => {
     if (finishing.current || discarding.current) return;
@@ -60,12 +90,20 @@ export function useGroupRecording(roomId: string, discussing: boolean, serverSta
     } finally { finishing.current = false; }
   }, [stop, retry]);
 
-  /** 録音への同意が取り消されたら、送らずに捨てる（議論の終了と重なっても送信しない） */
+  /** 利用者が「録音を破棄」を選んだら、送らずに捨てる（議論の終了と重なっても送信しない） */
   const discard = useCallback(async () => {
-    discarding.current = true;
+    discarding.current = true; autoAttempts.current = 0; transient.current = false;
     try { pending.current = null; await discardRecorder(); setUpload({ state: "none" }); }
     finally { discarding.current = false; }
   }, [discardRecorder]);
+
+  useEffect(() => {
+    if (!endedAt) return;
+    const deadline = endedAt + 5 * 60_000, uid = firebase().auth.currentUser?.uid;
+    if (uid) void expireRoomRecordings(uid, roomId, deadline).catch(() => {});
+    const timer = setTimeout(() => { pending.current = null; void discard(); }, Math.max(0, deadline - Date.now()));
+    return () => clearTimeout(timer);
+  }, [endedAt, roomId, discard]);
 
   const active = state === "recording" || state === "paused";
   useEffect(() => { if (!discussing && (active || (state === "stopped" && upload.state === "none"))) void finish(); }, [discussing, active, state, upload.state, finish]);

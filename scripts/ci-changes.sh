@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # PR で変更したファイルから、重い検査（scripts/dev.sh check）が要るかを決める。
 # 文書だけの変更（*.md、docs/、PR テンプレート、LICENSE）なら code=false。それ以外は code=true。
-# main への push・手動実行・差分が読めないときは、常に code=true（main のどのコミットにも完全な結果を残す）。
+# main への push・手動実行・差分が読めないときは、常に code=true。
+# 文書だけの main への push は、deploy.yml の paths-ignore（同じ条件）で deploy ごと動かない。
 # 使い方: scripts/ci-changes.sh <base> <head>    ファイル一覧を標準入力で渡すときは scripts/ci-changes.sh -
 set -uo pipefail
 is_doc() {

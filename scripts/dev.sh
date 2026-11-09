@@ -60,8 +60,11 @@ doctor() {
   ok() { echo "[ok] $*"; }
   warn() { echo "[--] $*"; }
   ng() { echo "[!!] $*"; bad=1; }
-  [ "$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null)" = "$(cat .nvmrc)" ] \
-    && ok "Node.js $(node -v)" || ng "Node.js は $(cat .nvmrc) 系が必要（.nvmrc）"
+  # 系列は .nvmrc、最低版は web と api の package.json の engines（>=22.12 など）に合わせる
+  local min; min=$(node -p 'require("./api/package.json").engines.node.replace(/^>=/, "")' 2>/dev/null)
+  node -e 'const [want, min] = process.argv.slice(1), v = process.versions.node.split(".").map(Number), m = min.split(".").map(Number);
+    process.exit(String(v[0]) === want && (v[1] > (m[1] || 0) || (v[1] === (m[1] || 0) && v[2] >= (m[2] || 0))) ? 0 : 1)' "$(cat .nvmrc)" "${min:-0}" 2>/dev/null \
+    && ok "Node.js $(node -v)" || ng "Node.js は $(cat .nvmrc) 系の ${min:-?} 以上が必要（.nvmrc と package.json の engines。いまは $(node -v 2>/dev/null || echo 未インストール)）"
   java -version >/dev/null 2>&1 && ok "Java（Firestore エミュレータ用）" || ng "Java 21 が必要（Firestore エミュレータ用）"
   for d in web api firebase; do [ -d "$d/node_modules" ] && ok "$d の依存" || ng "$d の依存がない → bash scripts/dev.sh setup"; done
   [ -x "$FB" ] && ok "Firebase CLI $("$FB" --version 2>/dev/null)（lockfile で固定）" || ng "Firebase CLI がない → bash scripts/dev.sh setup"
@@ -106,7 +109,8 @@ serve() {
   local config; config=$(emulator_config)
   local emulator_log; emulator_log=$(mktemp /tmp/t167-emulators-log.XXXXXX)
   "$FB" emulators:start --config "$config" --project "$EMU_PROJECT" --only auth,firestore,storage >"$emulator_log" 2>&1 &
-  wait_port "$NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT" && wait_port "$NEXT_PUBLIC_AUTH_EMULATOR_PORT"
+  wait_port "$NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT" && wait_port "$NEXT_PUBLIC_AUTH_EMULATOR_PORT" \
+    || { echo "NG: エミュレータが起動しません。ログの末尾（全文は $emulator_log）:" >&2; tail -n 20 "$emulator_log" >&2; exit 1; }
   npm --prefix firebase run seed
   env GOOGLE_CLOUD_PROJECT=$EMU_PROJECT GEMINI_MOCK="$mock" PORT="$T167_API_PORT" ${extra[@]+"${extra[@]}"} npm --prefix api run dev &
   npm --prefix web run dev -- -p "$T167_WEB_PORT" &
@@ -171,8 +175,9 @@ speaker_check() {
   rm -f "$config"; trap - EXIT
 }
 
-# 変えると本番の権限・デプロイに直接効くファイル。これらを含む PR には auto-merge を付けず、レビューを求める
-REVIEW_PATHS='^(firebase/(firestore|storage)\.rules|firebase\.json|web/apphosting[^/]*\.yaml|\.github/|infra/|demo/)'
+# 変えると本番の権限・デプロイ、または AI 用の鍵（GCP_SA_KEY）を持つセッションの動きに直接効くファイル。
+# これらを含む PR には auto-merge を付けず、レビューを求める
+REVIEW_PATHS='^(firebase/(firestore|storage)\.rules|firebase\.json|web/apphosting[^/]*\.yaml|\.github/|infra/|demo/|\.claude/|\.codex/|scripts/claude-gcp-login\.sh$)'
 
 pr() {
   # main へのマージから自動デプロイまでが「本番反映」。始める前に Yuto Matsui の承諾が要るので、既定では auto-merge を付けない。
@@ -220,5 +225,5 @@ case "${1:-}" in
   speaker-setup) bash scripts/speaker.sh setup ;;
   speaker-check) speaker_check ;;
   pr) shift; pr "$@" ;;
-  *) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  *) sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac

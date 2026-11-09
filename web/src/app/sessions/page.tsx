@@ -50,7 +50,7 @@ export default function SessionsPage() {
         <button className="btn" disabled={busy} onClick={() => act(shared)}>この端末を共用端末として設定</button>
       </section>
       <section className="session-device"><h2>音声の登録情報</h2><p>各自の端末で登録した声の特徴を、このGoogleアカウントから削除します。次回は再登録が必要です。</p><button className="btn" onClick={async () => { try { await sessionRequest("/voice-profile/delete", "POST", {}); window.alert("音声の登録情報を削除しました。"); } catch { window.alert("削除できませんでした。接続を確認してください。"); } }}>音声登録を削除する</button></section><SchoolSecurity />
-      <h2 className="t-md">この端末に保管した録音</h2><p>このブラウザ内の、ご本人の録音だけを表示します。送信前に自動削除しません。共用端末では確認後に録音を削除してください。同じ端末を使う人が音声を見られる場合があります。</p>
+      <h2 className="t-md">この端末に保管した録音</h2><p>このブラウザ内の、ご本人の録音だけを表示します。分析が終わった録音は自動で消します。送れなかった録音は、議論の終了から5分で消します。共用端末では確認後に録音を削除してください。同じ端末を使う人が音声を見られる場合があります。</p>
       {recordings.map((r) => <article key={r.id} className="session-device"><h3>{new Date(r.createdAt).toLocaleString("ja-JP")}</h3><p>{r.complete ? "保存済み" : "途中保存・単体で再生できるとは限りません"}・{r.chunks}チャンク</p>
         {r.complete && <button className="btn" disabled={busy} onClick={() => act(async () => { const blob = await recoveryAudio(current.user!.uid, r.id); setAudio(URL.createObjectURL(blob)); })}>再生・ダウンロード</button>}
         {r.complete && r.roomId && <button className="btn" disabled={busy} onClick={() => act(async () => { await uploadRecording(r.roomId!, await recoveryAudio(current.user!.uid, r.id), (r.durationMs ?? 1000) / 1000); setError("送信しました。録音は端末にも残しています。"); })}>同じ部屋へ再送する</button>}

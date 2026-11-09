@@ -2,6 +2,8 @@ name: deploy
 on:
   push:
     branches: [main]
+    # 文書だけの push では本番を入れ替えない（scripts/ci-changes.sh の「文書だけ」と同じ条件。tests/config.test.sh が一致を確かめる）
+    paths-ignore: ["**/*.md", "docs/**", "LICENSE"]
   workflow_dispatch:
     inputs:
       ref:
@@ -31,6 +33,9 @@ jobs:
       REGION: ${{ vars.REGION }}
       VERTEX_LOCATION: ${{ vars.VERTEX_LOCATION }}
       GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+      # 任意の Variables: API_MIN_INSTANCES
+      # API の最小インスタンス数（未登録なら 0）。デモ・審査の前に 1 にすると、その後のデプロイでも 1 が保たれる
+      API_MIN_INSTANCES: ${{ vars.API_MIN_INSTANCES || '0' }}
       DEPLOY_REF: ${{ inputs.ref || github.sha }}
     steps:
       # 1つでも空なら、認証やビルドの前に止める。空のまま Cloud Run に渡すと、デプロイは成功しても Gemini が動かないため
@@ -45,6 +50,10 @@ jobs:
             echo "::error::GitHub の Variables が未登録です:${missing}。infra/setup-deployer.sh の表示どおりに Settings → Secrets and variables → Actions → Variables に登録してください"
             exit 1
           fi
+          case "$API_MIN_INSTANCES" in
+            0|1|2) ;;
+            *) echo "::error::API_MIN_INSTANCES は 0〜2 の整数にしてください（最大インスタンス数が 2 のため）: ${API_MIN_INSTANCES}"; exit 1 ;;
+          esac
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_REF }}
@@ -82,7 +91,7 @@ jobs:
           gcloud run deploy api --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE" \
             --service-account "api-runtime@${PROJECT_ID}.iam.gserviceaccount.com" \
             --allow-unauthenticated --labels "commit=${SHA:0:12}" \
-            --cpu 2 --memory 2Gi --concurrency 8 --min-instances 0 --max-instances 2 \
+            --cpu 2 --memory 2Gi --concurrency 8 --min-instances "$API_MIN_INSTANCES" --max-instances 2 \
             --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},VERTEX_LOCATION=${VERTEX_LOCATION},GEMINI_MODEL=${GEMINI_MODEL},GEMINI_MOCK=0"
       - name: 3/3 Web (App Hosting)
         run: firebase/node_modules/.bin/firebase deploy --only apphosting:web --project "$PROJECT_ID" --non-interactive
@@ -95,6 +104,23 @@ jobs:
             echo "|---|---|"
             echo "| コミット | $(git rev-parse HEAD) |"
             echo "| API リビジョン | ${REV} |"
+            echo "| API の最小インスタンス数 | ${API_MIN_INSTANCES} |"
             echo "| Firestore/Storage Rules・Web | 同じコミットから反映 |"
             echo "| 実行者 | ${GITHUB_ACTOR}（${GITHUB_EVENT_NAME}） |"
           } >> "$GITHUB_STEP_SUMMARY"
+      # 画面 → /api の転送 → API → Gemini の設定 をまとめて確かめる。生成が成功するかは表さない（docs/production-check.md）
+      - name: Check the production URL
+        run: |
+          APPHOSTING_REGION=$(source infra/env.sh && echo "$APPHOSTING_REGION")
+          URL="https://web--${PROJECT_ID}.${APPHOSTING_REGION}.hosted.app/api/healthz"
+          for i in $(seq 1 12); do
+            BODY=$(curl -fsS --max-time 20 "$URL" 2>/dev/null || true)
+            case "$BODY" in
+              *'"ok":true'*'"gemini":"gemini"'*)
+                echo "| 稼働確認 | ${URL} が ${BODY} を返した |" >> "$GITHUB_STEP_SUMMARY"
+                exit 0 ;;
+            esac
+            sleep 10
+          done
+          echo "::error::${URL} が {\"ok\":true,\"gemini\":\"gemini\"} を返しません（最後の応答: ${BODY:-なし}）。Actions の deploy の各手順と Cloud Run のログを確かめ、必要ならロールバックしてください"
+          exit 1

@@ -1,13 +1,12 @@
 # 開発への参加
 
-> 2026-11-06 MVP仕様変更：全員Googleログイン。ディスカッションを作れるのは、管理者が招待した教員（teacher claim）だけです（Docs「サーバーフィードバック」）。作成後のHost/Participantは議論のmembers.roleで判定します。ログイン後、教員は教員のホーム（/teacher）、学生は参加コードの入力（/join）へ進みます。ログイン上限は全員1台です。新仕様・API・移行条件は [MVPロール設計](docs/mvp-roles.md) を参照。以下の旧仕様と相違する場合は新仕様を適用します。
+開発環境の起動から本番反映までの進め方。PR の確認と本番反映の依頼の手順は、[PR の確認から本番反映までの手順](docs/contributor-preview-guide.md) にある。人も AI エージェントも同じルールに従い、エージェント向けの手順は [AGENTS.md](AGENTS.md) にある。
 
+実装を始める前と PR を出す前に、チームドキュメント（Google Docs）のすべてのタブ（要件定義・アプリの構想・MVPフロー・UIフィードバック・審査基準など）を読み、プロダクトの方向性と合っているかを確かめる（エージェントの手順は [AGENTS.md](AGENTS.md#チームドキュメントを毎回読む)）。
 
-開発環境の起動から本番反映までの進め方。PR の確認と本番反映の依頼の手順は、[PR の確認から本番反映までの手順](docs/contributor-preview-guide.md) にある。人も AI エージェントも同じルールに従い、エージェント向けの手順は [AGENTS.md](AGENTS.md) にある。GCP の構築手順はチームドキュメントの「インフラ構築手順書」にある。
+GCP・Firebase・GitHub の構築と運用の手順は、[インフラ構築手順書](docs/infra-manual.md) が正本（Docs の同じ名前のタブは、ここへの案内だけ）。構築・権限・デプロイ・CI を変える PR では、手順書も同じ PR で更新する。
 
-実装を始める前と PR を出す前に、チームドキュメント（Google Docs）の「インフラ構築手順書」以外のすべてのタブ（要件定義・アプリの構想・MVPフロー・UIフィードバックなど）を読み、プロダクトの方向性と合っているかを確かめる。「インフラ構築手順書」は、GCP の構築・権限・デプロイ・CI を変えるときに読む（エージェントの手順は [AGENTS.md](AGENTS.md#チームドキュメントを毎回読む)）。
-
-インフラ手順書の正本を変えた場合は、関係するコードや運用ルールの変更と同じ PR で、同じ日に `docs/infra-manual.md` も更新する。写しだけを追いつかせる場合は専用 PR にする。
+**利用者と権限**：全員が Google でログインする。議論を作れるのは、管理者が招待した教員（teacher claim）だけ（Docs「サーバーフィードバック」）。作成後の Host/Participant は、議論ごとの members.role で判定する。ログイン後、教員は教員のホーム（`/teacher`）、学生は参加コードの入力（`/join`）へ進む。ログインの上限は全員1台。詳細は [MVPロール設計](docs/mvp-roles.md)。
 
 ## 役割
 
@@ -28,9 +27,7 @@ bash scripts/dev.sh serve    # エミュレータ・テストデータ・API・�
 
 http://localhost:3000 を開き、参加コード `100001` で参加する。Auth と Firestore はエミュレータ、Gemini はモックで動く。Gemini が失敗したときの動きは `GEMINI_MOCK_FAIL=1 bash scripts/dev.sh serve` で確かめる。
 
-先生の導線は、トップの「テスト用の先生でログイン（エミュレータ）」か、「Googleでログイン」で開く認証のエミュレータの「Add new account」から架空のメールアドレスで確かめる。本物の Google アカウントやパスワードは使わない。どちらのテストアカウントもセッションを作成・参加できる。部屋を作ったら、表示された参加コードを別のブラウザーのプロファイルかプライベートウィンドウで入力し、架空の意見を出す。先生のダッシュボードで「未検討の論点を探す」を押すと提案が出る（通常の起動は「デモデータ」、`GEMINI_MOCK=0` では「Gemini による推定」）。
-
-別checkoutのプレビューを起動したまま検査する場合は `T167_TEST_PORT_OFFSET=10000 bash scripts/dev.sh check` を使う。web=13000、API=18081、Firestore=18080、Auth=19099と検査専用DB名を使う。必要なら別のオフセット（0〜40000）を選ぶ。既存プロセスは停止せず、ポート使用中なら検査が停止する。カバレッジ・変異検査・同時提出の負荷測定も含む。依存更新後はlockfileをそろえ、全検査を行う。詳細は [backend-contract](docs/backend-contract.md)。
+先生の導線は、トップの「テスト用の先生でログイン（エミュレータ）」で確かめる。このテストアカウントには teacher claim が付いている。学生の導線は「テスト用の生徒でログイン（エミュレータ）」で確かめる。「Googleでログイン」で開く認証のエミュレータの「Add new account」で作った架空のアカウントにも claim はないので、学生として参加コードの入力へ進み、議論は作れない。本物の Google アカウントやパスワードは使わない。部屋を作ったら、表示された参加コードを別のブラウザーのプロファイルかプライベートウィンドウで入力し、架空の意見を出す。先生のダッシュボードで「未検討の論点を探す」を押すと提案が出る（通常の起動は「デモデータ」、`GEMINI_MOCK=0` では「Gemini による推定」）。
 
 終了するときは、起動したターミナルで `Ctrl+C` を押す。Auth・Firestore のエミュレータ、API、画面をまとめて停止する。
 
@@ -40,7 +37,7 @@ http://localhost:3000 を開き、参加コード `100001` で参加する。Aut
 
 ## 同じ端末で複数の作業を動かす
 
-`T167_TEST_PORT_OFFSET=20000 bash scripts/dev.sh check` で画面・API・Auth/Firestore等のポートをまとめてずらす。検査用DBは `demo-t167-test-20000` になり、通常のプレビューから分離する。0〜40000の整数を指定でき、既存ポートが使用中なら起動前に停止する。既存のサーバーを検査に流用しない。通常の起動にも `T167_TEST_PORT_OFFSET=10000 bash scripts/dev.sh serve` を使える。並行する作業では異なる値を指定する。検査用コピーを作らず、対象ブランチのまま全検査を実行できる。macOSのBash・awkでもPR本文の生成と構成検査が動くようにしている。
+`T167_TEST_PORT_OFFSET=10000 bash scripts/dev.sh check`（または `serve`）で、画面・API・Auth・Firestore・Storage（9199）のエミュレータなどのポートをまとめてずらす。たとえば 10000 なら web=13000、API=18081、Firestore=18080、Auth=19099 になり、検査用 DB は `demo-t167-test-10000` になる。0〜40000 の整数を指定でき、並行する作業では異なる値を指定する。既存のプロセスは止めず、ポートが使用中なら起動前に止まる（既存のサーバーを検査に流用しない）。検査用のコピーを作らず、対象ブランチのまま全検査を実行できる。check にはカバレッジ・変異検査・同時提出の負荷測定も含む（[backend-contract](docs/backend-contract.md)）。
 
 
 ## 依存を更新する
@@ -61,15 +58,13 @@ Node.jsは22.12以上の22系を使う（`.nvmrc`は22）。Vitest 5の実行要
 
 ## 開発の流れ
 
-クラウドでのデモ準備は[cloud-demo](docs/cloud-demo.md)を参照。既存のWIF・サービスアカウントを使い、実行用APIには認証の読み取りだけを許可する。教師claimはMVPのHost権限に使用しない。PR作成と本番反映の承諾は別であり、今回の実装・テストではクラウドを変更しない。
-
 1. **ブランチを作る。** `git fetch origin main` のあと、最新の `origin/main` から作る。
 2. **変更する。** 1つの PR では1つの目的だけを扱い、関係するテストと文書を同じ PR で更新する。
 3. **PR を出す。** コミットしたら `bash scripts/dev.sh pr --no-merge` を実行する。手元の検査（`check --quick`）、push、PR の作成を1回で行い、auto-merge は付けない。PR の本文にはコミットの件名が入るので、[PR テンプレート](.github/pull_request_template.md)の残りの項目（背景・目的、検査とプレビューの結果、未確認のこと、スクリーンショット）を書き足す。
 4. **画面を確かめる。** `web/` を変えた PR は、CI と並行して[プレビュー](#画面のプレビュー)に自動で出る。PR の「View deployment」からスマホでも開ける。
 5. **本番反映の承諾をもらう。** `main` へのマージから自動デプロイまでを「本番反映」と呼ぶ。始める前に、必ず Yuto Matsui（GitHub：`genellect`）の承諾を得る。承諾はその PR の本番反映への1回で、マージとデプロイで2回に分けない。CI・レビュー・プレビューの成功は承諾の代わりにならない。承諾を待つ間はマージせず、auto-merge も付けない。依頼の書き方は [PR の確認から本番反映までの手順](docs/contributor-preview-guide.md) の手順4。
 6. **本番反映する。** 承諾のあと、Yuto Matsui または任された担当者が、CI の成功と必要なレビューを確かめてから `bash scripts/dev.sh pr --approved` で auto-merge を付ける。CI が通ると squash merge され、`deploy` が本番に反映する。CI が落ちたら直して push すれば、同じ PR で検査がやり直される。
-7. **レビューが要る PR。** Rules（`firebase/firestore.rules`・`firebase/storage.rules`）・`firebase.json`・`web/apphosting*.yaml`・ワークフロー（`.github/`）・構築スクリプト（`infra/`・`demo/`）を変える PR には、`--approved` でも `pr` が auto-merge を付けない。もう1人のレビューと本番反映の承諾の両方を得てから、`gh pr merge --auto --squash --delete-branch` を実行する。それ以外の PR はレビューを必須にしない。
+7. **レビューが要る PR。** Rules（`firebase/firestore.rules`・`firebase/storage.rules`）・`firebase.json`・`web/apphosting*.yaml`・ワークフロー（`.github/`）・構築スクリプト（`infra/`・`demo/`）・AI 用の鍵を使うセッションの設定（`.claude/`・`.codex/`・`scripts/claude-gcp-login.sh`）を変える PR には、`--approved` でも `pr` が auto-merge を付けない。もう1人のレビューと本番反映の承諾の両方を得てから、`gh pr merge --auto --squash --delete-branch` を実行する。それ以外の PR はレビューを必須にしない。
 
 ```bash
 git switch -c feat/consensus-gap-view
@@ -90,7 +85,7 @@ bash scripts/dev.sh pr --no-merge   # 検査・push・PR。Yuto Matsui の本番
 |---|---|---|
 | `ci` の `changes` | PR | 変更したファイルを見て、文書だけなら `test` を省く（`scripts/ci-changes.sh`） |
 | `ci` の `test` | PR、`main` への push | `bash scripts/dev.sh check`：lint、型、単体テスト、ビルド、エミュレータ上の Rules・API 結合・E2E |
-| `deploy` | `main` への push | CI が通ったコミットを、Rules → API（Cloud Run）→ 画面（App Hosting）の順に反映し、コミットと API のリビジョンをサマリーに記録する |
+| `deploy` | `main` への push（文書だけの変更では動かない。条件は `changes` と同じ） | CI が通ったコミットを、Rules → API（Cloud Run）→ 画面（App Hosting）の順に反映し、コミットと API のリビジョンをサマリーに記録する。最後に本番の `/api/healthz` が `{"ok":true,"gemini":"gemini"}` を返すことを確かめる |
 | `preview` | `web/` を変えた PR（同じリポジトリのブランチ） | 画面だけをプレビュー用のバックエンドに出す。CI とは並行で、`main` と本番は変えない |
 | `deploy`（手動） | Run workflow | ロールバック。過去にデプロイが成功したコミットだけを、Rules・API・画面ごと再デプロイする |
 
@@ -168,24 +163,15 @@ Gemini の費用は、ほぼ「モデル」と「思考レベル」で決まる�
 
 提出用リポジトリへの反映は `scripts/submit.sh` が秘密情報を検査してから行う。値はチャット、Issue、PR、ログ、スクリーンショットに貼らない。
 
-## 認証・セッション管理
+## 設計の詳細
 
-Google本人認証とアプリ独自のHttpOnly Cookieを組み合わせ、Cloud Runで毎回検査する。7日間の未利用で失効し、全員共通で既定1台まで。上限を超えると最終利用が古い端末から失効する。共用端末は15分の無操作で再認証を要求し、設定した授業終了時刻に失効する。取得・自動トークン更新・バックグラウンド通信は期限を延ばさない。
+次の内容は、それぞれの文書にある。
 
-`/sessions` で個別/全端末ログアウト、共用設定、保管した音声の再生/再送を行う。学校管理者claimとschoolIdがある本人だけ学校ポリシーと同校利用者の失効を操作できる。画面の役割選択で権限を付けない。
+| 内容 | 文書 |
+|---|---|
+| 認証とログインセッション（7日・1台・共用端末・`/sessions`・Rules の全拒否・録音の端末内保存） | [認証とセッション](docs/auth-sessions.md) |
+| 役割、話者識別と登録音声の検証（`bash scripts/dev.sh speaker-setup`・`speaker-check`） | [MVPロール設計](docs/mvp-roles.md) |
+| 非本番の実 Gemini デモ（`demo/`）とセッション管理版の反映前の確認 | [クラウドデモ](docs/cloud-demo.md) |
+| API のイメージ（音声モデルの同梱）、TTL、Rules の配備 | [インフラ構築手順書](docs/infra-manual.md) |
 
-Firestoreの直接購読は認可済みAPI配信へ移行し、Firestore/StorageのクライアントRulesは拒否する。既存APIの非公開意見/所属/Host/グループ認可は維持する。録音は15秒ごとにIndexedDBへ保存し、認証失効では停止・保存後に画面を閉じる。各チャンクを単体再生できるとは仮定しない。端末のOS停止・容量不足は残るため、実機検査が必要。
-
-設計・モデル・API・セキュリティ判断・移行/運用は [認証とセッション](docs/auth-sessions.md)。`scripts/dev.sh check` はStorageエミュレータも使用し、ポート9199も指定オフセットで分離する。実API/クラウド/IAMを変更するテストは含まない。既定でクラウドへ適用しないTTL準備は `bash infra/setup-session-security.sh --plan`。Rules変更により旧画面との互換性が切れるため、本番は承認されたメンテナンス時間に同一SHAで切り替える。依頼者の確認後にPRとして公開する。PR作成は本番反映の承諾ではなく、マージ・auto-merge・本番反映には別途承諾が必要。
-
-## 登録音声とリアルタイム話者識別の検証
-
-`bash scripts/dev.sh speaker-setup`は.local-dataの専用Python環境とチェックサム検証済みモデルを準備する。`python3 speech/synthetic_samples.py`でmacOSの合成日本語音声を生成できる。`SPEAKER_TEST_VOICES="$PWD/.local-data/speaker-samples/kyoko.wav,$PWD/.local-data/speaker-samples/eddy.wav" T167_TEST_PORT_OFFSET=33000 bash scripts/dev.sh speaker-check`は専用エミュレータで登録・未登録区間の照合・無音除外・終了後の一時プロフィール削除を検証する。実際の児童生徒の音声をテストに使わない。通常のcheckではこの実モデル試験をskipし、認可と画面をモックで検証する。実モデルのローカル画面起動と制約は[設計](docs/mvp-roles.md)を参照。Google Speech APIの有効化・IAM変更・本番反映は行わない。
-
-本番APIの`api/Dockerfile`もPython・固定版の推論依存・SHA-256検証済みモデルを同梱する。ビルドはリポジトリのルートから`docker build -f api/Dockerfile -t <検証用イメージ名> .`。API専用の`Dockerfile.dockerignore`で送信ソースを限定し、端末内音声・認証情報・デモ用Webを含めない。配備設定は2 CPU・2GiB・同時8リクエスト・0〜2台。実コンテナのビルド・Cloud Run上のモデル起動と6グループ同時処理は自動checkに含まれず、配備前に別途確認する。構成の回帰検査3件はcheckで実行する。
-
-## 非本番の実Geminiデモ
-
-`demo/Dockerfile`と`demo/cloudbuild.yaml`で画面/API/話者モデルを同梱する。`demo/deploy.sh`は既定でplanのみ。applyもweb-previewのタグ付きリビジョン・通常トラフィック0に固定し、本番サービスへデプロイしない。Google認証・Firestore・Vertex AIを実接続し、DEMO_IDの専用領域へ保存する。デモ作成自体は依頼者の許可を得て行い、mainマージと本番反映の承諾とは分ける。詳細は[クラウドデモ](docs/cloud-demo.md)。全checkにはデプロイ対象/通常トラフィックを守る偽gcloudテストを含み、実クラウドの変更は含めない。
-
-APIの正常応答を待ってからNextを起動し、初回ログイン時の転送先不在を防ぐ。APIが起動しなければ有限回で失敗し、子プロセスを停止する。起動順の回帰検査3件は通信をモック化してcheckで実行する。`demo/`の構築変更も追加レビューの対象とし、`pr --approved`では自動マージを設定しない。
+これらの変更も、実クラウド・IAM を変えるテストを `check` に含めない。本番の Rules を変える版は、承認されたメンテナンス時間に同じコミットの API・Rules・画面をそろえて反映する。

@@ -253,8 +253,10 @@ export function ResultStep({ roomId, uid, group, source, title, result, showSpea
                 <label className="field__label" htmlFor="next">次の議論で実践する目標</label>
                 <input id="next" className="input" style={{ color: "#000" }} value={r.nextGoal ?? ""} maxLength={60} placeholder="例：自分の意見の前に、1つ質問する" onChange={(e) => set({ nextGoal: e.target.value })} />
               </div>
-              <button type="button" className="btn btn--blue" style={{ alignSelf: "flex-end" }}
-                onClick={() => { saveReflection(roomId, { ...r, savedAt: Date.now() }); setSaved(true); }}>振り返りを保存</button>
+              {/* 自分の言葉で2つとも書いてから保存する（空のままの振り返りを残さない） */}
+              <button type="button" className="btn btn--blue" style={{ alignSelf: "flex-end" }} disabled={!r.ifAgain?.trim() || !r.nextGoal?.trim()}
+                onClick={() => { saveReflection(roomId, { ...r, ifAgain: r.ifAgain?.trim(), nextGoal: r.nextGoal?.trim(), savedAt: Date.now() }); setSaved(true); }}>振り返りを保存</button>
+              {(!r.ifAgain?.trim() || !r.nextGoal?.trim()) && <p className="t-note">2つとも書くと保存できます。</p>}
               {saved && <p role="status">保存しました。次の議論の前に表示します。</p>}
             </section>
           </div>
