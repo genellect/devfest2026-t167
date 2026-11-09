@@ -16,14 +16,14 @@ import "./lp.css";
 
 export const metadata: Metadata = {
   title: { absolute: "Topos — 誰の考えも埋もれない議論を、すべての教室に。" },
-  description: "議論の前に全員の考えを集め、まだ話されていない論点と、合意のずれを AI が見つけます。",
-  openGraph: { title: "Topos — 誰の考えも埋もれない議論を、すべての教室に。", description: "議論の前に全員の考えを集め、まだ話されていない論点と、合意のずれを AI が見つけます。", locale: "ja_JP", type: "website" },
+  description: "議論の前に全員の考えを集め、まだ話されていない論点と、合意のずれを AI が見つける。",
+  openGraph: { title: "Topos — 誰の考えも埋もれない議論を、すべての教室に。", description: "議論の前に全員の考えを集め、まだ話されていない論点と、合意のずれを AI が見つける。", locale: "ja_JP", type: "website" },
 };
 
 const STAGES = [
-  { when: "議論の前", title: "全員が、先に意見を書きます", body: "本文を読めるのは書いた本人だけ。人前では言いにくい意見も、安心して書けます。", feature: "事前意見収集", art: "before" },
-  { when: "議論の最中", title: "まだ話されていない論点を、AI がお知らせします", body: "全員に問いかけるかどうかは、教員が判断します。", feature: "未検討論点の検出", art: "during" },
-  { when: "議論の後", title: "結論の受け止め方の違いが、ひと目でわかります", body: "理解が分かれた点は、次の授業でフォローできます。", feature: "合意の実態検証", art: "after" },
+  { when: "議論の前", title: "まず、全員が書く。", body: "読めるのは、書いた本人だけ。人前では言えない本音も、ここなら書ける。", feature: "事前意見収集", art: "before" },
+  { when: "議論の最中", title: "話されていない論点を、AI がそっと教員に知らせる。", body: "全員に問いかけるかどうかは、教員が決める。", feature: "未検討論点の検出", art: "during" },
+  { when: "議論の後", title: "「わかったつもり」が、見えるようになる。", body: "全員が結論を一文で書くと、理解の分かれ目が浮かび上がる。次の授業は、そこから始められる。", feature: "合意の実態検証", art: "after" },
 ] as const;
 
 function StageArt({ kind }: { kind: "before" | "during" | "after" }) {
@@ -56,9 +56,9 @@ function StageArt({ kind }: { kind: "before" | "during" | "after" }) {
 }
 
 const AUDIENCE = [
-  { who: "学生", title: "発言が苦手でも、意見が議論に反映されます", body: "議論を重ねるなかで、対話と協働の力が身につきます。", art: "student" },
-  { who: "教員", title: "すべてのグループの議論を、手元で把握できます", body: "準備はテーマを入力するだけです。", art: "teacher" },
-  { who: "学校", title: "プライバシーに配慮した設計で、安心して導入できます", body: "意見の本文は本人しか読めず、AI が成績をつけることもありません。", art: "school" },
+  { who: "学生", title: "話すのが苦手でも、考えはちゃんと届く。", body: "発言の多さではなく、考えの中身で議論に加われる。重ねるほど、対話の力が育っていく。", art: "student" },
+  { who: "教員", title: "全部のグループの声が、手元に集まる。", body: "教室を回りきれなくても、どこで何が話されていないかがわかる。準備はテーマを入れるだけ。", art: "teacher" },
+  { who: "学校", title: "安心して、すべての教室に。", body: "意見の本文は、書いた本人にしか見えない。AI が成績をつけることもない。", art: "school" },
 ] as const;
 
 export default function LandingPage() {
@@ -72,8 +72,6 @@ export default function LandingPage() {
         <div className="lp-nav__in">
           <Link href="/lp" className="lp-nav__brand"><span className="lp-nav__mark" aria-hidden="true" />Topos</Link>
           <nav className="lp-nav__end" aria-label="LP">
-            <a href="#how" className="lp-nav__link">しくみ</a>
-            <a href="#everyone" className="lp-nav__link">すべての教室に</a>
             <Link href="/" className="lp-nav__link">ログイン</Link>
             <a href="#demo" className="lp-btn lp-btn--sm">デモを体験</a>
           </nav>
@@ -88,13 +86,13 @@ export default function LandingPage() {
             <div className="hero">
               <p className="hero__brand">Topos</p>
               <h1 id="lp-title" className="hero__title">誰の考えも埋もれない議論を、<br />すべての教室に。</h1>
-              <p className="hero__lead">議論の前に全員の考えを集め、まだ話されていない論点と、合意のずれを AI が見つけます。</p>
+              <p className="hero__lead">議論の前に全員の考えを集め、まだ話されていない論点と、合意のずれを AI が見つける。</p>
               <div className="lp-actions">
                 <a href="#demo" className="lp-btn lp-btn--light">デモを体験</a>
                 <InstallButton className="lp-btn lp-btn--outline" />
               </div>
             </div>
-            <p className="hero__found">事前に書かれていたのに、まだ議論に出ていない意見を、AI が見つけて教員にお知らせします。</p>
+            <p className="hero__found">書いたのに、言い出せなかった意見がある。<br />Topos は、それを見逃さない。</p>
           </div>
         </section>
 
@@ -102,7 +100,7 @@ export default function LandingPage() {
         <section className="sec sec--white" id="how" aria-labelledby="lp-how-title">
           <div className="wrap">
             <header className="sec__head" data-reveal>
-              <h2 id="lp-how-title" className="h2">議論の前・最中・後の3つの場面で支援します</h2>
+              <h2 id="lp-how-title" className="h2">声の小さな意見ほど、議論を変える。</h2>
             </header>
             <div className="stages">
               {STAGES.map((s) => (
@@ -124,14 +122,14 @@ export default function LandingPage() {
         <section className="sc sc--rooms" id="everyone" data-scene aria-labelledby="lp-rooms-title">
           <div className="sc__stick">
             <RoomsScene />
-            <h2 id="lp-rooms-title" className="rooms__cap">教員1人の授業から、学校全体まで広げられます。</h2>
+            <h2 id="lp-rooms-title" className="rooms__cap">ひとつの教室から始めて、学校じゅうに広げられる。</h2>
           </div>
         </section>
 
         <section className="sec sec--gray" aria-labelledby="lp-aud-title">
           <div className="wrap">
             <header className="sec__head" data-reveal>
-              <h2 id="lp-aud-title" className="h2">Topos を使うと、こう変わります</h2>
+              <h2 id="lp-aud-title" className="h2">教室が、こう変わる。</h2>
             </header>
             <div className="audience">
               {AUDIENCE.map((a) => (
@@ -151,8 +149,8 @@ export default function LandingPage() {
         <section className="sec sec--white" id="demo" aria-labelledby="lp-demo-title">
           <div className="wrap">
             <header className="sec__head" data-reveal>
-              <h2 id="lp-demo-title" className="h2">実際の流れを、その場で体験できます</h2>
-              <p className="sec__lead">学生として意見を書き、教員の画面に何が表示されるかを確認できます。ログインは不要です。</p>
+              <h2 id="lp-demo-title" className="h2">ひとつの議論を、3分で体験する。</h2>
+              <p className="sec__lead">学生として意見を書いて、教員の画面で何が起きるかを見てみよう。ログインはいらない。</p>
             </header>
             <LpDemo />
           </div>
@@ -162,18 +160,18 @@ export default function LandingPage() {
         <section className="sec sec--gray" aria-labelledby="lp-start-title">
           <div className="wrap">
             <header className="sec__head" data-reveal>
-              <h2 id="lp-start-title" className="h2">導入は、教員1人から始められます</h2>
+              <h2 id="lp-start-title" className="h2">教員1人から、今日始められる。</h2>
             </header>
             <div className="plans">
               <article className="plan" data-reveal>
                 <p className="plan__who">教員</p>
                 <h3 className="plan__title">教員1人で使う</h3>
-                <p className="plan__body">招待を受けた Google アカウントで、すぐに議論を作成できます。学生は参加コードか QR コードで参加します。</p>
+                <p className="plan__body">招待された Google アカウントで、すぐに議論を作れる。学生は参加コードか QR で入るだけ。</p>
               </article>
               <article className="plan plan--school" data-reveal>
                 <p className="plan__who">学校</p>
                 <h3 className="plan__title">学校全体で使う</h3>
-                <p className="plan__body">全クラスで利用する場合は、教員の権限を学校でまとめて管理できます。</p>
+                <p className="plan__body">全クラスで使うなら、教員の権限を学校でまとめて管理できる。</p>
               </article>
             </div>
           </div>
@@ -194,7 +192,7 @@ export default function LandingPage() {
 
       <footer className="foot">
         <p className="foot__brand">Topos</p>
-        <p>©Triple Helix. Developed by Yuto, Ryota &amp; Koyuri.</p>
+        <p>© 2026 Triple Helix. Developed by Yuto, Ryota &amp; Koyuri.</p>
         <nav aria-label="フッター" className="foot__links"><Link href="/about">プライバシー</Link><Link href="/">ログイン</Link></nav>
       </footer>
     </div>

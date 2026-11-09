@@ -76,7 +76,7 @@ export function LpDemo() {
             <form className="demo__write" onSubmit={(e) => { e.preventDefault(); if (text.trim()) setSubmitted(true); }}>
               <label htmlFor="demo-opinion" className="demo__label">議論の前に、あなたの考えを</label>
               <textarea id="demo-opinion" className="demo__input" rows={3} maxLength={60} value={text} onChange={(e) => setText(e.target.value)} placeholder="ここに書きます" />
-              <p className="demo__hint">書いた本文は、あなたにしか見えません。</p>
+              <p className="demo__hint">書いた本文は、あなたにしか見えない。</p>
               <div className="demo__row">
                 <button type="submit" className="lp-btn lp-btn--primary" disabled={!text.trim()}>提出する</button>
                 <button type="button" className="lp-btn lp-btn--text" onClick={() => setText(SAMPLE)}>例文を入れる</button>
@@ -123,7 +123,7 @@ export function LpDemo() {
               <ul className="demo__slots" aria-hidden="true">
                 {Array.from({ length: CLASSMATES + 1 }, (_, i) => <li key={i} className={i < total ? "is-in" : undefined} />)}
               </ul>
-              <p className="demo__hint">教員に見えるのは、提出した人数だけ。本文は見えません。</p>
+              <p className="demo__hint">教員に見えるのは、提出した人数だけ。本文は見えない。</p>
             </div>
           )}
 
@@ -142,7 +142,7 @@ export function LpDemo() {
                 </div>
               )}
               {question === "shown" && <div className="board"><p className="board__label">教室に映す画面</p><p className="board__text">AI を使ったことを、どこまで申告する？</p></div>}
-              {question === "skipped" && <p className="demo__hint" role="status">見送りました。学生に届けるかどうかは、いつも教員が決めます。</p>}
+              {question === "skipped" && <p className="demo__hint" role="status">見送った。学生に届けるかどうかは、いつも教員が決める。</p>}
             </div>
           )}
 
@@ -169,7 +169,7 @@ export function LpDemo() {
         {step === 0 && <button type="button" className="lp-btn lp-btn--primary" disabled={!submitted || others < CLASSMATES} onClick={() => setStep(1)}>議論を始める</button>}
         {step === 1 && <button type="button" className="lp-btn lp-btn--primary" disabled={!talked || question === "pending"} onClick={() => setStep(2)}>結論をまとめる</button>}
         {step === 2 && choice !== null && <button type="button" className="lp-btn lp-btn--text" onClick={restart}>最初から体験する</button>}
-        <p className="demo__note">このデモは、この端末の中だけで動きます。入力した文章は送信しません。</p>
+        <p className="demo__note">このデモは端末の中だけで動く。入力した文章は送信しない。</p>
       </div>
     </div>
   );

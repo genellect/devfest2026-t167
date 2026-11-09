@@ -40,8 +40,8 @@ export function InstallButton({ className = "lp-btn lp-btn--ghost" }: { classNam
       {help && (
         <div id="install-help" className="install__help" role="note">
           {help === "ios"
-            ? <ol><li>Safari の下にある共有ボタン<span aria-hidden="true">（□に↑）</span>を押します。</li><li>「ホーム画面に追加」を選びます。</li></ol>
-            : <ol><li>ブラウザのメニューを開きます。</li><li>「アプリをインストール」または「ホーム画面に追加」を選びます。</li></ol>}
+            ? <ol><li>Safari の下にある共有ボタン<span aria-hidden="true">（□に↑）</span>を押す。</li><li>「ホーム画面に追加」を選ぶ。</li></ol>
+            : <ol><li>ブラウザのメニューを開く。</li><li>「アプリをインストール」か「ホーム画面に追加」を選ぶ。</li></ol>}
         </div>
       )}
     </div>
