@@ -4,7 +4,7 @@ import {
   browserLocalPersistence, browserSessionPersistence, connectAuthEmulator,
   getAuth, indexedDBLocalPersistence, initializeAuth, type Auth,
 } from "firebase/auth";
-import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
+import { connectFirestoreEmulator, getFirestore, initializeFirestore, type Firestore } from "firebase/firestore";
 
 const useEmulators = process.env.NEXT_PUBLIC_USE_EMULATORS === "1";
 import { publicFirebaseConfig } from "./firebase-config";
@@ -29,10 +29,15 @@ export function firebase() {
     auth = useEmulators
       ? initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence] })
       : getAuth(app);
-    db = getFirestore(app);
+    // スマホのlocalhostはスマホ自身。LAN確認では画面と同じ入口でエミュレータを中継する。
+    const preview = useEmulators && typeof window !== "undefined"
+      && (window.location.protocol === "https:" || !["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname));
+    db = preview ? initializeFirestore(app, {
+      host: window.location.host, ssl: window.location.protocol === "https:", experimentalForceLongPolling: true,
+    }) : getFirestore(app);
     if (useEmulators) {
-      connectAuthEmulator(auth, `http://127.0.0.1:${process.env.NEXT_PUBLIC_AUTH_EMULATOR_PORT ?? 9099}`, { disableWarnings: true });
-      connectFirestoreEmulator(db, "127.0.0.1", Number(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT ?? 8080));
+      connectAuthEmulator(auth, preview ? window.location.origin : `http://127.0.0.1:${process.env.NEXT_PUBLIC_AUTH_EMULATOR_PORT ?? 9099}`, { disableWarnings: true });
+      if (!preview) connectFirestoreEmulator(db, "127.0.0.1", Number(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT ?? 8080));
     }
   }
   return { app: app!, auth: auth!, db: db! };

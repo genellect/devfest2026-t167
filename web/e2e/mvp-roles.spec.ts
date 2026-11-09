@@ -15,7 +15,7 @@ test("教師claimのない学生は作成できず、Classroom未連携のまま
   await expect(page.getByRole("status")).toContainText("招待された教員のアカウントだけ");
   await expect(page.getByLabel("テーマ", { exact: true })).toHaveCount(0);
   await page.goto("/teacher");
-  await expect(page).toHaveURL(/\/join$/);
+  await expect(page).toHaveURL(/\/home$/);
   const api = await playwright.request.newContext({ baseURL: new URL(page.url()).origin });
   try {
     const login = async (kind: "teacher" | "student", label: string) => {

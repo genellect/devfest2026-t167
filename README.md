@@ -93,7 +93,7 @@ Gemini が担うのは、文の意味を比べること、録音の聞き取り�
 
 | ディレクトリ | 内容 |
 |---|---|
-| [`web`](web) | 画面（Next.js）。教員のホーム・議論の作成・操作画面・投影画面、学生の参加・事前意見・録音・結論・結果、`/api` の転送、E2E（Playwright） |
+| [`web`](web) | 画面（Next.js）。スマホ・タブレット・PC共通のホーム・履歴・設定、議論の作成・操作画面・投影画面、学生の参加・事前意見・録音・結論・結果、`/api` の転送、E2E（Playwright） |
 | [`api`](api) | API（Express + TypeScript）。認可、議論の進行、Gemini（Vertex AI とモック）、4つの指標、結合テスト |
 | [`speech`](speech) | 話者の推定に使う音声モデルの準備と推論（Python） |
 | [`firebase`](firebase) | Firestore・Storage の Rules とそのテスト、ローカル用のテストデータ |

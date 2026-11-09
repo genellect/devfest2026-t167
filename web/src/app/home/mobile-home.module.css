@@ -1,0 +1,65 @@
+/* 学生のホームと参加画面。PC・教員画面の配色には影響させない。 */
+.icon, .count { display: none; }
+
+@media (max-width: 767px) {
+  .mobile {
+    --brand: #326ce5;
+    --brand-hover: #285dcd;
+    --brand-soft: #edf3ff;
+    --brand-ink: #2454b7;
+    --ink: #293449;
+    --ink-2: #596579;
+    --ink-3: #6b7586;
+    --line: #e7eaf0;
+    --line-strong: #cbd2df;
+    --surface-2: #f6f8fb;
+    background: #fff;
+  }
+
+  .mobile :global(.shell__bar) {
+    min-height: 76px;
+    gap: 12px;
+    padding: max(16px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) 12px max(20px, env(safe-area-inset-left));
+    border-bottom: 0;
+  }
+
+  .mobile :global(.shell__brand):has(+ :global(.shell__title)) {
+    min-height: 44px;
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -.03em;
+    color: #4f83ff;
+  }
+
+  .mobile :global(.shell__brand)::before { content: none; }
+  .mobile :global(.shell__title) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .mobile :global(.shell__account) { width: 44px; height: 44px; }
+  .mobile :global(.shell__account) span { width: 36px; height: 36px; }
+  .mobile :global(.shell__panel) {
+    padding: 16px max(24px, env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+  }
+  .mobile :global(.shell__panel) > :global(.flow) { gap: 28px; }
+
+  .history { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 24px; }
+  .historyHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+  .historyHeading :global(.section-title) { font-size: 17px; color: var(--ink); }
+  .count { display: inline; font-size: 13px; color: var(--ink-3); }
+  .empty { display: grid; justify-items: center; gap: 12px; padding: 28px 12px; border-radius: 16px; background: var(--surface-2); text-align: center; }
+  .icon { display: inline-block; width: 20px; height: 20px; flex: none; }
+  .empty > .icon { width: 28px; height: 28px; color: #8b98af; stroke-width: 1.5; }
+  .goal { gap: 10px; border-radius: 16px; background: var(--brand-soft); border-color: transparent; }
+  .goal :global(.flow-card__title) { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--brand-ink); }
+  .goal > p { font-size: 15px; }
+  .history :global(.session-row) { padding: 16px; border-radius: 16px; }
+  .history :global(.session-row__title) { font-size: 16px; line-height: 1.6; }
+  .history :global(.session-row__class) { margin-bottom: 4px; }
+  .history :global(.tag) { background: var(--surface-2); color: var(--ink-2); font-size: 12px; }
+}

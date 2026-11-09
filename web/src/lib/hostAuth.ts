@@ -30,8 +30,6 @@ export function useIsTeacher(): boolean | undefined {
   if (!user || teacher?.uid !== user.uid) return undefined;
   return teacher.value;
 }
-/** ログインのあとに開く画面：QRやリンクから来た人は参加、教員は教員のホーム、それ以外は参加コードの入力 */
-export function homePath(teacher: boolean) { return teacher ? "/teacher" : "/join"; }
 export interface LoginOptions { isSharedDevice: boolean; classEndsAt: number | null }
 async function login(how: () => Promise<unknown>, options: LoginOptions) {
   beginSignIn();

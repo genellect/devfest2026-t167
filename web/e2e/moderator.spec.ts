@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { loginStudent } from "./student";
 
-test("教員のホームから作成し、開始・強制終了・結果・教員のホームへ進む", async ({ page }) => {
+test("共通ホームから作成し、開始・強制終了・結果・共通ホームへ進む", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
-  await expect(page).toHaveURL(/\/teacher$/);
-  await page.getByRole("link", { name: "議論を作る", exact: true }).click();
+  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）", includeHidden: true }).evaluate(element => (element as HTMLButtonElement).click());
+  await expect(page).toHaveURL(/\/home$/);
+  await page.getByRole("button", { name: "ホストする", exact: true }).click();
   await page.getByLabel("テーマ", { exact: true }).fill("チームで何を作るか");
   await page.getByRole("button", { name: "作成する", exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);
@@ -20,15 +20,15 @@ test("教員のホームから作成し、開始・強制終了・結果・教�
   // 参加者がいない議論は、結果がないことだけを出す（空の指標や録音の欄は出さない）
   await expect(page.getByRole("heading", { name: "この議論には参加者がいませんでした", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "録音の振り返り", exact: true })).toHaveCount(0);
-  await page.getByRole("link", { name: "教員のホームに戻る", exact: true }).click();
-  await expect(page).toHaveURL(/\/teacher$/);
-  await expect(page.getByRole("region", { name: "作った議論" }).getByRole("link", { name: /チームで何を作るか/ }).first()).toContainText("終了");
+  await page.getByRole("link", { name: "ホームに戻る", exact: true }).click();
+  await expect(page).toHaveURL(/\/home$/);
+  await expect(page.getByRole("region", { name: "最近の議論" }).getByRole("link", { name: /チームで何を作るか/ }).first()).toContainText("終了");
 });
 
 test("議論が始まったあとも、参加コードで途中から参加して、そのまま話し合いに加われる", async ({ page, browser }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
-  await page.getByRole("link", { name: "議論を作る", exact: true }).click();
+  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）", includeHidden: true }).evaluate(element => (element as HTMLButtonElement).click());
+  await page.getByRole("button", { name: "ホストする", exact: true }).click();
   await page.getByLabel("テーマ", { exact: true }).fill("途中参加の確認");
   await page.getByRole("button", { name: "作成する", exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);
@@ -51,24 +51,21 @@ test("議論が始まったあとも、参加コードで途中から参加し�
   await student.context().close();
 });
 
-test("作成画面で Gemini のテーマ案を出し、選んだ案がテーマの欄に入る", async ({ page }) => {
+test("作成画面は引き継いだテーマとセッション名を別々に保存する", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
-  await page.getByRole("link", { name: "議論を作る", exact: true }).click();
-  await page.getByLabel("授業の内容や、話し合ってほしいこと").fill("高校2年の情報。SNSの情報の見分け方");
-  await page.getByRole("button", { name: "案を出す", exact: true }).click();
-  const ideas = page.getByRole("group", { name: "テーマ案" }).getByRole("button");
-  await expect(ideas).toHaveCount(3);
-  const first = (await ideas.first().innerText()).trim();
-  await ideas.first().click();
-  await expect(page.getByLabel("テーマ", { exact: true })).toHaveValue(first);
-  await expect(ideas.first()).toHaveAttribute("aria-pressed", "true");
-  // 別の案は、前の3つと重ならない
-  await page.getByRole("button", { name: "別の案を出す", exact: true }).click();
-  await expect(page.getByRole("group", { name: "テーマ案" }).getByRole("button", { name: first, exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）", includeHidden: true }).evaluate(element => (element as HTMLButtonElement).click());
+  await expect(page).toHaveURL(/\/home$/);
+  const theme = "SNSの情報をどのように見分けるか";
+  await page.goto(`/host/new?theme=${encodeURIComponent(theme)}`);
+  await expect(page.getByLabel("セッション名", { exact: true })).toHaveValue("無題のセッション");
+  await expect(page.getByLabel("テーマ", { exact: true })).toHaveValue(theme);
+  await page.getByLabel("セッション名", { exact: true }).fill("情報の授業");
+  const created = page.waitForResponse(response => response.url().endsWith("/api/rooms") && response.request().method() === "POST");
   await page.getByRole("button", { name: "作成する", exact: true }).click();
+  const response = await created;
+  expect(response.status()).toBe(201);
+  expect(response.request().postDataJSON()).toMatchObject({ title: "情報の授業", theme });
   await expect(page).toHaveURL(/\/rooms\//);
-  await expect(page.getByRole("heading", { name: first })).toBeVisible();
 });
 
 /** Firestore エミュレータに、録音の分析が書いたのと同じ形のデータを置く（API の保存と認可は api の結合テストで確かめる）。mask があればその欄だけを書き換える */
@@ -89,9 +86,9 @@ async function putDoc(path: string, fields: Record<string, unknown>, mask?: stri
 
 test("録音と事前の意見を照らし合わせた論点のうち、話されなかったものを終了後の先生の画面に出す", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
-  await expect(page).toHaveURL(/\/teacher$/);
-  await page.getByRole("link", { name: "議論を作る", exact: true }).click();
+  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）", includeHidden: true }).evaluate(element => (element as HTMLButtonElement).click());
+  await expect(page).toHaveURL(/\/home$/);
+  await page.getByRole("button", { name: "ホストする", exact: true }).click();
   await page.getByLabel("テーマ", { exact: true }).fill("大学の課題提出で AI の利用を認めるべきか");
   await page.getByRole("button", { name: "作成する", exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);

@@ -15,8 +15,8 @@ async function joinAsGuest(guest: Page, code: string, name?: string) {
 
 test("未準備のGuestを外して開始でき、同意を取り消した録音は終了後も送られない", async ({ page, browser }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
-  await page.waitForURL(/\/teacher$/); await page.goto("/host/new");
+  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）", includeHidden: true }).evaluate(element => (element as HTMLButtonElement).click());
+  await page.waitForURL(/\/home$/); await page.goto("/host/new");
   await page.getByLabel("テーマ", { exact: true }).fill("架空の開始確認");
   await page.getByRole("button", { name: "作成する", exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);
