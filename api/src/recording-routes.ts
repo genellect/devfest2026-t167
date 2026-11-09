@@ -6,7 +6,6 @@ import { createHash, randomUUID } from 'node:crypto';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { HttpError, requireOpenRoom, type Handler } from './http.js';
 import { participantGroup } from './membership.js';
-import { groupMembers, groupDocuments } from './group-data.js';
 import { recordingAnalysisTheme } from './room-visibility.js';
 import { validateAudio } from './audio.js';
 import { MAX_RECORDING_SEC, MAX_RECORDING_BYTES, MAX_RECORDING_ATTEMPTS, RECORDING_TIMEOUT_MS, AUDIO_TYPES, ANALYZE_COOLDOWN_MS, statusOf } from './policy.js';
@@ -45,7 +44,7 @@ export function registerRecordingRoutes(app: Express, deps: Dependencies, guards
     await validateAudio(audio, mimeType, durationSec);
     const jobId = randomUUID();
     // 完了済みの同一送信は解析も課金も繰り返さず、保存済みの受領結果を返す。
-    const { room, group, receipt, opinions } = await db.runTransaction(async (tx) => {
+    const { room, group, receipt } = await db.runTransaction(async (tx) => {
       const r = await tx.get(roomRef(roomId));
       requireOpenRoom(r);
       const group = await participantGroup(tx, r, req.ctx.uid);
@@ -63,12 +62,8 @@ export function registerRecordingRoutes(app: Express, deps: Dependencies, guards
       const failed = rec.failedAt instanceof Timestamp ? rec.failedAt.toMillis() : 0;
       const wait = rec.status === 'failed' ? ANALYZE_COOLDOWN_MS - (now() - failed) : 0;
       if (wait > 0) throw new HttpError(429, 'cooldown', `あと ${Math.ceil(wait / 1000)} 秒待ってから送ってください`, { retryAfterSec: Math.ceil(wait / 1000) });
-      // 録音と照らし合わせる、このグループの事前の意見（本文は Gemini にだけ渡し、持ち主の ID は渡さない）
-      const members = await groupMembers(tx, r, group);
-      const opinions = (await groupDocuments(tx, r, 'privateOpinions', members.map((m) => m.id)))
-        .map((d) => String(d.get('text') ?? '').trim()).filter(Boolean);
       tx.set(roomRef(roomId), { groupState: { [group]: { recording: { status: 'analyzing', jobId, fingerprint, startedAt: Timestamp.fromMillis(now()), attempts: attempts + 1 } } } }, { merge: true });
-      return { room: r, group, opinions };
+      return { room: r, group };
     });
     if (receipt) { res.json(receipt); return; }
     const finishIfMine = (write: (tx: FirebaseFirestore.Transaction) => void) => db.runTransaction(async (tx) => {
@@ -79,20 +74,15 @@ export function registerRecordingRoutes(app: Express, deps: Dependencies, guards
     });
     let result;
     try {
-      result = await trackJob(deps, 'recording', jobId, () => gemini.analyzeDiscussion({ audio, mimeType, durationSec, theme: recordingAnalysisTheme(room), opinions: opinions ?? [] }));
+      result = await trackJob(deps, 'recording', jobId, () => gemini.analyzeDiscussion({ audio, mimeType, durationSec, theme: recordingAnalysisTheme(room) }));
     } catch {
       await finishIfMine((tx) => tx.set(roomRef(roomId), { groupState: { [group]: { recording: { status: 'failed', failedAt: Timestamp.fromMillis(now()) } } } }, { merge: true }));
       throw new HttpError(503, 'gemini_unavailable', 'AI の分析は一時停止中です。少し待ってから、もう一度送ってください');
     }
     const response = { group, status: 'done', speechDetected: result.speechDetected, totalMinutes: result.totalMinutes, source: gemini.source };
-    // 事前の意見から作った論点は、グループのメンバーにも届く flow-g には入れず、先生だけが読む points-g に分ける
-    const { points, ...flow } = result;
     const saved = await finishIfMine((tx) => {
       tx.set(db.doc(`sessions/${roomId}/results/flow-g${group}`), {
-        group, ...flow, durationSec: Math.round(durationSec), source: gemini.source, jobId, consentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
-      });
-      tx.set(db.doc(`sessions/${roomId}/results/points-g${group}`), {
-        group, points, opinions: opinions?.length ?? 0, source: gemini.source, jobId, updatedAt: FieldValue.serverTimestamp(),
+        group, ...result, durationSec: Math.round(durationSec), source: gemini.source, jobId, consentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
       });
       tx.set(roomRef(roomId), { groupState: { [group]: { recording: { status: 'done', receipt: response } } } }, { merge: true });
     });

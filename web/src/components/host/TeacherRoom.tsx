@@ -6,7 +6,7 @@ import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
 import { useGeminiSource } from "@/components/ui";
 import { ApiError, callApi } from "@/lib/api";
-import { millis, useDoc, useGroupResults, useInsights, useMembers, type Flow, type GroupPoints, type Room, type Summary } from "@/lib/room";
+import { millis, useDoc, useGroupResults, useInsights, useMembers, type Flow, type Room, type Summary } from "@/lib/room";
 import { ClassResult, ConsensusProgress, GroupResultView } from "./HostRoom";
 import { LiveBoard } from "./LiveBoard";
 import { HostSpeaking } from "@/components/Speaking";
@@ -125,17 +125,11 @@ function RecordingReview({ roomId, room }: { roomId: string; room: Room }) {
 }
 function ReviewGroup({ roomId, group }: { roomId: string; group: number }) {
   const flow = useDoc<Flow>(`sessions/${roomId}/results/flow-g${group}`).data;
-  const points = useDoc<GroupPoints>(`sessions/${roomId}/results/points-g${group}`).data?.points ?? [];
-  const missed = points.filter((p) => !p.discussed);
   return (
     <div className="review-group">
       <h3 className="t-label">グループ{group}</h3>
       {flow ? <>
         <p>{flow.flowNote}</p>
-        {!!points.length && <>
-          <p className="t-note">事前の意見の論点 {points.length}件のうち、議論で話されたのは {points.length - missed.length}件（録音から判定）</p>
-          {!!missed.length && <ul className="review-list" aria-label="話されなかった論点">{missed.map((p, i) => <li key={i}><span className="pill tag--yellow">話されなかった論点</span>{p.summary}</li>)}</ul>}
-        </>}
         {!!flow.good.length && <ul className="review-list">{flow.good.map((p, i) => <li key={i}><span className="pill pill--live">よかった点</span>{p.text}</li>)}</ul>}
         {!!flow.review.length && <ul className="review-list">{flow.review.map((p, i) => <li key={i}><span className="pill">次に試すこと</span>{p.text}</li>)}</ul>}
       </> : <p className="t-note">録音の送信・分析を待っています。録音しなかったグループには振り返りがありません。</p>}
