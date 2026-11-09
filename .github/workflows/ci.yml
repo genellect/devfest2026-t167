@@ -46,12 +46,18 @@ jobs:
       # deploy は、main に入った中身のツリーが同じなら検査をやり直さない（docs/infra-manual.md「CI とデプロイ」）
       - name: Record the tested tree
         if: github.event_name == 'pull_request'
-        run: echo "TESTED_TREE=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_ENV"
+        run: |
+          TREE=$(git rev-parse 'HEAD^{tree}')
+          echo "$TREE" > tested-tree.txt
+          echo "TESTED_TREE=${TREE}" >> "$GITHUB_ENV"
+      # upload-artifact は「.」で始まるファイルを既定で除外するので、ふつうの名前のファイルを置く。
+      # 記録が残らないまま成功しないよう、ファイルがなければ失敗にする
       - if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: tested-tree-${{ env.TESTED_TREE }}
-          path: .nvmrc   # 中身は使わない。名前のツリーが検査を通ったことだけを表す
+          path: tested-tree.txt
+          if-no-files-found: error
           retention-days: 30
       - if: failure()
         uses: actions/upload-artifact@v4

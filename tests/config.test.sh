@@ -160,6 +160,8 @@ PATH="$T/bin:$PATH" GEMINI_MOCK=0 bash "$ROOT/scripts/dev.sh" serve > "$T/out" 2
 CI="$ROOT/.github/workflows/ci.yml"
 awk '/run: bash scripts\/dev.sh check/{c=1} c && /name: tested-tree-\$\{\{ env.TESTED_TREE \}\}/{print "ok"; exit}' "$CI" | grep -q ok \
   && ok "PR の CI は、検査を通ったあとでだけツリーを記録する" || ng "ci.yml が検査の前にツリーを記録しているか、記録していない"
+grep -A4 'name: tested-tree-' "$CI" | grep -q 'if-no-files-found: error' && ok "記録が残らなければ CI を失敗にする" || ng "ci.yml の記録に if-no-files-found: error がない"
+grep -A3 'name: tested-tree-' "$CI" | grep -E 'path: *\.' >/dev/null && ng "記録に「.」で始まるファイルを使っている（upload-artifact が除外する）" || ok "記録は「.」で始まらないファイルで残す"
 grep -q 'artifacts?name=tested-tree-${TREE}' "$DEPLOY" && ok "deploy は main のツリーと同じ名前の記録を探す" || ng "deploy.yml が ci.yml の記録の名前と一致しない"
 grep -q "needs.tested.outputs.ok != 'true'" "$DEPLOY" && ok "記録がないか確かめられないときは、deploy の中で検査する" || ng "deploy.yml が記録のないときに検査しない"
 # 期限切れの記録と、フォークの PR の記録は数えない（deploy.yml の jq の式を取り出して確かめる）
