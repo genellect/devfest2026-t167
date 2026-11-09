@@ -1,3 +1,3 @@
-import { MobileWorkspace } from "@/components/mobile/MobileWorkspace";
+import { Workspace } from "@/components/Workspace";
 
-export default function Home() { return <MobileWorkspace view="home" />; }
+export default function Home() { return <Workspace view="home" />; }

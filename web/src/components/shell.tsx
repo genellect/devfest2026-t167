@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { ArrowLeft, Home, Menu, SlidersHorizontal } from "lucide-react";
 import { useHostUser } from "@/lib/hostAuth";
 import { useGeminiSource } from "@/components/ui";
 
@@ -29,15 +31,25 @@ export function AppShell({ title, eyebrow, steps, status, actions, children, onL
 }) {
   // デモデータ（Gemini のモック）のときは、どの画面でも上の帯に1回だけ出す。各カードには出さない（ui.tsx の SourceTag）
   const demo = useGeminiSource() === "mock";
-  const home = "/home";
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  useEffect(() => { setOpen(false); }, [pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [open]);
   const guard = (e: React.MouseEvent) => { if (onLeave && !onLeave()) e.preventDefault(); };
+  const menu = nav && tone !== "board";
 
   return (
-    <div className={`shell${className ? ` ${className}` : ""}`} data-tone={tone} data-wide={wide || undefined}>
+    <div className={`shell${className ? ` ${className}` : ""}`} data-tone={tone} data-wide={wide || undefined} data-menu={menu || undefined}>
       <header className="shell__bar">
+        {/* スマホ：議論の流れの中は「←」、それ以外は「≡」でメニューを開く（Figma「最新」のスマホのルール） */}
         {nav && back
           ? <Link href={back} className="shell__back" aria-label="ホーム" onClick={guard}><ArrowLeft size={22} strokeWidth={1.75} aria-hidden="true" /></Link>
-          : nav ? <Link href={home} className="shell__brand" onClick={guard}>Topos</Link>
+          : menu ? <button type="button" className="shell__menu" aria-label="メニュー" aria-expanded={open} aria-controls="shell-nav" onClick={() => setOpen(!open)}><Menu size={22} strokeWidth={1.75} aria-hidden="true" /></button>
             : <span className="shell__brand">Topos</span>}
         <div className="shell__title">
           {eyebrow && <p className="shell__eyebrow">{eyebrow}</p>}
@@ -50,10 +62,27 @@ export function AppShell({ title, eyebrow, steps, status, actions, children, onL
         {nav && account && <Account onClick={guard} />}
       </header>
       {steps && <div className="shell__steps-mobile">{steps}</div>}
-      <main className="shell__panel">{children}</main>
+      <div className="shell__body">
+        {/* 左のメニュー（Figma「最新」：ホーム・設定）。PC・タブレットではいつも出し、スマホでは「≡」で開く */}
+        {menu && <nav id="shell-nav" className="shell__nav" data-open={open || undefined} aria-label="メニュー">
+          <p className="shell__nav-brand">Topos</p>
+          {NAV.map((n) => (
+            <Link key={n.href} href={n.href} className="shell__link" onClick={guard} aria-current={n.match.some((m) => pathname === m || pathname?.startsWith(`${m}/`)) ? "page" : undefined}>
+              <n.Icon size={22} strokeWidth={1.75} aria-hidden="true" /><span>{n.label}</span>
+            </Link>
+          ))}
+        </nav>}
+        {open && <button type="button" className="shell__scrim" aria-label="メニューを閉じる" onClick={() => setOpen(false)} />}
+        <main className="shell__panel">{children}</main>
+      </div>
     </div>
   );
 }
+
+const NAV = [
+  { href: "/home", label: "ホーム", Icon: Home, match: ["/home", "/history", "/join", "/host/new", "/rooms"] },
+  { href: "/settings", label: "設定", Icon: SlidersHorizontal, match: ["/settings", "/sessions", "/about"] },
+];
 
 /** 右上のアカウント。名前の1文字目を丸で表示し、設定を開く */
 function Account({ onClick }: { onClick: (e: React.MouseEvent) => void }) {

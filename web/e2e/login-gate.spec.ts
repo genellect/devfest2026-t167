@@ -23,7 +23,7 @@ test("ログアウト後の戻る・再読込でもホームへ進めない", as
   await page.goto("/student");
   await page.reload();
   await expect(page.getByRole("button", { name: "Googleでログイン", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "ホーム", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "あなたのホーム", exact: true })).toHaveCount(0);
 });
 
 test("ログイン前のプライバシー説明にはホームのタブを表示しない", async ({ page }) => {

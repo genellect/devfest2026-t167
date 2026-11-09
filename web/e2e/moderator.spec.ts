@@ -5,7 +5,7 @@ test("共通ホームから作成し、開始・強制終了・結果・共通�
   await page.goto("/");
   await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）", includeHidden: true }).evaluate(element => (element as HTMLButtonElement).click());
   await expect(page).toHaveURL(/\/home$/);
-  await page.getByRole("button", { name: "ホストする", exact: true }).click();
+  await page.getByRole("link", { name: "議論を作る", exact: true }).click();
   await page.getByLabel("テーマ", { exact: true }).fill("チームで何を作るか");
   await page.getByRole("button", { name: "作成する", exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);
@@ -22,13 +22,13 @@ test("共通ホームから作成し、開始・強制終了・結果・共通�
   await expect(page.getByRole("heading", { name: "録音の振り返り", exact: true })).toHaveCount(0);
   await page.getByRole("link", { name: "ホームに戻る", exact: true }).click();
   await expect(page).toHaveURL(/\/home$/);
-  await expect(page.getByRole("region", { name: "最近の議論" }).getByRole("link", { name: /チームで何を作るか/ }).first()).toContainText("終了");
+  await expect(page.getByRole("region", { name: "あなたのセッション" }).getByRole("link", { name: /チームで何を作るか/ }).first()).toContainText("終了");
 });
 
 test("議論が始まったあとも、参加コードで途中から参加して、そのまま話し合いに加われる", async ({ page, browser }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）", includeHidden: true }).evaluate(element => (element as HTMLButtonElement).click());
-  await page.getByRole("button", { name: "ホストする", exact: true }).click();
+  await page.getByRole("link", { name: "議論を作る", exact: true }).click();
   await page.getByLabel("テーマ", { exact: true }).fill("途中参加の確認");
   await page.getByRole("button", { name: "作成する", exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);
@@ -88,7 +88,7 @@ test("録音と事前の意見を照らし合わせた論点のうち、話さ�
   await page.goto("/");
   await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）", includeHidden: true }).evaluate(element => (element as HTMLButtonElement).click());
   await expect(page).toHaveURL(/\/home$/);
-  await page.getByRole("button", { name: "ホストする", exact: true }).click();
+  await page.getByRole("link", { name: "議論を作る", exact: true }).click();
   await page.getByLabel("テーマ", { exact: true }).fill("大学の課題提出で AI の利用を認めるべきか");
   await page.getByRole("button", { name: "作成する", exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);

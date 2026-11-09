@@ -80,7 +80,7 @@ export function JoinForm({ autoJoin = false, simple = false }: { autoJoin?: bool
 
   const active = Math.min(code.length, CODE_LENGTH - 1);
   return (
-    <form className={`flow-card join-card ${styles.card}`} aria-labelledby="join-title" onSubmit={(e) => { e.preventDefault(); void join(code); }} noValidate>
+    <form className={`flow-card join-card${simple ? ` ${styles.card}` : ""}`} aria-labelledby="join-title" onSubmit={(e) => { e.preventDefault(); void join(code); }} noValidate>
       <h2 id="join-title" className="flow-card__title">{simple ? "参加する" : "議論に参加する"}</h2>
       <div className="field">
         <label className={simple ? "sr-only" : "home-code-label"} htmlFor="code">参加コード（数字6桁）</label>
@@ -103,10 +103,11 @@ export function JoinForm({ autoJoin = false, simple = false }: { autoJoin?: bool
       <div className="home-actions">
         <button className="btn btn--blue" type="submit" disabled={busy || code.length !== CODE_LENGTH}>
           {busy ? "参加しています…" : "参加する"}
-          <ArrowRight className={styles.icon} size={20} aria-hidden="true" />
+          {simple && <ArrowRight className={styles.icon} size={20} aria-hidden="true" />}
         </button>
-        <span className={styles.divider} aria-hidden="true">または</span>
-        <button type="button" className="btn" onClick={() => { setError(""); setScanning(true); }} disabled={busy}><ScanLine className={styles.icon} size={20} aria-hidden="true" />カメラで読み取る</button>
+        {/* ホーム（Figma 02-S）は「参加する」「カメラで読み取る」を並べるだけ。/join（QR・リンク）は #80 の形 */}
+        {simple && <span className={styles.divider} aria-hidden="true">または</span>}
+        <button type="button" className="btn" onClick={() => { setError(""); setScanning(true); }} disabled={busy}>{simple && <ScanLine className={styles.icon} size={20} aria-hidden="true" />}カメラで読み取る</button>
       </div>
     </form>
   );

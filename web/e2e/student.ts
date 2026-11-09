@@ -18,9 +18,10 @@ export async function loginStudent(page: Page, person = "", { home = true }: { h
   // QR・リンク参加以外は、教員と同じ共通ホームへ進む。
   if (home) {
     await expect(page).toHaveURL(/\/home$/);
-    await expect(page.getByRole("heading", { name: "ホーム", exact: true })).toBeVisible();
-    await page.getByRole("link", { name: "参加する", exact: true }).click();
-    await expect(page).toHaveURL(/\/join$/);
+    await expect(page.getByRole("heading", { name: "あなたのホーム", exact: true })).toBeVisible();
+    // ホームの中にも参加の入力があるが、呼び出し側は参加画面（/join）を前提にする
+    await page.goto("/join");
+    await expect(page.getByRole("heading", { name: "議論に参加する", exact: true })).toBeVisible();
   }
   return subject;
 }

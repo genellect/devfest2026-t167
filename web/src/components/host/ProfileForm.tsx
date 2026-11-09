@@ -24,6 +24,9 @@ export function ProfileForm({ defaultName, submitLabel, onSaved }: { defaultName
         <label className="field__label" htmlFor="pname">表示する名前</label>
         <input id="pname" className="input" value={name} maxLength={30} placeholder="例：佐藤Host" onChange={(e) => setName(e.target.value)} />
       </div>
+      {/* 学校名とクラスは任意なので、Figma「最新」06 設定どおり「詳細設定」にしまう */}
+      <details className="profile-more" open={!!(school || className)}>
+        <summary>詳細設定</summary>
       <div className="row">
         <div className="field">
           <label className="field__label" htmlFor="school">学校名（任意）</label>
@@ -34,6 +37,7 @@ export function ProfileForm({ defaultName, submitLabel, onSaved }: { defaultName
           <input id="cls" className="input" value={className} maxLength={40} placeholder="例：2年3組 探究の授業" onChange={(e) => setClassName(e.target.value)} />
         </div>
       </div>
+      </details>
       <p className="field__hint">プロフィールはこの端末にだけ保存します。参加者には表示しません。</p>
       <div className="home-actions"><button className="btn btn--blue" type="submit" disabled={!name.trim()}>{submitLabel}</button></div>
     </form>

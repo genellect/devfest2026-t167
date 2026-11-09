@@ -8,7 +8,7 @@ const SECRET = "架空の非公開テーマ：端末を持たない人の参加�
 test("テーマを非公開にすると、参加者の画面・再読み込み・議論中にテーマ本文が出ない", async ({ page, browser }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）", includeHidden: true }).evaluate(element => (element as HTMLButtonElement).click());
-  await page.getByRole("button", { name: "ホストする", exact: true }).click();
+  await page.getByRole("link", { name: "議論を作る", exact: true }).click();
   await page.getByLabel("セッション名", { exact: true }).fill(SECRET);
   await page.getByLabel("テーマ", { exact: true }).fill(SECRET);
   await page.getByRole("button", { name: "作成する", exact: true }).click();
@@ -42,7 +42,7 @@ test("テーマを非公開にすると、参加者の画面・再読み込み�
 
     // 参加者のホームの一覧にも出さない
     await guest.goto("/home");
-    await expect(guest.getByRole("heading", { name: "ホーム", exact: true })).toBeVisible();
+    await expect(guest.getByRole("heading", { name: "あなたのホーム", exact: true })).toBeVisible();
     await expect(guest.locator("body")).not.toContainText(SECRET.slice(0, 12));
 
     // 教員にはテーマが見えたまま

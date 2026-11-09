@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./ds.css";
 import { LoginGate } from "@/components/LoginGate";
-import { MobileRouteShell } from "@/components/mobile/MobileRouteShell";
 
 export const metadata: Metadata = {
   // プロダクト名は Topos（README「Topos という名前」）。タブの題名は「画面名 | Topos」
@@ -25,7 +24,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </head>
-      <body><LoginGate><MobileRouteShell>{children}</MobileRouteShell></LoginGate></body>
+      <body><LoginGate>{children}</LoginGate></body>
     </html>
   );
 }

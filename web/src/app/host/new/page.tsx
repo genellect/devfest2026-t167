@@ -4,10 +4,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Loading } from "@/components/ui";
 import { AppShell } from "@/components/shell";
+import { ThemeIdeas } from "@/components/host/ThemeIdeas";
 import { callApi } from "@/lib/api";
 import { useHostUser, useIsTeacher } from "@/lib/hostAuth";
 import { addHistory } from "@/lib/local";
-import styles from "@/components/mobile/action-form.module.css";
 
 
 /** 議論を作る（教員だけ） */
@@ -48,8 +48,8 @@ export default function NewRoom() {
   if (!teacher) {
     // 作成は招待された教員だけ。APIでも同じ条件で断る
     return (
-      <AppShell back="/home" title="ホストする" className={styles.shell} account={false} showDemo={false}>
-        <div className="flow">
+      <AppShell back="/home" title="新しい議論">
+        <div className="flow ws">
           <section className="flow-card">
             <p role="status">議論を作れるのは、招待された教員のアカウントだけです。</p>
             <p className="t-note">参加するときは、教員の画面に出ている6桁の数字を入力します。</p>
@@ -60,20 +60,24 @@ export default function NewRoom() {
     );
   }
   return (
-    <AppShell back="/home" title="ホストする" className={styles.shell} account={false} showDemo={false} wide>
-      <form className={styles.form} onSubmit={create} aria-labelledby="new-title">
-        <h2 id="new-title" className={styles.title}>ホストする</h2>
+    <AppShell back="/home" title="新しい議論">
+      <div className="flow ws">
+      <form className="flow-card" onSubmit={create} aria-labelledby="new-title">
+        <h2 id="new-title" className="ws-card-title">議論の準備</h2>
         <div className="field">
           <label className="field__label" htmlFor="session-name">セッション名</label>
           <input id="session-name" className="input" value={title} maxLength={100} required onChange={event => setTitle(event.target.value)} />
         </div>
         <div className="field">
           <label className="field__label" htmlFor="theme">テーマ</label>
-          <textarea id="theme" className="input" value={theme} maxLength={1000} required rows={2} onChange={event => setTheme(event.target.value)} />
+          <textarea id="theme" value={theme} maxLength={1000} required rows={2} className="input ws-theme" onChange={event => setTheme(event.target.value)} />
         </div>
         {error && <p className="notice notice--error" role="alert">{error}</p>}
-        <button className="btn btn--blue" type="submit" disabled={busy || !title.trim() || !theme.trim()}>{busy ? "作成しています…" : "作成する"}</button>
+        <div className="home-actions"><button className="btn btn--blue" type="submit" disabled={busy || !title.trim() || !theme.trim()}>{busy ? "作成しています…" : "作成する"}</button></div>
       </form>
+      {/* Gemini のテーマ案（#80 のホームの「Geminiでテーマを考える」から移した）。選んだ案はテーマの欄に入る */}
+      <section id="ideas" className="flow-card"><ThemeIdeas chosen={theme} onPick={setTheme} /></section>
+      </div>
     </AppShell>
   );
 }

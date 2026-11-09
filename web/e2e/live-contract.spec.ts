@@ -12,8 +12,8 @@ test("Googleログイン前の参加を防ぎ、生徒に教師権限を自己�
   await expect(page.getByLabel("参加コード")).toHaveValue("999999");
   await page.goto("/signup");
   await expect(page).toHaveURL(/\/home$/);
-  await expect(page.getByRole("heading", { name: "ホーム", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "ホストする", exact: true })).toBeDisabled();
+  await expect(page.getByRole("heading", { name: "あなたのホーム", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "議論を作る", exact: true })).toHaveCount(0);
 });
 
 test("APIがHTMLを返す通信障害でも、内部情報を表示せず入力を保持する", async ({ page }) => {
