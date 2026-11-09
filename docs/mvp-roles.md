@@ -134,7 +134,7 @@ GitHubのmain（017b78f）と公開済みPRを確認し、認証セッションP
 
 公開人声試験にはSherpa公式Nodeサンプルが参照する[csukuangfj/sr-data](https://github.com/csukuangfj/sr-data)の登録用・識別用の別録音を使用する（Apache-2.0）。`python3 speech/public_samples.py`で取得し、使用したリビジョン・出典・SHA-256を.local-data/public-voices/sources.jsonへ記録する。音声ファイルはPRへ含めない。これは中国語の公開人声2種類の接続確認で、日本語教室の精度試験ではない。
 
-`web/playwright.speaker.config.ts`は専用の実モデル画面試験用。SPEAKER_PYTHON、SPEAKER_EMBEDDING_MODEL、SPEAKER_VAD_MODEL、SPEAKER_LIVE_TEST_WAV（公開識別音声から作ったdiscussion.wav）を渡す。登録用ファイルは画面のファイル選択から送り、別録音をChromiumの擬似マイク入力へ流して、AudioWorklet→API→実モデル→Host/Guest表示・終了まで確認する。マイクのハードウェアや実iPadの検査とは区別する。Firestore/Auth/Geminiはエミュレータ/モックのまま、実際の話者モデルだけを実行する。
+`web/playwright.speaker.config.ts`は専用の実モデル画面試験用。SPEAKER_PYTHON、SPEAKER_EMBEDDING_MODEL、SPEAKER_VAD_MODEL、SPEAKER_LIVE_TEST_WAV（公開識別音声から作ったdiscussion.wav）を渡す。登録用ファイルは画面のファイル選択から送り、別録音をChromiumの擬似マイク入力へ流して、AudioWorklet→API→実モデル→Host/Guest表示・終了まで確認する。マイクのハードウェアや実iPadの検査とは区別する。通常はFirestore/Auth/Geminiをエミュレータ/モックのまま、実際の話者モデルだけを実行する。実Vertex AIの接続確認は、既存のADCとinfra/env.shの設定を渡し、T167_REAL_GEMINI=1で明示的に実行する。実接続の試験を通常のCIへは含めない。
 
 ### 公開人声の実データ検証結果（2026-11-06）
 
@@ -147,7 +147,7 @@ GitHubのmain（017b78f）と公開済みPRを確認し、認証セッションP
 
 残る3区間は無音または短い発話として話者評価から除外した。2人・短い録音の結果で、一般的な識別精度や日本語教室の正答率を示さない。
 
-ブラウザ通し試験は、画面のファイル選択から2人の登録音声を送り、別録音を擬似マイクからAudioWorklet→API→実モデルへ流した。Host/Guestの実モデル表示、両者の発話時間、録音停止・端末保管、終了、ホームの終了表示まで検査する。 2026-11-09の追加検証では、最新画面の設定アイコンから録音を開始し、公開音声2人分の識別・Host/Guestの発言率・停止・結論提出・短時間セッションの本人の結果表示まで実モデルで確認した（`web/real-e2e/speaker.spec.ts`）。取得済みCAM++/SileroモデルのSHA-256はセットアップ定義と照合済み。この追加検証のGeminiはモックで、実Vertex AIの応答と実機マイクは検証対象に含めない。共有端末の人数表示はアカウント数ではなく参加者名簿を数える。400msなどの短い発話時間は小数1桁の秒数で示す。
+ブラウザ通し試験は、画面のファイル選択から2人の登録音声を送り、別録音を擬似マイクからAudioWorklet→API→実モデルへ流した。Host/Guestの実モデル表示、両者の発話時間、録音停止・端末保管、終了、ホームの終了表示まで検査する。 2026-11-09の追加検証では、最新画面の設定アイコンから録音を開始し、公開音声2人分の識別・Host/Guestの発言率・停止・結論提出・短時間セッションの本人の結果表示まで実モデルで確認した（`web/real-e2e/speaker.spec.ts`）。取得済みCAM++/SileroモデルのSHA-256はセットアップ定義と照合済み。この実モデル単独の試験ではGeminiをモックとした。同日、実Vertex AI（gemini-3.5-flash）にも接続し、共有メモのグループ論点整理・録音の分析・結論の集約・Host/Guestの結果表示まで確認した。保存結果のsourceがgemini、発言集計のsourceがmodelであることを検査し、2人の発言時間4,440ms・1,246msと判別不能2,584msを取得した。認証・DBは専用エミュレータ、音声は公開サンプルをブラウザの擬似マイクへ入力したもので、実機マイクや日本語教室の精度を検証したものではない。共有端末の人数表示はアカウント数ではなく参加者名簿を数える。400msなどの短い発話時間は小数1桁の秒数で示す。
 
 専用試験では、直前のcheckでビルドしたNEXT_PUBLIC_FIREBASE_PROJECT_ID・エミュレータのポートに実行環境を合わせ、API_ORIGINも明示する（今回のオフセット30000ではhttp://127.0.0.1:38081）。Firestore/Authは専用エミュレータ、Gemini分析はモック、話者モデルと入力人声は実データ。クラウドpreviewは旧本番APIと共有するため、この通し結果とは分ける。
 
