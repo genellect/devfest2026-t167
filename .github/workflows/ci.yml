@@ -58,6 +58,7 @@ jobs:
           name: tested-tree-${{ env.TESTED_TREE }}
           path: tested-tree.txt
           if-no-files-found: error
+          overwrite: true   # CI をやり直したとき、同じ名前の記録とぶつかって失敗しない
           retention-days: 30
       - if: failure()
         uses: actions/upload-artifact@v4
