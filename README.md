@@ -2,7 +2,7 @@
 
 **誰の考えも埋もれない議論を、すべての教室に。**
 
-![Topos が示す、発言の推移・未検討の論点・主張の変化](docs/images/value.webp)
+[![Topos](docs/images/readme-hero.webp)](https://web--devfest2026-t167.asia-east1.hosted.app)
 
 <!-- 提出前に記入：デモ動画の URL ができたら、次の行の「作品」の後ろに · [デモ動画](URL) を足す -->
 [作品](https://web--devfest2026-t167.asia-east1.hosted.app) · [アーキテクチャ](#アーキテクチャ) · [技術選定](#技術選定) · [ドキュメント](docs)
@@ -18,6 +18,8 @@ Topos（トポス）は、グループディスカッションでの一人ひと
 | 授業音声の分析ツール | ○ | — | — | — |
 | 会議の AI の要約 | — | ○ | — | — |
 | Topos | ○ | ○ | ○ | ○ |
+
+![Topos が示す、発言の推移・未検討の論点・主張の変化](docs/images/value.webp)
 
 ## 発言の推移
 
