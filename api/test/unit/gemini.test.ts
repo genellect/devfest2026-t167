@@ -62,6 +62,13 @@ describe('録音の分析の出力の検証', () => {
     expect(normalizeAt('1:02:03')).toBe('62:03');
     expect(normalizeAt(' 12分ごろ ')).toBe('12分ごろ');
   });
+  it('論点は10件までに切り詰め、論点を含まない古い応答も受け付ける', () => {
+    const base = { speechDetected: true, totalMinutes: 1, segments: [], flowNote: '', good: [], review: [], behaviors: { questions: [], responses: [], reasoning: [], collaboration: [] }, teacherSuggestions: [] };
+    expect(DiscussionSchema.parse(base).points).toEqual([]);
+    const r = DiscussionSchema.parse({ ...base, points: Array.from({ length: 15 }, () => ({ summary: 'え'.repeat(300), discussed: false })) });
+    expect(r.points).toHaveLength(DISCUSSION_LIMITS.points);
+    expect(r.points[0].summary).toHaveLength(200);
+  });
   it('必須の項目がない応答は拒否する', () => {
     expect(() => DiscussionSchema.parse({ speechDetected: true })).toThrow();
   });
@@ -102,8 +109,8 @@ describe('実SDK接続部分のモック検査', () => {
   });
   it('音声のSDK要求と応答スキーマをモックで確認する', async () => {
     const { mockGemini } = await import('../../src/gemini.js');
-    responseBody = await mockGemini().analyzeDiscussion({ audio: Buffer.alloc(1), mimeType: 'audio/wav', durationSec: 60, theme: '架空のテーマ' });
-    const result = await vertexGemini('p', 'global', 'gemini-3.5-flash').analyzeDiscussion({ audio: Buffer.alloc(1), mimeType: 'audio/wav', durationSec: 60, theme: '架空のテーマ' });
+    responseBody = await mockGemini().analyzeDiscussion({ audio: Buffer.alloc(1), mimeType: 'audio/wav', durationSec: 60, theme: '架空のテーマ', opinions: [] });
+    const result = await vertexGemini('p', 'global', 'gemini-3.5-flash').analyzeDiscussion({ audio: Buffer.alloc(1), mimeType: 'audio/wav', durationSec: 60, theme: '架空のテーマ', opinions: [] });
     expect(result).toMatchObject(responseBody);
     expect(calls.at(-1)!.req.config.abortSignal).toBeInstanceOf(AbortSignal);
   });
