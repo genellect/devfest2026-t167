@@ -9,6 +9,7 @@ import { sessionRequest } from "@/lib/session";
 import { callApi } from "@/lib/api";
 import { getReflection } from "@/lib/local";
 import { ProfileForm } from "@/components/host/ProfileForm";
+import { ClassroomHome } from "@/components/classroom/ClassroomHome";
 import { Loading } from "@/components/ui";
 import styles from "./mobile-workspace.module.css";
 
@@ -251,6 +252,7 @@ export function MobileWorkspace({ view = "home" }: { view?: View }) {
             <div><Target size={19} aria-hidden="true" /><strong>{rooms ? reflections : "—"}</strong><span>振り返り</span></div>
           </div>
         </section>
+        <ClassroomHome />
         <section aria-labelledby="recent-title"><div className={styles.sectionHeading}><h2 id="recent-title">最近の議論</h2><Link href="/history">すべて見る<ChevronRight size={16} /></Link></div>
           {!rooms && !error && <p role="status" className={styles.empty}>読み込んでいます…</p>}
           {rooms?.length === 0 && <div className={styles.empty}><MessageCircle size={30} aria-hidden="true" /><h3>最初の議論をはじめよう</h3><Link href="/join">議論に参加する<ArrowRight size={16} /></Link></div>}

@@ -17,7 +17,7 @@ import type { SpeakingState } from './speaker-routes.js';
 export function wireData(value: unknown): unknown {
   if (value instanceof Timestamp) return { __time: value.toMillis() };
   if (Array.isArray(value)) return value.map(wireData);
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, wireData(v)]));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'classroomUserId').map(([k, v]) => [k, wireData(v)]));
   return value;
 }
 export function mayReadResult(id: string, moderator: boolean, group: number, published = false) {

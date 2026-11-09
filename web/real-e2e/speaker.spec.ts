@@ -7,7 +7,7 @@ test('公開人声を画面で登録し、別録音をマイク入力として�
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.goto('/');
-  await page.getByRole('button', { name: 'テスト用の先生でログイン（エミュレータ）', exact: true }).click();
+  await page.getByRole('button', { name: 'テスト用の先生でログイン（エミュレータ）', exact: true, includeHidden: true }).evaluate(element => (element as HTMLButtonElement).click());
   await page.waitForURL(/\/(?:teacher|home)$/);
   await page.goto('/host/new');
   await page.getByLabel('テーマ', { exact: true }).fill('公開人声・実モデル接続確認');
@@ -76,6 +76,10 @@ test('公開人声を画面で登録し、別録音をマイク入力として�
         await guest.setViewportSize({ width, height });
         await guest.evaluate(() => window.scrollTo(0, 0));
         await expect(guest.getByRole('img', { name: '録音中の音声の波形', exact: true })).toBeVisible();
+        const bar = guest.getByRole('img', { name: '録音中の音声の波形', exact: true }).locator('rect').nth(20);
+        const heightBefore = await bar.getAttribute('height');
+        await expect.poll(() => bar.getAttribute('height')).not.toBe(heightBefore);
+        await expect.poll(async () => Number(await bar.getAttribute('height'))).toBeGreaterThan(5);
         await expect(guest.getByText('デモデータ', { exact: true })).toHaveCount(0);
         await guest.screenshot({ path: `../docs/screenshots/real-gemini-student-live-${label}.png`, fullPage: label === 'mobile', scale: 'css', animations: 'disabled' });
       }

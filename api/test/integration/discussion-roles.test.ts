@@ -129,3 +129,11 @@ describe('MVPのセッション単位Host/Participant', () => {
     await request(app).post(`/rooms/${r.roomId}/groups/recording?consent=1&durationSec=1`).set('authorization', `Bearer ${q.account.idToken}`).set('cookie', q.cookie).set('content-type', 'audio/wav').send(wave()).expect(403);
   });
 });
+
+it('履歴は部屋IDの順に依存せず、新しく作成した議論を先頭に返す', async () => {
+  const h = await client('teacher'), older = await room(h), newer = await room(h);
+  await db.doc(`sessions/${older.roomId}`).update({ createdAt: new Date(1000) });
+  await db.doc(`sessions/${newer.roomId}`).update({ createdAt: new Date(2000) });
+  const list = (await h.get('/discussions').expect(200)).body.sessions;
+  expect(list.map((s: { sessionId: string }) => s.sessionId)).toEqual([newer.roomId, older.roomId]);
+});

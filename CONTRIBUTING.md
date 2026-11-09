@@ -173,6 +173,8 @@ Gemini の費用は、ほぼ「モデル」と「思考レベル」で決まる�
 
 ## 設計の詳細
 
+PWA・ブラウザのアイコンは`web/public/icons/topos.svg`を正本にする。色や形を変えたら、PlaywrightのChromiumを用意した環境で`node scripts/render-icons.mjs`を実行し、3種類のPNGとfaviconも同時に更新する。
+
 次の内容は、それぞれの文書にある。
 
 | 内容 | 文書 |
@@ -183,3 +185,5 @@ Gemini の費用は、ほぼ「モデル」と「思考レベル」で決まる�
 | API のイメージ（音声モデルの同梱）、TTL、Rules の配備 | [インフラ構築手順書](docs/infra-manual.md) |
 
 これらの変更も、実クラウド・IAM を変えるテストを `check` に含めない。本番の Rules を変える版は、承認されたメンテナンス時間に同じコミットの API・Rules・画面をそろえて反映する。
+
+Classroomは共通ホームの「Classroomと連携」から任意に接続する。クラスを選んでセッションを作成・参加でき、Hostの待機画面では名簿と参加状況を照合できる。追加許可が使えないときも、Classroomに紐づかない通常のセッションは利用できる。ローカルのサンプルクラスは`CLASSROOM_MOCK=1 NEXT_PUBLIC_CLASSROOM_MOCK=1 bash scripts/dev.sh serve`、全検査は`bash scripts/dev.sh check`で自動的に明示モックを使う。本番設定・実接続の条件は[インフラ手順書](docs/infra-manual.md#classroom連携を使う場合)を参照。

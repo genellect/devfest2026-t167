@@ -1,4 +1,6 @@
 "use client";
+import { ClassroomSelector } from "@/components/classroom/ClassroomSelector";
+import { workspaceRequest, workspaceToken } from "@/lib/workspace";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -16,12 +18,14 @@ export default function NewRoom() {
   const user = useHostUser();
   const teacher = useIsTeacher();
   const [title, setTitle] = useState("無題のセッション");
+  const [course, setCourse] = useState("");
   const [theme, setTheme] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     const suggested = new URLSearchParams(window.location.search).get("theme");
     if (suggested) setTheme(suggested.slice(0, 1000));
+    setCourse(new URLSearchParams(window.location.search).get("course") ?? "");
   }, []);
 
   // セッション名とテーマは別々に保存する。グループ・時間・録音は既定値を使う。
@@ -30,7 +34,10 @@ export default function NewRoom() {
     setBusy(true); setError("");
     try {
       const sessionName = title.trim();
-      const { roomId } = await callApi<{ roomId: string }>("/rooms", { title: sessionName, theme: theme.trim(), flowVersion: 1 });
+      const body = { title: sessionName, theme: theme.trim(), flowVersion: 1 };
+      const { roomId } = course
+        ? await workspaceRequest<{ roomId: string }>("/rooms", { token: workspaceToken(), body: { ...body, classroomCourseId: course } })
+        : await callApi<{ roomId: string }>("/rooms", body);
       addHistory("host", { roomId, title: sessionName });
       router.push(`/rooms/${roomId}`);
     } catch (err) { setError((err as Error).message); setBusy(false); }
@@ -71,6 +78,7 @@ export default function NewRoom() {
           <label className="field__label" htmlFor="theme">テーマ</label>
           <textarea id="theme" className="input" value={theme} maxLength={1000} required rows={2} onChange={event => setTheme(event.target.value)} />
         </div>
+        <ClassroomSelector value={course} onChange={setCourse} />
         {error && <p className="notice notice--error" role="alert">{error}</p>}
         <button className="btn btn--blue" type="submit" disabled={busy || !title.trim() || !theme.trim()}>{busy ? "作成しています…" : "作成する"}</button>
       </form>

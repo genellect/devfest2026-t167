@@ -11,7 +11,7 @@ import { useDoc, type Flow } from "@/lib/room";
  * 発言率は「その2分間のグループの発話のうち、本人が話した割合」。1分ごとだと相づち1回で大きく揺れるので、直前の1分と合わせて平らにする。
  * 音声の分析（議論の流れ）や本人の集計がまだないときは、これまでどおり議論の流れだけを出す。
  */
-const LINE = "#176b53", H = 210, PAD = { top: 12, right: 16, bottom: 26, left: 40 };
+const LINE = "#1760df", H = 210, PAD = { top: 12, right: 16, bottom: 26, left: 40 };
 const DROP = 15; // これ以上下がったら「低下」として示す（ポイント）
 
 export function FlowSpeaking({ roomId, group, flow }: { roomId: string; group: number; flow: Flow | null }) {

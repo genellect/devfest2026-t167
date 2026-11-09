@@ -57,3 +57,9 @@ async function testGoogle(kind: "teacher" | "student", options: LoginOptions) {
 export const signInAsTestHost = (options: LoginOptions = { isSharedDevice: false, classEndsAt: null }) => testGoogle("teacher", options);
 export const signInAsTestStudent = (options: LoginOptions = { isSharedDevice: false, classEndsAt: null }) => testGoogle("student", options);
 export async function signOutHost() { await logoutSession(); clearJoinCode(); }
+
+/** Google OAuthの内部情報を表示せず、追加許可をやり直せる案内を返す。 */
+export function googleLoginError(error: unknown) {
+  const code = (error as { code?: string })?.code;
+  return code === "auth/popup-closed-by-user" ? "Googleの接続をキャンセルしました" : code === "auth/popup-blocked" ? "ポップアップを許可して、もう一度お試しください" : "Googleの許可を確認してください。ログイン中と同じGoogleアカウントを選んでください";
+}

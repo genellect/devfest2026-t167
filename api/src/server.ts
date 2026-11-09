@@ -1,3 +1,4 @@
+import { classroomMock } from './classroom-mock.js';
 import { demoFirestore } from './demo-firestore.js';
 import { fileURLToPath } from 'node:url';
 import { RestartingSpeakerWorker, SpeakerWorker } from './voice-worker.js';
@@ -28,6 +29,6 @@ if (process.env.SPEAKER_EMBEDDING_MODEL && process.env.SPEAKER_VAD_MODEL) {
 }
 else if (localMock) voice = { version: 'mock-voice-v1', source: 'mock', extract: async (pcm) => ({ embedding: [1, 0, 0, 0], speechMs: pcm.length / 32, segments: [{ startMs: 0, endMs: pcm.length / 32 }] }) };
 const port = Number(process.env.PORT ?? 8080);
-createApp({ db: demoFirestore(getFirestore(), process.env.DEMO_ID), auth: getAuth(), gemini, voice, observe: (event) => console.info(JSON.stringify({ event: 'api_request', ...event })) }).listen(port, () => {
+createApp({ ...(localMock && [process.env.FIRESTORE_EMULATOR_HOST, process.env.FIREBASE_AUTH_EMULATOR_HOST].every(v => /^(127\.0\.0\.1|localhost):\d+$/.test(v ?? '')) && process.env.CLASSROOM_MOCK === '1' ? { workspace: classroomMock } : {}), db: demoFirestore(getFirestore(), process.env.DEMO_ID), auth: getAuth(), gemini, voice, observe: (event) => console.info(JSON.stringify({ event: 'api_request', ...event })) }).listen(port, () => {
   console.log(`api listening on :${port} (gemini=${describeGemini(g)})`);
 });

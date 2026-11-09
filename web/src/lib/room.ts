@@ -6,6 +6,7 @@ import { useRoomFeed } from "./room-stream";
 import type { Phase } from "@/components/ui";
 
 export interface Room {
+  classroomCourseId?: string; classroomCourseName?: string; classroomCourseSection?: string;
   title: string; flowVersion?: 1; startedAt?: Timestamp; endsAt?: Timestamp; endedAt?: Timestamp; endReason?: "host" | "timeout"; publishOnEnd?: boolean; participantView?: { theme: boolean; timer: boolean; members: boolean; speaking?: boolean }; theme?: string; minutes?: number; groupSelection?: "host" | "participant"; resultsPublished?: boolean; phase: Phase; joinCode?: string; createdBy: string; groups?: number;
   /** 議論を録音して分析するか（既定は録音する）。false の部屋では録音の画面を出さない */
   recording?: boolean;

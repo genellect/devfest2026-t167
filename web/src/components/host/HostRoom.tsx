@@ -7,7 +7,7 @@ import { SessionSettings } from "./SessionSettings";
 import { SplitBar, UnderstandingNotes, describeUnderstanding } from "@/components/understandings";
 import { FlowTimeline, GoodReview, useFlow } from "@/components/flow";
 import { SourceTag, Tag, useGeminiSource } from "@/components/ui";
-import { AppShell } from "@/components/shell";
+import { SessionShell as AppShell } from "@/components/SessionShell";
 import { ApiError, callApi } from "@/lib/api";
 import { formatMetric } from "@/lib/format";
 import { getDuration, getRoomLabel } from "@/lib/local";
@@ -57,7 +57,7 @@ export function HostRoom({ roomId, room }: Props) {
     : `${label ? `${label}　` : ""}${current === "class" ? "セッション全体の結果" : `参加コード ${room.joinCode ?? ""}`}`;
   const back = typeof current === "number" ? (closed ? "class" : "dashboard") : current === "class" && !closed ? "dashboard" : current === "code" ? "dashboard" : undefined;
   return (
-    <AppShell wide back="/home" eyebrow={eyebrow} title={typeof current === "number" ? `グループ${current}の話し合い` : room.title}
+    <AppShell wide back="/home" hideBack={!closed && (room.phase === "discussing" || Object.values(room.groupState ?? {}).some(g => g.status === "discussing"))} eyebrow={eyebrow} title={typeof current === "number" ? `グループ${current}の話し合い` : room.title}
       actions={<>
         {back && <button className="btn btn--small" onClick={() => setView(back)}>{back === "class" ? "セッション全体に戻る" : "ダッシュボード"}</button>}
         {current === "dashboard" && <button className="btn btn--small" onClick={() => setView("code")}>参加コードを表示</button>}

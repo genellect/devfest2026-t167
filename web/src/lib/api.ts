@@ -1,4 +1,5 @@
 "use client";
+import { workspaceToken } from "./workspace";
 import { ensureSignedIn } from "./firebase";
 import { authenticatedFetch } from "./session";
 
@@ -11,7 +12,9 @@ async function send<T>(path: string, contentType: string, body: BodyInit, timeou
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await authenticatedFetch(path, { method: "POST", headers: { "content-type": contentType }, body, signal: controller.signal }, user);
+    let classroomToken: string | undefined;
+    if (path === "/rooms/join") { try { classroomToken = workspaceToken(); } catch { /* 通常のコード参加は追加許可不要。 */ } }
+    const res = await authenticatedFetch(path, { method: "POST", headers: { "content-type": contentType, ...(classroomToken ? { "x-google-access-token": classroomToken } : {}) }, body, signal: controller.signal }, user);
     const requestId = res.headers.get("x-request-id") ?? undefined;
     const data = await res.json().catch(() => undefined);
     if (!res.ok) {

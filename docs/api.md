@@ -42,6 +42,21 @@ health以外は有効なGoogle IDトークンとアプリセッションCookie�
 | `POST /rooms/{部屋}/insights/{提案}/dismiss` | 必要 | 必要 | 必要 | `closed` 以外。見送った提案は参加者に配信せず、合意の検証にも使わない。同じ文は次の分析で出し直さない |
 | `POST /rooms/{部屋}/consensus/analyze` | 必要 | 必要 | 必要 | `consensus` |
 
+## Classroom連携
+
+任意の追加許可で、本人のクラス情報をホーム・作成・参加・待機に利用する。通常のGoogleログインの権限やteacher claimは変更しない。
+
+| API | 認証・認可 | 用途 |
+|---|---|---|
+| `GET /integrations/classroom/courses` | Google本人・有効なアプリセッション | ACTIVEクラスと、そのクラスでの教員／生徒の役割 |
+| `GET /integrations/classroom/courses/{クラス}/discussions` | 同上＋クラス所属 | 新規参加できる議論・参加済みの進行中の議論。コード・名簿・非公開意見を含まない |
+| `GET /integrations/classroom/courses/{クラス}/roster` | 同上＋Classroom教員 | 名簿の表示名とGoogleの識別子のみ。メールは取得しない |
+| `GET /rooms/{部屋}/classroom/roster` | 同上＋部屋Host＋Classroom教員 | 名簿とアプリの参加済み／未参加を照合。共有端末はログインアカウント単位 |
+| `POST /rooms` の `classroomCourseId` | 招待済み教員＋Classroom教員 | サーバーで確認したクラス名を保存し、ホーム・履歴に再利用 |
+| `POST /rooms/join` の `classroomRoomId` | クラス所属 | コードなし参加。`code`との同時指定は拒否。コード・QR経由の新規参加でもクラス所属を検証 |
+
+Googleアクセストークンは`x-google-access-token`で送信し、署名済みFirebaseのGoogle識別子とUserInfoの`sub`を照合する。永続化・ログ出力しない。名簿照合用の`classroomUserId`はSSEから除外する。追加許可が失効したら明示的に再接続する。既存メンバーの再入室と、サーバーがグループを決める部屋の途中参加は通常のコード参加と同じ条件を維持する。Classroomの取得は1人1分60回まで。課題・成績の取得や結果の投稿は行わない。
+
 ## Driveの共有資料
 
 | API | 認証 | 所属 | Host | 条件 |
@@ -86,3 +101,5 @@ Googleのアクセストークンはリクエストとブラウザのタブ内�
 `POST /rooms/:roomId/analyze` は既存のHost認可・30秒の再実行制限・jobIdによる排他で実行する。従来の未検討論点分析に加え、グループごとの直近20件（各500文字まで）の共有発言メモとテーマだけをGeminiへ渡す。個人名・UID・非公開の事前意見を、このグループ要約の入力には含めない。入力データのグループ番号と照合し、議論の軸（80文字まで）と主な論点（各120文字、3件まで）を `results/live-groups` に保存する。メモがないグループの軸は作らない。
 
 Geminiによる提案には `kind: missing | new_angle` を付ける。未検討の事前意見由来の提案は `missing`。新しい切り口は確定した議論内容と区別し、既存の承認・見送り操作を使う。`live-groups` はHostだけが閲覧でき、結果公開後もParticipantには配信しない。失敗時は503の汎用エラーとし、最後に成功した結果を保つ。古いjobIdや段階変更後の結果は保存しない。追加の構造化Gemini呼び出しは1回にまとめ、モデル・生成設定は変更しない。
+
+履歴（`GET /discussions`）は、所属する議論を作成日時の新しい順に返し、保存されたクラス名も表示に利用する。部屋IDの辞書順を「最近の議論」として扱わない。

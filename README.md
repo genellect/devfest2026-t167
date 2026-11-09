@@ -208,3 +208,5 @@ Topos には、その三本がすべて編み込まれています。
 ## ライセンス
 
 [MIT License](LICENSE)
+
+Classroomは共通ホームの「Classroomと連携」から任意に接続する。クラスを選んでセッションを作成・参加でき、Hostの待機画面では名簿と参加状況を照合できる。追加許可が使えないときも、Classroomに紐づかない通常のセッションは利用できる。ローカルのサンプルクラスは`CLASSROOM_MOCK=1 NEXT_PUBLIC_CLASSROOM_MOCK=1 bash scripts/dev.sh serve`、全検査は`bash scripts/dev.sh check`で自動的に明示モックを使う。本番設定・実接続の条件は[インフラ手順書](docs/infra-manual.md#classroom連携を使う場合)を参照。

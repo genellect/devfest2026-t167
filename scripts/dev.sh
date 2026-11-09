@@ -126,6 +126,7 @@ check() {
   assert_free_ports
   # CI と同じ値。App Hosting の apphosting.yaml は通常のビルドには使われない
   export API_ORIGIN=http://127.0.0.1:$T167_API_PORT NEXT_PUBLIC_USE_EMULATORS=1 NEXT_PUBLIC_FIREBASE_PROJECT_ID=$EMU_PROJECT
+  export CLASSROOM_MOCK=1 NEXT_PUBLIC_CLASSROOM_MOCK=1
   step() { echo; echo "== $*"; }
   step "静的検査と単体テスト"
   npm --prefix web run lint

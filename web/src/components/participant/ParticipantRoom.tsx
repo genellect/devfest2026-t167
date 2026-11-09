@@ -3,7 +3,7 @@ import { GuidedGuest } from "./GuidedGuest";
 import { ConsensusStep, DiscussionNotes, OpinionStep, ResultStep } from "./steps";
 import { useState } from "react";
 import { PHASE_LABEL, Tag, useGeminiSource, type Phase } from "@/components/ui";
-import { AppShell, Stepper } from "@/components/shell";
+import { SessionShell as AppShell } from "@/components/SessionShell";
 import { callApi } from "@/lib/api";
 import { mmss } from "@/lib/recorder";
 import { useAppSession } from "@/lib/session";
@@ -14,7 +14,6 @@ import { groupStatus, millis, useDoc, useInsights, useMembers, type GroupResult,
 interface Props { roomId: string; room: Room; uid: string; group?: number }
 
 const STEP_OF: Record<GroupStatus, Phase> = { opinions: "collecting", discussing: "discussing", consensus: "consensus", done: "closed" };
-const STEP_INDEX: Record<Phase, number> = { collecting: 0, discussing: 1, consensus: 2, closed: 3 };
 
 /**
  * 参加者（タブレット横向き）の画面。グループはそれぞれのペースで進む：
@@ -40,8 +39,8 @@ export function ParticipantRoom({ roomId, room, uid, group }: Props) {
   const phase: Phase = closed ? "closed" : STEP_OF[showResult ? "done" : writing ? "consensus" : status];
   if (room.flowVersion === 1) return <GuidedGuest roomId={roomId} room={room} uid={uid} group={group} recording={recording} canRecord={canRecord} recorder={groupConfig?.recorderUid ? { mine: groupConfig.recorderUid === uid, name: groupConfig.recorderName ?? undefined } : undefined} />;
   return (
-    <AppShell eyebrow={group && (room.groups ?? 1) > 1 ? `あなたはグループ${group}` : undefined} title={room.title} back="/home" onLeave={confirmLeave}
-      steps={<Stepper steps={["事前意見", "議論", "結論", "結果"]} current={STEP_INDEX[phase]} />} status={PHASE_LABEL[phase]}>
+    <AppShell hideBack={discussing} eyebrow={group && (room.groups ?? 1) > 1 ? `あなたはグループ${group}` : undefined} title={room.title} back="/home" onLeave={confirmLeave}
+      status={PHASE_LABEL[phase]}>
       <div className="flow">
       {!showResult && room.groupSelection !== "host" && (!group || choosing) && <GroupSelect roomId={roomId} room={room} current={group} onDone={() => setChoosing(false)} />}
       {!group && room.groupSelection === "host" && <p className="notice" role="status">教員によるグループの割り当てを待っています。</p>}

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <title>Topos</title>
+  <path fill="#1760df" d="M0 0h192v192H0z"/>
+  <rect x="40" y="52" width="98" height="68" rx="20" fill="#f4f8ff"/>
+  <path d="m55 111-6 29 31-23" fill="#f4f8ff"/>
+  <path d="M63 74h50M63 94h27" stroke="#bccfed" stroke-width="9" stroke-linecap="round"/>
+  <g transform="rotate(8 128 118)">
+    <rect x="99" y="90" width="58" height="56" rx="13" fill="#ffd84d"/>
+    <path d="M112 110h30m-30 14h22" stroke="#dfb629" stroke-width="7" stroke-linecap="round"/>
+  </g>
+</svg>

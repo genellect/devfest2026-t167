@@ -43,6 +43,14 @@ Google Picker APIとGoogle Drive APIを、FirebaseのWebアプリと同じGoogle
 
 参照：[Google PickerのWeb実装](https://developers.google.com/workspace/drive/picker/guides/web-picker)、[Driveのダウンロードとエクスポート](https://developers.google.com/workspace/drive/api/guides/manage-downloads)。
 
+### Classroom連携を使う場合
+
+Firebase Webアプリと同じプロジェクトでGoogle Classroom APIを有効にする。OAuth同意画面に`classroom.courses.readonly`、名簿の確認には`classroom.rosters.readonly`を用意し、学校の管理者が制限している場合はその許可を受ける。利用者が連携・名簿ボタンを押した時だけ追加許可を求める。トークンはタブ内のメモリだけに保持し、長期鍵・サービスアカウントの追加権限は不要。
+
+本番の`CLASSROOM_MOCK`・`NEXT_PUBLIC_CLASSROOM_MOCK`は未設定（または0）にする。`scripts/dev.sh check`は両方を1にし、Geminiモック・loopbackのAuth/Firestoreエミュレータがそろう場合だけサンプルクラスを注入して通しで検査する。ローカルで画面を試す場合は`CLASSROOM_MOCK=1 NEXT_PUBLIC_CLASSROOM_MOCK=1 bash scripts/dev.sh serve`を使う。通常のserveは明示しない限り実連携の案内を表示する。
+
+この変更でクラウドのAPI有効化・OAuth設定の書き換えは行っていない。実学校アカウントのClassroom／Drive追加許可は未確認で、リリース前に学校アカウントで確認する。参考：[courses.list](https://developers.google.com/workspace/classroom/reference/rest/v1/courses/list)、[students.list](https://developers.google.com/workspace/classroom/reference/rest/v1/courses.students/list)。
+
 ### 資源の一覧
 
 | 資源 | 名前・場所 | 作るもの |

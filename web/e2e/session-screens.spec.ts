@@ -3,6 +3,8 @@ import { loginStudent } from "./student";
 
 async function capture(page: Page, name: string) {
   if (!name.startsWith("shared-")) {
+    await expect(page.locator(".session-workspace")).toHaveCount(1);
+    await expect(page.locator(".session-page")).toHaveCount(1);
     await expect(page.getByRole("navigation")).toHaveCount(0);
     await expect(page.getByRole("banner")).toHaveCount(0);
     const active = await page.locator(".session-workspace").getAttribute("data-active") === "true";
@@ -20,7 +22,7 @@ async function capture(page: Page, name: string) {
     const card = await page.locator(".session-group-card").first().boundingBox();
     expect(card!.width).toBeLessThanOrEqual(320);
   }
-  await page.screenshot({ path: `../docs/screenshots/session-${name}-desktop.png`, fullPage: name !== "host-group-detail", scale: "css", animations: "disabled" });
+  await page.screenshot({ path: `../docs/screenshots/session-${name}-desktop.png`, fullPage: !["host-group-detail", "host-live"].includes(name), scale: "css", animations: "disabled" });
   if (previous) await page.setViewportSize(previous);
 }
 

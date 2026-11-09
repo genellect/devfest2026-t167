@@ -4,7 +4,8 @@ import { ArrowRight, ScanLine } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { QrScanner } from "@/components/QrScanner";
-import { callApi } from "@/lib/api";
+import { ApiError, callApi } from "@/lib/api";
+import { authorizeWorkspace, SCOPES } from "@/lib/workspace";
 import { sessionRequest } from "@/lib/session";
 import { signOutHost } from "@/lib/hostAuth";
 import { normalizeJoinCode, typedJoinCode, pendingJoinCode, clearJoinCode } from "@/lib/join-code";
@@ -23,13 +24,14 @@ export function JoinForm({ autoJoin = false, simple = false }: { autoJoin?: bool
   const [scanning, setScanning] = useState(false);
   const [code, setCode] = useState(() => autoJoin ? normalizeJoinCode(params.get("code") ?? pendingJoinCode()) : "");
   const [error, setError] = useState("");
+  const [classroomNeeded, setClassroomNeeded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [focused, setFocused] = useState(false);
   // 部屋を作ったアカウントのまま参加しようとしたときの部屋（ホストのまま入るので、確認を出す）
   const [ownRoom, setOwnRoom] = useState<string>();
 
   const join = useCallback(async (value: string) => {
-    setBusy(true); setError(""); setOwnRoom(undefined);
+    setBusy(true); setError(""); setOwnRoom(undefined); setClassroomNeeded(false);
     try {
       const { roomId } = await callApi<{ roomId: string }>("/rooms/join", { code: value });
       clearJoinCode();
@@ -40,6 +42,7 @@ export function JoinForm({ autoJoin = false, simple = false }: { autoJoin?: bool
       if (params.get("code")) router.replace(destination); else router.push(destination);
     } catch (err) {
       clearJoinCode();
+      setClassroomNeeded(err instanceof ApiError && err.code === "google_reconnect");
       setError((err as Error).message);
       setBusy(false);
       input.current?.focus(); // すぐ打ち直せるように
@@ -100,6 +103,7 @@ export function JoinForm({ autoJoin = false, simple = false }: { autoJoin?: bool
         </div>
       </div>
       {error && <p id="code-error" className="notice notice--error" role="alert">{error}</p>}
+      {classroomNeeded && <button type="button" className="btn" disabled={busy} onClick={async () => { setBusy(true); try { await authorizeWorkspace(SCOPES.classroom); await join(code); } catch (e) { setError((e as Error).message); setBusy(false); } }}>Classroomと連携して参加</button>}
       <div className="home-actions">
         <button className="btn btn--blue" type="submit" disabled={busy || code.length !== CODE_LENGTH}>
           {busy ? "参加しています…" : "参加する"}

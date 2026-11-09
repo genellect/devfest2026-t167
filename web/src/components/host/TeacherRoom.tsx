@@ -1,5 +1,6 @@
 "use client";
 import { SessionShell as AppShell } from "@/components/SessionShell";
+import { ClassroomRoster } from "@/components/classroom/ClassroomRoster";
 import { SessionStage } from "@/components/SessionStage";
 import Link from "next/link";
 import { SessionGroups } from "./SessionGroups";
@@ -52,6 +53,7 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
         </button></>}>
 
       {!ended && room.phase === "collecting" && <Lobby roomId={roomId} room={room} seats={seats} opinions={opinions} members={members} />}
+      {!ended && room.phase === "collecting" && room.classroomCourseId && <ClassroomRoster key={roomId} roomId={roomId} />}
       {!ended && room.phase !== "collecting" && <LiveBoard roomId={roomId} room={room} members={members} insights={insights} />}
       {ended && (openGroup
         ? <div className="teacher__body"><button className="text-btn" onClick={() => setOpenGroup(undefined)}>セッション全体に戻る</button><GroupResultView result={results.find((r) => r.group === openGroup) ?? null} group={openGroup} roomId={roomId} source={source} /></div>

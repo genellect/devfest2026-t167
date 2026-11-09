@@ -29,11 +29,12 @@ export function registerDiscussionRoutes(app: Express, deps: Dependencies, guard
     const memberships = links.empty ? [] : await db.getAll(...links.docs.map((d) => db.doc(`sessions/${d.id}/members/${req.ctx.uid}`)));
     const entries = memberships.filter((m) => m.exists && m.get('status') === 'active');
     const docs = entries.length ? await db.getAll(...entries.map((m) => m.ref.parent.parent!)) : [];
-    res.json({ sessions: docs.flatMap((d, i) => {
+    const recent = docs.map((d, i) => ({ d, membership: entries[i] })).sort((a, b) => (b.d.get('createdAt')?.toMillis?.() ?? 0) - (a.d.get('createdAt')?.toMillis?.() ?? 0));
+    res.json({ sessions: recent.flatMap(({ d, membership }) => {
       if (!d.exists) return [];
       // テーマ非公開の議論では、参加者へテーマ本文を theme でも title でも返さない（Host には元の値）
-      const themeHidden = entries[i].get('role') !== 'host' && d.get('participantView.theme') === false;
-      return [{ sessionId: d.id, title: participantTitle({ title: d.get('title'), theme: d.get('theme'), themeHidden }), theme: themeHidden ? '' : d.get('theme') ?? '', phase: d.get('phase'), ended: !!d.get('endedAt') || d.get('phase') === 'closed', role: entries[i].get('role'), groupId: entries[i].get('groupId') ?? null }];
+      const themeHidden = membership.get('role') !== 'host' && d.get('participantView.theme') === false;
+      return [{ sessionId: d.id, title: participantTitle({ title: d.get('title'), theme: d.get('theme'), themeHidden }), theme: themeHidden ? '' : d.get('theme') ?? '', ...(d.get('className') ? { className: d.get('className') } : {}), phase: d.get('phase'), ended: !!d.get('endedAt') || d.get('phase') === 'closed', role: membership.get('role'), groupId: membership.get('groupId') ?? null }];
     }) });
   }));
   const settings = z.object({ title: z.string().trim().min(1).max(100).optional(), theme: z.string().trim().max(1000).optional(), minutes: z.number().int().min(1).max(180).optional(), groupSelection: z.enum(['host', 'participant']).optional(), publishOnEnd: z.boolean().optional(), participantView: z.object({ theme: z.boolean(), timer: z.boolean(), members: z.boolean(), speaking: z.boolean().optional() }).strict().optional(), resultsPublished: z.boolean().optional() }).strict().refine((v) => Object.keys(v).length > 0);

@@ -5,11 +5,11 @@ import { useHostUser } from "@/lib/hostAuth";
 import { useGeminiSource } from "@/components/ui";
 
 /**
- * 画面の骨組み（デザイン「黒板と付箋」）。上に1本の帯だけを置き、左のメニューは持たない（Docs「UIフィードバック」：
+ * 画面の骨組み（青いデザインシステム）。上に1本の帯だけを置き、左のメニューは持たない（Docs「UIフィードバック」：
  * ヘッダーは最小限、使い方のボタンは不要、次に何をするかを画面そのもので伝える）。
  * - 左上：「Topos」でホームへ（教員・学生共通）。議論の途中では「←」で戻る
  * - 右上：アカウントの丸。押すと設定（端末とセッション、使い方とプライバシー、ログアウト）
- * - tone="board"：教室に投影する教員の部屋。画面全体を黒板の色にする
+ * - tone="board"：教室に投影する教員の部屋。画面全体を投影用の青にする
  * onLeave は、議論中に別の画面へ移るときの確認（録音を送っていないときなど）。false を返すと移動しない。
  */
 export function AppShell({ title, eyebrow, steps, status, actions, children, onLeave, wide, nav = true, back, tone = "paper", className, account = true, showDemo = true }: {

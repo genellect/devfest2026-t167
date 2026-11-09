@@ -1,5 +1,6 @@
 "use client";
 import { browserPopupRedirectResolver, GoogleAuthProvider, reauthenticateWithPopup, onAuthStateChanged } from "firebase/auth";
+import { googleLoginError } from "./hostAuth";
 import { firebase } from "./firebase";
 import { authenticatedFetch } from "./session";
 
@@ -28,8 +29,7 @@ export async function authorizeDrive(scopes: readonly string[]) {
     cached = { uid: user.uid, token: credential.accessToken, scopes: [...scopes], expires: Date.now() + 50 * 60_000 };
     return cached.token;
   } catch (error) {
-    const code = (error as { code?: string }).code;
-    throw new Error(code === "auth/popup-closed-by-user" ? "Googleの接続をキャンセルしました" : code === "auth/popup-blocked" ? "ポップアップを許可して、もう一度お試しください" : "Googleとの接続に失敗しました。ログイン中と同じGoogleアカウントを選んでください");
+    throw new Error(googleLoginError(error));
   }
 }
 export function forgetDrive() { cached = undefined; }
