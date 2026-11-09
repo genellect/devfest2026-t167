@@ -44,7 +44,10 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     // 教員が開始すると、全員が議論の画面に変わる（時間は設定しない）
     await page.getByRole("button", { name: "議論を開始", exact: true }).click();
     for (const g of [a, b]) await expect(g.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
-    await expect(a.getByRole("timer")).toHaveCount(0);
+    await expect(a.getByRole("timer", { name: "経過時間", exact: true })).toBeVisible();
+
+    // 設定から発言メモと教員の問いかけを開く。通常画面は議論に集中する。
+    for (const g of [a, b]) await g.getByRole("button", { name: "設定", exact: true }).click();
 
     // 議論の発言をメモで共有する
     await a.getByLabel("発言を書く").fill("貸出の費用の話をした");

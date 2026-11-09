@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SourceTag } from "@/components/ui";
 import { FlowTimeline } from "@/components/flow";
-import type { SelfSpeaking } from "@/components/Speaking";
+import { GuestSpeaking, type SelfSpeaking } from "@/components/Speaking";
 import { useDoc, type Flow } from "@/lib/room";
 
 /**
@@ -17,7 +17,9 @@ const DROP = 15; // これ以上下がったら「低下」として示す（ポ
 export function FlowSpeaking({ roomId, group, flow }: { roomId: string; group: number; flow: Flow | null }) {
   const { data } = useDoc<SelfSpeaking | Record<string, unknown>>(`sessions/${roomId}/speaking/${group}`);
   const self = data && (data as SelfSpeaking).scope === "self" ? data as SelfSpeaking : null;
-  if (!self || !self.members.length || (self.timeline?.length ?? 0) < 2) return <FlowTimeline flow={flow} compact />;
+  if (!self || !self.members.length) return <FlowTimeline flow={flow} compact />;
+  // 推移の点がそろう前でも、すでに測定した本人の発言時間・割合は結果に出す。
+  if ((self.timeline?.length ?? 0) < 2) return <><GuestSpeaking roomId={roomId} group={group} /><FlowTimeline flow={flow} compact /></>;
   return <Card self={self} flow={flow && flow.speechDetected !== false ? flow : null} />;
 }
 

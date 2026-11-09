@@ -16,12 +16,12 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     await page.getByLabel("参加者1の表示名").fill("架空のGuest");
     await page.getByRole("button", { name: "表示名を保存して進む" }).click();
     await expect(page.getByRole("heading", { name: "声の登録" })).toBeVisible();
-    await page.getByLabel("声の特徴の登録と、上記の利用方法に同意します").check();
     await page.getByRole("button", { name: "声を登録する", exact: true }).click();
     await expect(page.getByRole("heading", { name: "議論の前に書く" })).toBeVisible({ timeout: 20_000 });
     expect((await host.post(`/api/rooms/${r.roomId}/phase`, { headers, data: { to: "discussing" } })).status()).toBe(200);
     await expect(page.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
-    await expect(page.getByText("テーマ：秘密のテーマ")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "秘密のテーマ", exact: true })).toBeVisible();
+    await expect(page.getByRole("timer", { name: "残り時間", exact: true })).toBeVisible();
     // 議論中は戻る操作を出さない。別URLを開いた後も、同じコードで議論を復元できる。
     await expect(page.getByRole("link", { name: "ホーム", exact: true })).toHaveCount(0);
     await page.goto("/home");
@@ -29,7 +29,7 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     await expect(page).toHaveURL(/\/rooms\//);
     await expect(page.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
     expect((await host.post(`/api/rooms/${r.roomId}/settings`, { headers, data: { participantView: { theme: false, timer: false, members: false } } })).status()).toBe(200);
-    await expect(page.getByText("テーマ：秘密のテーマ")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "秘密のテーマ", exact: true })).toHaveCount(0);
     await expect(page.getByRole("timer")).toHaveCount(0);
     expect((await host.post(`/api/rooms/${r.roomId}/finish`, { headers, data: {} })).status()).toBe(200);
     await expect(page.getByRole("heading", { name: "結論を自分の言葉で書く" })).toBeVisible();

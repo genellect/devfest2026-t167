@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { loginStudent } from "./student";
 
-// デモで1人の登録漏れや同意の取り消しがあっても、Hostが始めて終えられ、同意のない録音は送られないことを確かめる。
+// デモで1人の登録漏れや録音の破棄があっても、Hostが始めて終えられ、破棄した録音は送られないことを確かめる。
 
 async function joinAsGuest(guest: Page, code: string, name?: string) {
   await guest.goto(`/join?code=${code}`);
@@ -13,7 +13,7 @@ async function joinAsGuest(guest: Page, code: string, name?: string) {
   await expect(guest.getByRole("heading", { name: "声の登録" })).toBeVisible();
 }
 
-test("未準備のGuestを外して開始でき、同意を取り消した録音は終了後も送られない", async ({ page, browser }) => {
+test("未準備のGuestを外して開始でき、破棄した録音は終了後も送られない", async ({ page, browser }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
   await page.waitForURL(/\/teacher$/); await page.goto("/host/new");
@@ -27,7 +27,6 @@ test("未準備のGuestを外して開始でき、同意を取り消した録音
     const ready = await readyContext.newPage(), late = await lateContext.newPage();
     await loginStudent(ready, "ready"); await loginStudent(late, "late");
     await joinAsGuest(ready, code, "準備できたGuest");
-    await ready.getByLabel("声の特徴の登録と、上記の利用方法に同意します").check();
     await ready.getByRole("button", { name: "声を登録する", exact: true }).click();
     await expect(ready.getByRole("heading", { name: "議論の前に書く" })).toBeVisible({ timeout: 20_000 });
     await joinAsGuest(late, code);
@@ -42,16 +41,17 @@ test("未準備のGuestを外して開始でき、同意を取り消した録音
 
     const uploads: string[] = [];
     ready.on("request", (r) => { if (r.url().includes("/groups/recording")) uploads.push(r.url()); });
-    const consent = ready.getByLabel("グループ全員が録音・声の照合・発言時間の集計に同意しました");
-    await consent.check();
+    await ready.getByRole("button", { name: "設定", exact: true }).click();
     await ready.getByRole("button", { name: "録音を始める", exact: true }).click();
     await expect(ready.getByRole("button", { name: "録音を停止して端末に保管", exact: true })).toBeVisible();
-    await consent.uncheck();
-    await expect(ready.getByRole("button", { name: "録音を始める", exact: true })).toBeDisabled();
+    ready.once("dialog", dialog => dialog.accept());
+    await ready.getByRole("button", { name: "録音を破棄する", exact: true }).click();
+    await expect(ready.getByRole("button", { name: "録音を始める", exact: true })).toBeEnabled();
 
     await page.getByRole("button", { name: "議論を終える", exact: true }).click();
     await page.getByRole("button", { name: "終了する", exact: true }).click();
-    await expect(ready.getByRole("heading", { name: "結論を自分の言葉で書く" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "セッションの結果", exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(ready.getByRole("heading", { name: "結論を自分の言葉で書く" })).toBeVisible({ timeout: 15_000 });
     await ready.waitForTimeout(1_500);
     expect(uploads).toEqual([]);
     await expect(ready.getByText("録音の送信・分析が完了しました。", { exact: true })).toHaveCount(0);

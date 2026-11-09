@@ -266,7 +266,38 @@
 .session-materials > .heading-row h2 { font-size: 20px; }
 .session-materials .session-drive-button { min-height: 52px; padding: 12px 18px; font-size: 15px; }
 .session-materials .session-drive-button img { width: 30px; height: 30px; }
+.guest-session-settings { position: relative; display: grid; place-items: center; width: 48px; height: 48px; border: 1px solid var(--line); border-radius: 50%; background: #fff; color: var(--ink-2); cursor: pointer; }
+.session-page:has(> .guest-session-live) { padding-top: max(24px, env(safe-area-inset-top)); }
+.guest-session-settings:hover { background: var(--brand-soft); color: var(--brand); }
+.guest-session-settings__badge { position: absolute; top: -3px; right: -3px; display: grid; place-items: center; min-width: 20px; height: 20px; padding-inline: 4px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 11px; }
+.guest-session-live { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; flex: 1; }
+.guest-session-theme { padding: clamp(24px, 3vw, 44px); background: var(--u-blue); border-radius: 14px; }
+.guest-session-theme h1 { font-size: clamp(26px, 3.2vw, 46px); font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.guest-session-visual { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; min-height: clamp(320px, 47vh, 700px); padding: 100px 24px 40px; background: #fff; border-radius: 14px; }
+.guest-session-clock { position: absolute; top: 24px; right: 28px; display: flex; align-items: center; gap: 16px; color: var(--ink-2); font-size: 13px; }
+.guest-session-clock strong { color: var(--ink); font-size: clamp(28px, 3vw, 44px); font-weight: 600; font-variant-numeric: tabular-nums; }
+.guest-session-sound { display: grid; place-items: center; width: min(520px, 90%); aspect-ratio: 1.6; border-radius: 50%; background: radial-gradient(ellipse, #e4f3ff 0%, #f4faff 58%, #fff 72%); }
+.guest-session-sound svg { width: 100%; height: auto; fill: var(--brand); }
+.guest-session-sound rect { transition: height 100ms linear, y 100ms linear; }
+.guest-session-sound__status { display: flex; align-items: center; justify-content: center; gap: 9px; font-size: 14px; color: var(--ink-2); text-align: center; }
+.guest-session-sound__status span { width: 7px; height: 7px; border-radius: 50%; background: #b8c5d9; flex-shrink: 0; }
+.guest-session-sound__status span[data-recording] { background: #18a17e; box-shadow: 0 0 0 5px #e3f7ef; }
+.guest-session-live > .session-materials { border-radius: 14px; }
+.dialog.guest-session-dialog { width: min(720px, calc(100% - 24px)); max-height: calc(100dvh - 32px); padding: 0; }
+.guest-session-dialog__body { display: grid; gap: 24px; padding: 24px; }
+.guest-session-dialog .flow-card { width: 100%; padding: 0; }
+.guest-session-dialog .memo { width: 100%; }
+@media (min-width: 1100px) {
+  .guest-session-live { grid-template-columns: minmax(0, 3fr) minmax(300px, 1fr); grid-template-rows: auto 1fr; }
+  .guest-session-theme { grid-column: 1 / -1; }
+  .guest-session-visual { min-height: max(430px, calc(100dvh - 380px)); }
+}
+@media (prefers-reduced-motion: reduce) { .guest-session-sound rect { transition: none; } }
 @media (max-width: 600px) {
+  .guest-session-live { gap: 16px; }
+  .guest-session-visual { min-height: 310px; padding-inline: 16px; }
+  .guest-session-clock { top: 20px; right: 20px; }
+  .guest-session-dialog__body { padding: 20px 16px; }
   .session-workspace .session-materials { padding: 20px; }
   .session-materials > .heading-row { flex-wrap: wrap; }
   .session-materials .session-drive-button { font-size: 13px; padding-inline: 12px; }

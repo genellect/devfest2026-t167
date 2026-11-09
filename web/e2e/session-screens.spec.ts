@@ -44,8 +44,9 @@ test("7画面を通り、待機中の編集とホストの結果公開・公開�
     await guest.getByLabel("参加者1の表示名").fill("テスト参加者");
     await guest.getByRole("button", { name: "表示名を保存して進む" }).click();
     await expect(guest.getByRole("heading", { name: "声の登録", exact: true })).toBeVisible();
+    await expect(guest.getByRole("checkbox")).toHaveCount(0);
+    await expect(guest.getByRole("button", { name: "声を登録する", exact: true })).toBeEnabled();
     await capture(guest, "guest-voice");
-    await guest.getByLabel("声の特徴の登録と、上記の利用方法に同意します").check();
     await guest.getByRole("button", { name: "声を登録する", exact: true }).click();
     await expect(guest.getByText(/あと\d秒、そのまま読み上げてください/)).toBeVisible();
     await guest.getByLabel("あなたの意見（本人だけが見られます）").fill("本人だけの事前意見：使った箇所を申告するべきだ");
@@ -66,8 +67,15 @@ test("7画面を通り、待機中の編集とホストの結果公開・公開�
     await host.getByRole("button", { name: "閉じる", exact: true }).click();
     await host.getByRole("button", { name: "議論を開始", exact: true }).click();
     await expect(guest.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
-    await expect(guest.getByRole("timer")).toHaveCount(0);
+    await expect(guest.getByRole("timer", { name: "経過時間", exact: true })).toBeVisible();
+    await expect(guest.getByRole("region", { name: "共有資料", exact: true })).toBeVisible();
+    await expect(guest.getByRole("img", { name: "音声の波形・待機中", exact: true })).toBeVisible();
+    await expect(guest.getByLabel("発言を書く")).not.toBeVisible();
     await capture(guest, "guest-live");
+    await guest.getByRole("button", { name: "設定", exact: true }).click();
+    await expect(guest.getByRole("dialog", { name: "セッション設定", exact: true })).toBeVisible();
+    await expect(guest.getByLabel("発言を書く")).toBeVisible();
+    await guest.getByRole("button", { name: "閉じる", exact: true }).click();
     await capture(host, "host-live");
     await expect(host.getByRole("region", { name: "ダッシュボード", exact: true }).getByRole("img")).toHaveCount(2);
     await host.getByRole("button", { name: "グループ1の詳細", exact: true }).click();

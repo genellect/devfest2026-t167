@@ -6,7 +6,7 @@ import { useRoomFeed } from "@/lib/room-stream";
 import { authenticatedFetch } from "@/lib/session";
 const NO_FILES: MaterialFile[] = [];
 
-export function SessionMaterials({ roomId, editable = false, ended = false }: { roomId: string; editable?: boolean; ended?: boolean }) {
+export function SessionMaterials({ roomId, editable = false, ended = false, showEmpty = false }: { roomId: string; editable?: boolean; ended?: boolean; showEmpty?: boolean }) {
   const files = (useRoomFeed(roomId).collections[`sessions/${roomId}/materials`] ?? NO_FILES) as unknown as MaterialFile[];
   const [pending, setPending] = useState<{ id: string; name: string }>();
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
@@ -35,10 +35,10 @@ export function SessionMaterials({ roomId, editable = false, ended = false }: { 
     try { await materialRequest(`/rooms/${roomId}/materials/${file.id}/remove`, { body: {} }); if (preview?.id === file.id) { viewer.current?.close(); setPreview(undefined); } }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-  if (!editable && !files.length) return null;
+  if (!editable && !files.length && !showEmpty) return null;
   return <section className="session-materials" aria-label="共有資料">
-    <div className="heading-row"><h2 className="t-sm">資料</h2>{editable && !ended && <button className="btn btn--small session-drive-button" title="Google Driveのファイル一覧から資料を追加" disabled={busy || files.length >= 5} onClick={() => void choose()}><Image src="/brand/google-drive.png" alt="" width={24} height={24} />{busy ? "処理しています…" : "Google Driveから追加"}</button>}</div>
-    {files.length ? <ul>{files.map(file => <li key={file.id}><button className="text-btn" disabled={busy} onClick={() => void open(file)}>{file.name}</button>{editable && <button className="text-btn" disabled={busy} aria-label={`${file.name}の共有を解除`} onClick={() => void remove(file)}>解除</button>}</li>)}</ul> : <p className="t-note">議論に使う資料をDriveから選べます。</p>}
+    <div className="heading-row"><h2 className="t-sm">{editable ? "資料" : "共有資料"}</h2>{editable && !ended && <button className="btn btn--small session-drive-button" title="Google Driveのファイル一覧から資料を追加" disabled={busy || files.length >= 5} onClick={() => void choose()}><Image src="/brand/google-drive.png" alt="" width={24} height={24} />{busy ? "処理しています…" : "Google Driveから追加"}</button>}</div>
+    {files.length ? <ul>{files.map(file => <li key={file.id}><button className="text-btn" disabled={busy} onClick={() => void open(file)}>{file.name}</button>{editable && <button className="text-btn" disabled={busy} aria-label={`${file.name}の共有を解除`} onClick={() => void remove(file)}>解除</button>}</li>)}</ul> : <p className="t-note">{editable ? "議論に使う資料をDriveから選べます。" : "共有資料はまだありません。"}</p>}
     {error && !pending && <p className="notice notice--error" role="alert">{error}</p>}
     <dialog ref={confirm} className="dialog" aria-labelledby="material-confirm-title" onCancel={e => { if (busy) e.preventDefault(); else setPending(undefined); }}>
       <div className="dialog__head"><h2 id="material-confirm-title" className="t-md">資料を追加</h2><button className="btn btn--small" disabled={busy} onClick={() => { confirm.current?.close(); setPending(undefined); }}>閉じる</button></div>
