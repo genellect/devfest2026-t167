@@ -1,15 +1,12 @@
 # クラウドでのデモ準備と確認
 
-> 2026-11-06 MVP仕様変更：全員Googleログイン。ディスカッションを作れるのは、管理者が招待した教員（teacher claim）だけです（Docs「サーバーフィードバック」）。作成後のHost/Participantは議論のmembers.roleで判定します。ログイン後、教員は教員のホーム（/teacher）、学生は参加コードの入力（/join）へ進みます。ログイン上限は全員1台です。新仕様・API・移行条件は [MVPロール設計](mvp-roles.md) を参照。以下の旧仕様と相違する場合は新仕様を適用します。
-
-
 デモ本体は既存のFirebase App Hosting → 同一オリジンの/api → Cloud Run → Vertex AI/Firestoreで動かす。利用者の端末にMac・ローカルサーバー・検証用証明書は不要。クラウドサービスや別プロジェクトは追加しない。
 
 このPRを出すことと、反映後のクラウド動作確認は分ける。現在のpreviewは画面だけを差し替え、API・Auth・Firestoreは本番と共有する。新しいAPI・Rulesの動作確認には、同じ版をそろえた反映が必要。previewの成功だけで実AIの動作確認済みとはしない。
 
 ## MVPをローカルで通して確認する
 
-Google Docs「MVPフロー」に合わせ、全員Googleログイン → 共通ホーム →「参加する」からHost/Guestを選ぶ。Hostは名前・テーマ・時間・グループを設定して作成し、Guestはコード/QR・表示名・初回音声登録・待機へ進む。共有端末では全員を1人ずつ登録する。Host開始後に同意を確認してグループ1台で録音し、時間切れまたはHost終了から、録音送信・分析・公開結果・ホームへ進む。
+全員がGoogleでログインする。teacher claimを持つ教員は教員のホーム（`/teacher`）から議論を作ってHostになり、学生は参加コードの入力（`/join`）からコード/QR・表示名・初回音声登録・待機へ進む（[MVPロール設計](mvp-roles.md)）。共有端末では全員を1人ずつ登録する。Host開始後に同意を確認してグループ1台で録音し、時間切れまたはHost終了から、録音送信・分析・公開結果・ホームへ進む。
 
 ```bash
 bash scripts/dev.sh setup
@@ -25,17 +22,17 @@ T167_TEST_PORT_OFFSET=27700 bash scripts/dev.sh check
 
 ## 反映前の準備（管理者が実施）
 
-1. README・CONTRIBUTINGとGoogle Docs正本の「PRの確認から本番反映までの手順」に従い、依存するPR・CI・変更内容を確認する。
+1. README・CONTRIBUTINGと[PRの確認から本番反映までの手順](contributor-preview-guide.md)に従い、依存するPR・CI・変更内容を確認する。
 2. 本番反映の前にYuto Matsuiの承諾と、Rules/infra変更に必要なもう1人のレビューを得る。承諾前はマージ・auto-merge・手動デプロイ・IAM変更をしない。
-3. プロジェクト、Cloud Run/Firestoreの東京、App Hostingの台湾、Vertexのglobal、モデルと6つのGitHub Variablesを既存のinfra/env.shと照合する。WIFを利用し、アプリにサービスアカウント鍵を配置しない。
+3. プロジェクト、Cloud Run/Firestoreの東京、App Hostingの台湾、Vertexのglobal、モデルと6つのGitHub Variables（任意のAPI_MIN_INSTANCESを除く）を既存のinfra/env.shと照合する。WIFを利用し、アプリにサービスアカウント鍵を配置しない。
 4. 管理者がinfra/setup-project.shでCloud Run実行用api-runtimeの権限を確認する。失効確認を行うverifyIdToken(token, true)はFirebase認証バックエンドから利用者を読むため、roles/firebaseauth.viewerが必要。APIにはユーザーやclaimを変更する権限を付けない。
 5. Firebase AuthenticationのGoogleプロバイダーと本番・previewの承認済みドメインを確認する。全員Googleログイン必須。固定ロール登録は行わず、作成・参加時に役割を付与する。
 
-Firebase認証の読み取り権限は[公式の権限一覧](https://docs.cloud.google.com/iam/docs/roles-permissions/firebaseauth)、失効確認の通信は[公式のセッション管理](https://firebase.google.com/docs/auth/admin/manage-sessions)を参照。Google Docs/写しに残る匿名参加の旧方針との差異はbackend-contract.mdに記載している。正本の変更は担当者が関係する変更と同時に行う。
+Firebase認証の読み取り権限は[公式の権限一覧](https://docs.cloud.google.com/iam/docs/roles-permissions/firebaseauth)、失効確認の通信は[公式のセッション管理](https://firebase.google.com/docs/auth/admin/manage-sessions)を参照。構築の手順は[インフラ構築手順書](infra-manual.md)にある。
 
 ## MVPのHost権限
 
-教師claimの付与は不要。全員Googleでログインし、セッション作成者にだけHost権限をバックエンドで付与する。学校管理者claimは学校ポリシー管理専用。
+議論を作れるのは、teacher claimを持つ教員だけ。デモで議論を作るアカウントには、[MVPロール設計](mvp-roles.md)の「本番で教師権限を付ける手順」でclaimを付けておく。作成者をバックエンドでHostとして登録し、作成後のHost操作はmembers.roleで判定する（teacher claimでは判定しない）。学校管理者claimは学校ポリシー管理専用。
 
 ## 承諾後の反映とデモ確認
 

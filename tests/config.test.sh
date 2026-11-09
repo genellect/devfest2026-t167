@@ -12,7 +12,9 @@ sorted() { tr ' ,・' '\n' | sed '/^$/d' | sort -u | tr '\n' ' ' | sed 's/ $//';
 
 DEPLOY="$ROOT/.github/workflows/deploy.yml"
 # GitHub の Variables：deploy.yml が読む名前を基準に、ほかの場所と一致するか
-VARS=$(grep -oE 'vars\.[A-Z_]+' "$DEPLOY" | sed 's/vars\.//' | sorted)
+# 任意の Variables（未登録なら既定値で動く）は、deploy.yml の「# 任意の Variables:」の行に並べ、必須の一覧から外す
+OPTIONAL=$(grep -oE '# 任意の Variables: [A-Z_ ]+' "$DEPLOY" | sed 's/# 任意の Variables: //' | sorted)
+VARS=$(grep -oE 'vars\.[A-Z_]+' "$DEPLOY" | sed 's/vars\.//' | sort -u | grep -vxF -f <(echo "$OPTIONAL" | tr ' ' '\n' | sed '/^$/d') | sorted)
 [ -n "$VARS" ] && ok "deploy.yml から Variables を読めた（${VARS}）" || ng "deploy.yml から Variables を読めない"
 same "deploy.yml の事前検査が全部の Variables を確かめる" "$VARS" \
   "$(grep -oE 'for v in [A-Z_ ]+; do' "$DEPLOY" | head -1 | sed -E 's/for v in (.*); do/\1/' | sorted)"
@@ -20,13 +22,33 @@ same "setup-deployer.sh が全部の Variables を表示する" "$VARS" \
   "$(grep -oE '^echo "  [A-Z_]+=' "$ROOT/infra/setup-deployer.sh" | sed -E 's/echo "  ([A-Z_]+)=/\1/' | sorted)"
 same "docs/credentials.md の一覧が一致する" "$VARS" \
   "$(grep 'GitHub Actions から GCP' "$ROOT/docs/credentials.md" | grep -oE 'Variables（[A-Z_・]+）' | sed -E 's/Variables（(.*)）/\1/' | sorted)"
+for v in $OPTIONAL; do
+  grep -q "vars.${v} || '" "$DEPLOY" && ok "任意の ${v} は未登録でも既定値で動く" || ng "任意の ${v} に既定値がない（deploy.yml）"
+  grep -q "$v" "$ROOT/infra/setup-deployer.sh" && grep -q "$v" "$ROOT/docs/credentials.md" && ok "任意の ${v} を setup-deployer.sh と credentials.md が案内する" || ng "任意の ${v} の案内がない"
+done
 N=$(echo "$VARS" | wc -w | tr -d ' ')
 grep -q "PROJECT_ID など${N}つ" "$ROOT/CONTRIBUTING.md" && ok "CONTRIBUTING の個数が ${N}" || ng "CONTRIBUTING の「PROJECT_ID など${N}つ」がない"
 
 # deploy.yml の事前検査の本体を取り出して実行する。空・空白だけの値で止まり、名前を表示する
 awk '/name: Check repository Variables/ {f=1; next} f && /^ *- (uses|name):/ {exit} f && !/^ *run: \|/' "$DEPLOY" | sed 's/^          //' > "$T/preflight.sh"
-ALL="PROJECT_ID=p REGION=r VERTEX_LOCATION=global GEMINI_MODEL=m WIF_PROVIDER=w DEPLOYER_SA=d"
+ALL="PROJECT_ID=p REGION=r VERTEX_LOCATION=global GEMINI_MODEL=m WIF_PROVIDER=w DEPLOYER_SA=d API_MIN_INSTANCES=0"
 env $ALL bash -e "$T/preflight.sh" > "$T/out" 2>&1 && ok "Variables がそろえば事前検査を通る" || ng "そろっているのに止まる（$(cat "$T/out")）"
+for n in 1 2; do
+  env $ALL API_MIN_INSTANCES=$n bash -e "$T/preflight.sh" > "$T/out" 2>&1 && ok "API_MIN_INSTANCES=$n は通る" || ng "API_MIN_INSTANCES=$n で止まる（$(cat "$T/out")）"
+done
+for n in 3 -1 abc ' '; do
+  env $ALL API_MIN_INSTANCES="$n" bash -e "$T/preflight.sh" > "$T/out" 2>&1
+  [ $? -ne 0 ] && grep -q "API_MIN_INSTANCES は 0〜2" "$T/out" && ok "API_MIN_INSTANCES='$n' は理由を出して止まる" || ng "API_MIN_INSTANCES='$n' で止まらない（$(cat "$T/out")）"
+done
+grep -q -- '--min-instances "$API_MIN_INSTANCES"' "$DEPLOY" && ! grep -q -- '--min-instances [0-9]' "$DEPLOY" \
+  && ok "デプロイは最小インスタンス数を Variables から渡す（手で 1 にした値を 0 に戻さない）" || ng "deploy.yml が最小インスタンス数を直書きしている"
+
+# 文書だけの push：deploy.yml の paths-ignore と scripts/ci-changes.sh の「文書だけ」が同じ条件
+same "deploy.yml の paths-ignore が ci-changes.sh の文書の条件と一致する" \
+  "$(printf '%s\n' '*.md' 'docs/*' 'LICENSE' | sort | tr '\n' ' ')" \
+  "$(grep -oE 'paths-ignore: \[.*\]' "$DEPLOY" | grep -oE '"[^"]+"' | tr -d '"' | sed -e 's#^\*\*/##' -e 's#/\*\*$#/*#' | sort | tr '\n' ' ')"
+same "ci-changes.sh の文書の条件" "*.md|docs/*|LICENSE)" "$(grep -oE '^\s+\*\.md[^ ]*' "$ROOT/scripts/ci-changes.sh" | tr -d ' ')"
+grep -q 'name: Check the production URL' "$DEPLOY" && grep -q '/api/healthz' "$DEPLOY" && ok "デプロイの最後に本番の URL の稼働を確かめる" || ng "デプロイ後の稼働確認がない"
 env $ALL VERTEX_LOCATION= GEMINI_MODEL='  ' bash -e "$T/preflight.sh" > "$T/out" 2>&1
 [ $? -ne 0 ] && grep -q "未登録です: VERTEX_LOCATION GEMINI_MODEL" "$T/out" && ok "空・空白の Variables は名前を出して止まる" || ng "空の Variables で止まらない（$(cat "$T/out")）"
 

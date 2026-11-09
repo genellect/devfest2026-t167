@@ -100,7 +100,7 @@ Gemini が担うのは、文の意味を比べること、録音の聞き取り�
 | [`infra`](infra) | 共通の変数（`env.sh`）と、Google Cloud・GitHub の構築スクリプト |
 | [`scripts`](scripts) | 開発の入口 `dev.sh`、CI の変更判定、提出スクリプト |
 | [`tests`](tests) | 提出スクリプト・CI の変更判定・`dev.sh`・設定の受け渡しの回帰テスト |
-| [`docs`](docs) | API と認可、テスト、認証とセッション、構築手順書の写し |
+| [`docs`](docs) | API と認可、テスト、認証とセッション、インフラ構築手順書 |
 
 ## 評価指標
 

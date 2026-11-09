@@ -1,13 +1,12 @@
 # T167 エージェント向け指示
 
-> 2026-11-06 MVP仕様変更：全員Googleログイン。ディスカッションを作れるのは、管理者が招待した教員（teacher claim）だけです（Docs「サーバーフィードバック」）。作成後のHost/Participantは議論のmembers.roleで判定します。ログイン後、教員は教員のホーム（/teacher）、学生は参加コードの入力（/join）へ進みます。ログイン上限は全員1台です。新仕様・API・移行条件は [MVPロール設計](docs/mvp-roles.md) を参照。以下の旧仕様と相違する場合は新仕様を適用します。
-
-
-このリポジトリで作業する AI エージェント（Claude Code、Codex など）への指示。開発の進め方の正本は [CONTRIBUTING](CONTRIBUTING.md) で、この文書はそれをエージェントの手順にしたもの。GCP の構築手順はチームドキュメントの「インフラ構築手順書」にあり、その写しが [docs/infra-manual.md](docs/infra-manual.md) にある。いま依頼している開発インフラとクラウドの構築は [docs/codex-handoff.md](docs/codex-handoff.md) にまとめている。文書どうしやコードと食い違う場合は、コードと設定で事実を確かめ、直す前に依頼者に確認する。
+このリポジトリで作業する AI エージェント（Claude Code、Codex など）への指示。開発の進め方の正本は [CONTRIBUTING](CONTRIBUTING.md) で、この文書はそれをエージェントの手順にしたもの。GCP・Firebase・GitHub の構築と運用の手順は [インフラ構築手順書](docs/infra-manual.md) が正本で、認証情報は [credentials](docs/credentials.md) にある。文書どうしやコードと食い違う場合は、コードと設定で事実を確かめ、直す前に依頼者に確認する。
 
 ## 作品
 
 **Topos — 誰の考えも埋もれない議論を、すべての教室に。** グループディスカッションで埋もれた考えを AI が見つけ、全員の考えが活かされる議論にするための学習支援アプリ（DevFest Hackathon 2026・教育カテゴリ）。価値の中枢は、発言率の可視化、音声認識による未検討の論点の可視化、事前の意見から結論への主張の変化の確認の3機能。プロダクト名は画面・文書とも「Topos」に統一する（由来は README「Topos という名前」）。
+
+利用者と権限：全員が Google でログインする。議論を作れるのは、管理者が招待した教員（teacher claim）だけ（Docs「サーバーフィードバック」）。作成後の Host/Participant は議論ごとの members.role で判定する。ログイン後、教員は教員のホーム（`/teacher`）、学生は参加コードの入力（`/join`）へ進む。ログインの上限は全員1台。詳細は [MVPロール設計](docs/mvp-roles.md)。
 
 | 優先順位 | 内容 |
 |---|---|
@@ -27,18 +26,16 @@
 
 ## チームドキュメントを毎回読む
 
-実装を始める前と PR を出す前に、毎回、チームドキュメント（Google Docs）の「インフラ構築手順書」以外のすべてのタブを読み、プロダクトの方向性を理解してから実装に進む。
+実装を始める前と PR を出す前に、毎回、チームドキュメント（Google Docs）のすべてのタブを読み、プロダクトの方向性を理解してから実装に進む。
 
 - 文書：https://docs.google.com/document/d/1zHg74msQ1xBgsautfcQNsv-dDlQcO4WqzbV0ZDNnv5A/edit
-- Claude も Codex も、Google Docs の接続で読む。子タブと表の中身も含めて全文を読む。対象は、要件定義・アプリの構想・MVPフロー・タブ 14（サービス形態）・UIフィードバックとその子タブ（サーバーフィードバックなど）・市場分析とその子タブ・ディスカッションテーマ例・開発計画・プロダクト・チーム案・【重要】PRの確認から本番反映までの手順と、新しく増えたタブのすべて。
+- Claude も Codex も、Google Docs の接続で読む。子タブと表の中身も含めて全文を読む。対象は、要件定義・アプリの構想・MVPフロー・タブ 14（サービス形態）・UIフィードバックとその子タブ（サーバーフィードバックなど）・アプリフィードバック・審査基準・市場分析とその子タブ・ディスカッションテーマ例・開発計画・プロダクト・チーム案・【重要】PRの確認から本番反映までの手順と、新しく増えたタブのすべて。
+- 「審査基準」タブは画像と、その文字起こしからなる。文字の部分を読む。
 - 実装案が文書の方向性、特に最新のフィードバックと合っているかを確かめ、PR の説明に「読んだタブと、方向性との対応」を書く。タブどうし、またはタブとコードが食い違うときは、新しいフィードバックを優先し、その判断を PR に書く。作品の目的が変わるような食い違いは、直す前に依頼者に確認する。
 - 文書を読めなかったときは、推測で進めず、そのことを依頼者に報告する。
 - 文書にある個人情報（連絡先・住所など）は、コード・PR・ログに写さない。
 
-「インフラ構築手順書」タブは、既定では読まない。GCP の構築・権限・デプロイ・CI を変えるときだけ読む。
-
-- 写しは [docs/infra-manual.md](docs/infra-manual.md)。正本と写しが違っていたら正本に従い、違いを依頼者に知らせる。
-- 正本を変えた人は、関係するコードや運用ルールの変更と同じ PR で、同じ日に写しも更新する。写しだけを追いつかせる場合は専用 PR にする。メンバーのメールアドレスは写しに入れない。
+「インフラ構築手順書」タブは、リポジトリの [docs/infra-manual.md](docs/infra-manual.md) への案内だけになっている。GCP・Firebase・GitHub の構築・権限・デプロイ・CI を変えるときは、リポジトリの手順書を読み、同じ PR で更新する。メンバーのメールアドレスは手順書に書かない（実行するときに引数で渡す）。
 
 ## 作業の手順
 
@@ -50,10 +47,11 @@
    - `firebase/firestore.rules` → `firebase/test/rules.test.mjs`
    - 指標の計算（`api/src/metrics.ts`）→ 単体テストと README の指標の表
    - 起動・検査の手順 → `scripts/dev.sh`、README、CONTRIBUTING
+   - 構築・権限・デプロイ・CI（`infra/`・`.github/`・`firebase.json`・`web/apphosting.yaml`）→ [インフラ構築手順書](docs/infra-manual.md)（GitHub の Variables を増減したら `docs/credentials.md` と `infra/setup-deployer.sh` も。`tests/config.test.sh` が一致を確かめる）
    - Gemini のモデル・思考レベル → [CONTRIBUTING](CONTRIBUTING.md#gemini-のモデルと費用) の手順で今の設定と比べた結果を PR に貼る。モデルの変更は依頼者の承認を得てから
 5. `bash scripts/dev.sh check` を通す。CI とまったく同じ検査で、通らなければ PR を出さない。PR は `bash scripts/dev.sh pr --no-merge` で出す（手元の検査、push、PR の作成まで行う）。
 6. PR は[テンプレート](.github/pull_request_template.md)のすべての項目を書く。実行したコマンドと結果を書き、未実施・失敗・残る制約を分けて書く。画面を変えたらスマホ幅のスクリーンショットを貼る。
-7. PR を出す前に、チームドキュメントを読み直して方向性と合っているかを確かめ、[CONTRIBUTING](CONTRIBUTING.md) の開発のルールを読み直す。PR を出したら、[PR の確認から本番反映までの手順](docs/contributor-preview-guide.md)に従い、プレビューの結果と本番反映の承諾の依頼を PR に書く。Yuto Matsui がその PR の本番反映を承諾した場合だけ、`bash scripts/dev.sh pr --approved` で auto-merge を付ける（PR がすでにあれば auto-merge だけを付ける）。auto-merge は CI が通った head だけをマージし、後から push すると CI をやり直すので、確かめていないコミットはマージされない。Rules・ワークフロー・構築スクリプトを変えた PR には `--approved` でも auto-merge が付かないので、レビューを待つよう依頼者に伝える。
+7. PR を出す前に、チームドキュメントを読み直して方向性と合っているかを確かめ、[CONTRIBUTING](CONTRIBUTING.md) の開発のルールを読み直す。PR を出したら、[PR の確認から本番反映までの手順](docs/contributor-preview-guide.md)に従い、プレビューの結果と本番反映の承諾の依頼を PR に書く。Yuto Matsui がその PR の本番反映を承諾した場合だけ、`bash scripts/dev.sh pr --approved` で auto-merge を付ける（PR がすでにあれば auto-merge だけを付ける）。auto-merge は CI が通った head だけをマージし、後から push すると CI をやり直すので、確かめていないコミットはマージされない。Rules・ワークフロー・構築スクリプト・AI 用の鍵を使うセッションの設定（`.claude/`・`.codex/`）を変えた PR には `--approved` でも auto-merge が付かないので、レビューを待つよう依頼者に伝える。
 8. 引き継ぎは PR の説明に書く。セッションごとの引き継ぎ文書は作らない。
 
 ## 報告

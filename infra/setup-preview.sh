@@ -25,7 +25,7 @@ fi
 DOMAIN="${B}--${P}.${APPHOSTING_REGION}.hosted.app"
 CFG="https://identitytoolkit.googleapis.com/admin/v2/projects/${P}/config"
 AUTH=(-H "Authorization: Bearer $(gcloud auth print-access-token)" -H "x-goog-user-project: ${P}")
-# 承認済みドメインに加えられなくても、画面の確認（匿名参加）はできるので止めない。Google ログインだけが失敗する
+# 承認済みドメインに加えられなくても、ビルドとデプロイは止めない。その場合はプレビューで Google ログインだけが失敗する
 if NEW=$(curl -fsS "${AUTH[@]}" "$CFG" | python3 -c "
 import json,sys
 d=json.load(sys.stdin).get('authorizedDomains',[])

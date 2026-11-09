@@ -1,13 +1,8 @@
 # バックエンドの契約と検証
 
-> 2026-11-06 MVP仕様変更：全員Googleログイン。ディスカッションを作れるのは、管理者が招待した教員（teacher claim）だけです（Docs「サーバーフィードバック」）。作成後のHost/Participantは議論のmembers.roleで判定します。ログイン後、教員は教員のホーム（/teacher）、学生は参加コードの入力（/join）へ進みます。ログイン上限は全員1台です。新仕様・API・移行条件は [MVPロール設計](mvp-roles.md) を参照。以下の旧仕様と相違する場合は新仕様を適用します。
-
-
 ## 認証と権限
 
-全員Google認証とHttpOnlyログインセッションが必須。作成者をバックエンドでHostとして登録し、対象セッションのmembers.roleで認可する。教師claimはHost権限の条件にしない。
-
-Google Docs のインフラ手順書とその写しには「参加者は匿名」の旧方針が残る。生徒もGoogle必須という依頼者の明示指示を、この実装では優先した。Google Docs の正本・本番設定は変更していない。公開前には正本・認証プロバイダー設定との同期が必要。
+全員Google認証とHttpOnlyログインセッションが必須。議論の作成（`POST /rooms`）はteacher claimを持つ教員だけ（ない場合は `403 teacher_required`）。作成者をバックエンドでHostとして登録し、作成後のHost操作は対象セッションのmembers.roleで認可する（teacher claimでは判定しない）。詳細は[MVPロール設計](mvp-roles.md)。
 
 ## 進行と保存
 
