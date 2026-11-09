@@ -10,7 +10,8 @@ import { Loading } from "./ui";
 export function LoginGate({ children }: { children: React.ReactNode }) {
   const session = useAppSession(), { user, status } = session;
   const pathname = usePathname(), router = useRouter();
-  const publicPage = pathname === "/" || pathname === "/about";
+  // ログインなしで開ける画面：ログイン、使い方とプライバシー、紹介ページ（LP）
+  const publicPage = pathname === "/" || pathname === "/about" || pathname === "/lp";
   const lastInput = useRef(Date.now()), sentAt = useRef(0), mountedPrivate = useRef(false);
   const [error, setError] = useState(""), [busy, setBusy] = useState(false);
   if (status === "active" && !publicPage) mountedPrivate.current = true;
@@ -53,7 +54,7 @@ export function LoginGate({ children }: { children: React.ReactNode }) {
       {(error || session.message) && <p role="alert">{error || session.message}</p>}
     </section></main>
   </>;
-  if (status === "offline" && pathname !== "/about") return <main className="session-overlay"><section className="session-card"><p>{session.message}</p><button className="btn" onClick={() => void restoreSession()}>接続を再確認</button></section></main>;
+  if (status === "offline" && pathname !== "/about" && pathname !== "/lp") return <main className="session-overlay"><section className="session-card"><p>{session.message}</p><button className="btn" onClick={() => void restoreSession()}>接続を再確認</button></section></main>;
   if (!publicPage && (!user || status !== "active")) return <Loading label="ログインとセッションを確認しています…" />;
   return children;
 }
