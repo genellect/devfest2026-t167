@@ -32,13 +32,13 @@ export function ParticipantRoom({ roomId, room, uid, group }: Props) {
   const writing = !showResult && (status === "consensus" || room.phase === "consensus");
   const discussing = recordingPhase(room, group, status, showResult);
   // 録音は議論の画面を閉じても残し、議論が終わったら送る
-  const groupConfig = useDoc<{ recorderUid?: string | null; name?: string }>(group ? `sessions/${roomId}/groups/${group}` : undefined).data;
+  const groupConfig = useDoc<{ recorderUid?: string | null; recorderName?: string | null; name?: string }>(group ? `sessions/${roomId}/groups/${group}` : undefined).data;
   const canRecord = groupConfig !== undefined && (!groupConfig?.recorderUid || groupConfig.recorderUid === uid);
   const recording = useGroupRecording(roomId, discussing && canRecord, gs?.recording?.status, millis(room.endedAt) ?? undefined);
   // 録音中・未送信の録音があるときにホームへ戻ると、録音が消える。確かめてから戻る
   const confirmLeave = () => !recording.unsaved || window.confirm("録音がまだ送られていません。ホームに戻ると、録音は消えます。戻りますか？");
   const phase: Phase = closed ? "closed" : STEP_OF[showResult ? "done" : writing ? "consensus" : status];
-  if (room.flowVersion === 1) return <GuidedGuest roomId={roomId} room={room} uid={uid} group={group} recording={recording} canRecord={canRecord} />;
+  if (room.flowVersion === 1) return <GuidedGuest roomId={roomId} room={room} uid={uid} group={group} recording={recording} canRecord={canRecord} recorder={groupConfig?.recorderUid ? { mine: groupConfig.recorderUid === uid, name: groupConfig.recorderName ?? undefined } : undefined} />;
   return (
     <AppShell eyebrow={group && (room.groups ?? 1) > 1 ? `あなたはグループ${group}` : undefined} title={room.title} back="/home" onLeave={confirmLeave}
       steps={<Stepper steps={["事前意見", "議論", "結論", "結果"]} current={STEP_INDEX[phase]} />} status={PHASE_LABEL[phase]}>
