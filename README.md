@@ -76,6 +76,7 @@ Topos の価値は、グループディスカッションの成果を、結論�
 | `…/results/points-g{グループ}` | 録音から判定した論点 | 教員 |
 | `…/results/group-{グループ}` | 理解のまとまりと一致度 | 教員とそのグループ |
 | `users/{利用者}/voiceProfiles` | 声の特徴ベクトル | API だけ |
+| `sessions/{議論}/materials` と各資料の `chunks` | HostがDriveから選んで共有したPDFの写し | 所属するメンバー。追加と共有解除はHostだけ |
 
 ブラウザからの Firestore と Storage への直接の読み書きは、Rules ですべて拒否する。エンドポイントごとの認可は [API と認可](docs/api.md) にある。
 
@@ -171,6 +172,8 @@ bash scripts/dev.sh serve
 ```
 
 http://localhost:3000 を開き、参加コード `100001` で参加する。PR の前に `bash scripts/dev.sh check` で CI と同じ検査を通し、`bash scripts/dev.sh pr --no-merge` で PR を出す。開発の流れは [CONTRIBUTING](CONTRIBUTING.md)、AI エージェントへの指示は [AGENTS.md](AGENTS.md)、本番への反映の手順は [PR の確認から本番反映まで](docs/contributor-preview-guide.md) にある。
+
+ローカル画面を同じWi-Fiのスマホ・タブレットで確認する方法と、LANのHTTPでの録音・カメラの制約は [開発への参加](CONTRIBUTING.md#起動する) を参照。
 
 | 環境 | 必要なもの | セットアップ |
 |---|---|---|

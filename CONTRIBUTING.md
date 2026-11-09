@@ -17,7 +17,7 @@ GCP・Firebase・GitHub の構築と運用の手順は、[インフラ構築手�
 
 ## 起動する
 
-必要なもの：Node.js 22.12以上の22系（`.nvmrc` の版）、Java 21（Firestore エミュレータ用）、`gh`（PR を出すため）。GCP には接続しない。Windows では WSL の中で動かす。手元に入れたくない場合は、`.devcontainer` を VS Code の Dev Containers か GitHub Codespaces で開けば、すべて入った環境ができる（Codespaces はブラウザ版ではなく VS Code から開く。画面がエミュレータに 127.0.0.1 でつなぐため）。
+必要なもの：Node.js 22.12以上の22系（`.nvmrc` の版）、Java 21（Firestore エミュレータ用）、`gh`（PR を出すため）。GCP には接続しない。Windows では WSL の中で動かす。手元に入れたくない場合は、`.devcontainer` を VS Code の Dev Containers か GitHub Codespaces で開けば、すべて入った環境ができる（Codespaces は VS Code から開き、画面のポートを転送する）。
 
 ```bash
 bash scripts/dev.sh setup    # 依存を lockfile どおりに入れ、web/.env.local を用意する
@@ -26,6 +26,8 @@ bash scripts/dev.sh serve    # エミュレータ・テストデータ・API・�
 ```
 
 http://localhost:3000 を開き、参加コード `100001` で参加する。Auth と Firestore はエミュレータ、Gemini はモックで動く。Gemini が失敗したときの動きは `GEMINI_MOCK_FAIL=1 bash scripts/dev.sh serve` で確かめる。
+
+同じWi-Fiのスマホ・タブレットでは `http://<MacのLAN IP>:3000` を開く（ポート変更時はその番号）。認証も画面と同じポート経由で接続する。Macの開発サーバーを起動したまま使う。LANのHTTPではマイク・カメラを利用できないため、録音とQR読み取りはHTTPSのプレビューで確認する。
 
 先生の導線は、トップの「テスト用の先生でログイン（エミュレータ）」で確かめる。このテストアカウントには teacher claim が付いている。学生の導線は「テスト用の生徒でログイン（エミュレータ）」で確かめる。「Googleでログイン」で開く認証のエミュレータの「Add new account」で作った架空のアカウントにも claim はないので、学生として参加コードの入力へ進み、議論は作れない。本物の Google アカウントやパスワードは使わない。部屋を作ったら、表示された参加コードを別のブラウザーのプロファイルかプライベートウィンドウで入力し、架空の意見を出す。先生のダッシュボードで「未検討の論点を探す」を押すと提案が出る（通常の起動は「デモデータ」、`GEMINI_MOCK=0` では「Gemini による推定」）。
 

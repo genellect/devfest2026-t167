@@ -35,6 +35,14 @@ Topos（チーム167）の Google Cloud・Firebase・GitHub を、作り直す�
 - **同じオリジン**：ブラウザは常に同じオリジンの `/api` を呼ぶので、CORS の設定は要らない。
 - **プレビュー**：App Hosting「web-preview」に、PR の `web/` だけを出す。API とデータは本番と共有する（[CONTRIBUTING の「画面のプレビュー」](../CONTRIBUTING.md#画面のプレビュー)）。
 
+### Driveからの資料選択を使う場合
+
+Google Picker APIとGoogle Drive APIを、FirebaseのWebアプリと同じGoogle Cloudプロジェクトで有効にする。Webアプリが使う公開APIキーでPicker APIを利用できること、HTTPリファラー制限にアプリのURLと`https://docs.google.com/*`が含まれることを確認する。PickerのアプリIDには同じプロジェクトの番号を使う。既定ではFirebaseの公開APIキーとappIdから読み取った番号を使い、分ける場合だけ`NEXT_PUBLIC_GOOGLE_PICKER_API_KEY`・`NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER`をビルド時に指定する。これらは公開設定で、長期のOAuth秘密鍵は追加しない。
+
+追加のOAuth同意は、利用者が「Driveから追加」を押したときに`drive.file`だけを要求する。学校側で制限されている場合は許可を確認する。元のDriveの共有設定は変更せず、Hostが確認して追加したPDFの写しをセッションのメンバーへ配信する。ローカルの模擬ログイン環境では実GoogleのPickerは利用できない。今回、実クラウドでのAPI有効化・APIキー制限の変更・OAuthの実接続は行っていない。
+
+参照：[Google PickerのWeb実装](https://developers.google.com/workspace/drive/picker/guides/web-picker)、[Driveのダウンロードとエクスポート](https://developers.google.com/workspace/drive/api/guides/manage-downloads)。
+
 ### 資源の一覧
 
 | 資源 | 名前・場所 | 作るもの |

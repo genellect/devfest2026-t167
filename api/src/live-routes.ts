@@ -122,6 +122,8 @@ export function registerLiveRoutes(app: Express, deps: Dependencies, guards: Ret
     listenDoc(roomPath);
     listenDoc(`${roomPath}/members/${uid}`);
     listenCollection(`${roomPath}/members`, db.collection(`${roomPath}/members`));
+    // 資料の公開用メタデータだけを配信する。PDF本体は認証付きAPIで取得する。
+    listenCollection(`${roomPath}/materials`, db.collection(`${roomPath}/materials`));
     listenCollection(`${roomPath}/messages`, db.collection(`${roomPath}/messages`).orderBy('createdAt').limitToLast(500));
     listenCollection(`${roomPath}/insights`, moderator ? db.collection(`${roomPath}/insights`) : db.collection(`${roomPath}/insights`).where('status', '==', 'approved'));
     if (moderator) listenCollection(`${roomPath}/results`, db.collection(`${roomPath}/results`), (id) => mayReadResult(id, true, group));

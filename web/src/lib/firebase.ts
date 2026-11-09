@@ -31,7 +31,9 @@ export function firebase() {
       : getAuth(app);
     db = getFirestore(app);
     if (useEmulators) {
-      connectAuthEmulator(auth, `http://127.0.0.1:${process.env.NEXT_PUBLIC_AUTH_EMULATOR_PORT ?? 9099}`, { disableWarnings: true });
+      // 同じWi-Fiの別端末でも、Next.js経由でMac内の認証エミュレータへ接続する。
+      const authOrigin = typeof window === "undefined" ? `http://127.0.0.1:${process.env.NEXT_PUBLIC_AUTH_EMULATOR_PORT ?? 9099}` : window.location.origin;
+      connectAuthEmulator(auth, authOrigin, { disableWarnings: true });
       connectFirestoreEmulator(db, "127.0.0.1", Number(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT ?? 8080));
     }
   }

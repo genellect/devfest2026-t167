@@ -11,6 +11,13 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
+      ...(process.env.NEXT_PUBLIC_USE_EMULATORS === "1" ? [
+        // エミュレータはループバックで待受し、別端末の認証だけを同じオリジンから転送する。
+        ...["identitytoolkit.googleapis.com", "securetoken.googleapis.com", "emulator/auth"].map(path => ({
+          source: `/${path}/:path*`,
+          destination: `http://127.0.0.1:${process.env.NEXT_PUBLIC_AUTH_EMULATOR_PORT ?? 9099}/${path}/:path*`,
+        })),
+      ] : []),
       // 公開パスを保ち、Cloud Run の予約パス /healthz を避けて実 API に転送する。
       { source: "/api/healthz", destination: `${apiOrigin}/health` },
       { source: "/api/:path*", destination: `${apiOrigin}/:path*` },

@@ -1,10 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { SessionStage } from "@/components/SessionStage";
+import { SessionGroups } from "./SessionGroups";
+import { SessionMaterials } from "@/components/SessionMaterials";
+import { SessionJoinCode } from "@/components/SessionJoinCode";
 import { HostSpeaking, type SpeakingState } from "@/components/Speaking";
 import { SourceTag } from "@/components/ui";
 import { ApiError, callApi } from "@/lib/api";
-import { millis, useDoc, useGroups, useMessages, type Coverage, type Insight, type Member, type Room } from "@/lib/room";
+import { millis, useDoc, useMessages, type Coverage, type Insight, type Member, type Room } from "@/lib/room";
 import { useRoomFeed } from "@/lib/room-stream";
 
 /** API は分析中の記録を60秒で期限切れにする。画面も同じ期限でボタンを戻す */
@@ -24,7 +27,6 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
   const coverage = useDoc<Coverage>(`sessions/${roomId}/results/coverage`).data;
   const messages = useMessages(roomId, true);
   const speaking = (useRoomFeed(roomId).collections[`sessions/${roomId}/speaking`] ?? []) as unknown as SpeakingState[];
-  const groupConfigs = useGroups(roomId);
   const pending = insights.filter((i) => i.status === "pending");
   const approved = insights.filter((i) => i.status === "approved");
 
@@ -144,19 +146,12 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
               </ul>
             </section>
           )}
-          {room.joinCode && <p className="live-side__code">途中から参加するときの参加コード<strong aria-label={room.joinCode.split("").join(" ")}>{room.joinCode.slice(0, 3)} {room.joinCode.slice(3)}</strong></p>}
-          <section aria-labelledby="groups-title">
-            <h2 id="groups-title" className="live-side__title">グループ</h2>
-            <ul className="group-list">
-              {Array.from({ length: room.groups ?? 1 }, (_, i) => i + 1).map((g) => {
-                const st = room.groupState?.[String(g)], recorder = groupConfigs.find((c) => c.number === g)?.recorderName;
-                return <li key={g}><span>{groupConfigs.find((c) => c.number === g)?.name || `グループ${g}`}</span><span className="t-note">{st?.total ?? 0}人{room.recording !== false ? `・録音担当：${recorder ? `${recorder}さん` : "未指定"}` : "・録音なし"}{st?.recording?.status ? `・録音の分析：${{ analyzing: "分析中", done: "完了", failed: "失敗" }[st.recording.status]}` : ""}</span></li>;
-              })}
-            </ul>
-          </section>
+          {room.joinCode && <SessionJoinCode code={room.joinCode} />}
           <HostSpeaking roomId={roomId} card />
         </aside>
       </div>
+      <SessionGroups roomId={roomId} room={room} members={members} />
+      <SessionMaterials roomId={roomId} editable />
     </div>
   );
 }

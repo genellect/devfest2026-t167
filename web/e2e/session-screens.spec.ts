@@ -2,9 +2,17 @@ import { expect, test, type Page } from "@playwright/test";
 import { loginStudent } from "./student";
 
 async function capture(page: Page, name: string) {
+  if (!name.startsWith("shared-")) {
+    await expect(page.getByRole("navigation")).toHaveCount(0);
+    await expect(page.getByRole("banner")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "ホーム", exact: true })).toBeVisible();
+  }
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: `../docs/screenshots/session-${name}-mobile.png`, fullPage: true, scale: "css" });
   const previous = page.viewportSize();
+  await page.setViewportSize({ width: 820, height: 1180 });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: `../docs/screenshots/session-${name}-tablet.png`, fullPage: true, scale: "css" });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: `../docs/screenshots/session-${name}-desktop.png`, fullPage: true, scale: "css" });
@@ -43,7 +51,7 @@ test("7画面を通り、待機中の編集とホストの結果公開・公開�
     await guest.getByLabel("あなたの意見（本人だけが見られます）").fill("本人だけの事前意見：利用箇所と理由を申告するべきだ");
     await guest.getByRole("button", { name: "書き直して提出する", exact: true }).click();
     await expect(guest.getByRole("button", { name: "書き直して提出する", exact: true })).toBeEnabled();
-    await expect(host.getByRole("region", { name: "集まり具合" })).toContainText("テスト参加者");
+    await expect(host.getByRole("region", { name: "グループの状況" })).toContainText("テスト参加者");
     await expect(host.locator("main")).not.toContainText("本人だけの事前意見");
     await capture(host, "host-waiting");
     await host.getByRole("button", { name: "設定", exact: true }).click();

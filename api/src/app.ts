@@ -16,6 +16,7 @@ import { registerDiscussionRoutes } from './discussion-routes.js';
 import { createGroupService } from './groups.js';
 import { registerRecordingRoutes } from './recording-routes.js';
 import { registerAnalysisRoutes } from './analysis-routes.js';
+import { registerMaterialRoutes } from './material-routes.js';
 import type { Dependencies } from './dependencies.js';
 export { PHASES, ANALYZE_COOLDOWN_MS, MAX_GROUPS, MAX_RECORDING_SEC, MAX_RECORDING_BYTES, MAX_RECORDING_ATTEMPTS } from './policy.js';
 export type { OperationEvent } from './dependencies.js';
@@ -67,6 +68,7 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
   registerOnboardingRoutes(app, runtime, { authenticate, member });
   registerSpeakerRoutes(app, runtime, { authenticate, member });
   registerDiscussionRoutes(app, runtime, { authenticate, member, host: moderator });
+  registerMaterialRoutes(app, runtime, { authenticate, member, host: moderator });
   const roomRef = (id: string) => db.doc(`sessions/${id}`);
   // 稼働確認。Cloud Run は z で終わるパス（/healthz など）を予約していてコンテナに届かないので、/health を使う。
   // /healthz は手元と古い手順のために残す

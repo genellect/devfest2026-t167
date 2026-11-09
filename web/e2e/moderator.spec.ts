@@ -35,7 +35,9 @@ test("議論が始まったあとも、参加コードで途中から参加し�
   const code = (await page.getByTestId("join-code").innerText()).replace(/\D/g, "");
   await page.getByRole("button", { name: "議論を開始", exact: true }).click();
   // 議論中も、教員の画面に参加コードを出す
-  await expect(page.getByLabel("グループと発言").getByText("途中から参加するときの参加コード")).toBeVisible();
+  const invite = page.getByRole("region", { name: "参加コード", exact: true });
+  await expect(invite.getByTestId("join-code")).toContainText(code.slice(0, 3));
+  await expect(invite.getByRole("img", { name: /参加用のQRコード/ })).toBeVisible();
 
   const student = await (await browser.newContext({ baseURL: new URL(page.url()).origin })).newPage();
   await loginStudent(student, "late");

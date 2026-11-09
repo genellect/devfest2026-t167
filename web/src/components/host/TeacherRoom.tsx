@@ -2,8 +2,9 @@
 import { SessionShell as AppShell } from "@/components/SessionShell";
 import { SessionStage } from "@/components/SessionStage";
 import Link from "next/link";
-import { Presentation, Settings } from "lucide-react";
-import QRCode from "qrcode";
+import { SessionGroups } from "./SessionGroups";
+import { SessionMaterials } from "@/components/SessionMaterials";
+import { SessionJoinCode } from "@/components/SessionJoinCode";
 import { useEffect, useRef, useState } from "react";
 import { useGeminiSource } from "@/components/ui";
 import { ApiError, callApi } from "@/lib/api";
@@ -16,7 +17,7 @@ import { SessionSettings } from "./SessionSettings";
 /**
  * 教員の画面（1本化した流れ）。段階ごとに主役を1つにする（Docs「UIフィードバック」）。
  * 準備中：参加コードとQR・参加人数・事前意見の提出数・開始／議論中：次に話すとよい論点と3つの数字（LiveBoard）／
- * 終了後：結論の一文の回収・結果。設定は歯車のボタンで開くダイアログに置く。
+ * 終了後：結論の一文の回収・結果。設定は「設定」ボタンで開くダイアログに置く。
  */
 export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
   const source = useGeminiSource();
@@ -41,12 +42,13 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
 
   return (
     <AppShell wide back="/teacher"
+      hero={!ended && room.phase === "collecting"}
       eyebrow={<>{room.className && <span>{room.className}</span>}<span className={`pill pill--${state === "議論中" ? "live" : state === "終了" ? "done" : "ready"}`}>{state}</span></>}
       title={room.theme || room.title}
       actions={<>
-        <a className="btn btn--small present-link" href={`/rooms/${roomId}/present`} target="_blank" rel="noopener"><Presentation aria-hidden="true" strokeWidth={1.75} />投影画面</a>
-        <button type="button" className="icon-btn" aria-label="設定" title="設定" onClick={() => settings.current?.showModal()}>
-          <Settings size={20} strokeWidth={1.75} aria-hidden="true" />
+        <a className="btn btn--small present-link" href={`/rooms/${roomId}/present`} target="_blank" rel="noopener">投影画面</a>
+        <button type="button" className="btn btn--small" aria-label="設定" onClick={() => settings.current?.showModal()}>
+          設定
         </button></>}>
 
       {!ended && room.phase === "collecting" && <Lobby roomId={roomId} room={room} seats={seats} opinions={opinions} members={members} />}
@@ -74,19 +76,8 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
 
 /** 準備中：教室に映す参加コードとQR、集まり具合、開始 */
 function Lobby({ roomId, room, seats, opinions, members }: { roomId: string; room: Room; seats: number; opinions: number; members: Member[] }) {
-  const [qr, setQr] = useState<string>();
   const code = room.joinCode ?? "";
-  useEffect(() => {
-    if (!code) return;
-    QRCode.toDataURL(`${window.location.origin}/join?code=${code}`, { margin: 1, width: 520 }).then(setQr).catch(() => setQr(undefined));
-  }, [code]);
   const [busy, setBusy] = useState(false), [message, setMessage] = useState(""), [notReady, setNotReady] = useState("");
-  const [copied, setCopied] = useState("");
-  async function copy(link = false) {
-    setCopied("");
-    try { await navigator.clipboard.writeText(link ? `${window.location.origin}/join?code=${code}` : code); setCopied(link ? "参加リンクをコピーしました" : "参加コードをコピーしました"); }
-    catch { setCopied("コピーできませんでした。参加コードを直接入力してください。"); }
-  }
   async function start(excludeNotReady = false) {
     setBusy(true); setMessage(""); setNotReady("");
     try { await callApi(`/rooms/${roomId}/phase`, { to: "discussing", ...(excludeNotReady ? { excludeNotReady } : {}) }); }
@@ -95,20 +86,16 @@ function Lobby({ roomId, room, seats, opinions, members }: { roomId: string; roo
   }
   return (
     <div className="teacher__body lobby">
-      <section className="lobby__code" aria-label="参加コード">
-        <p className="lobby__label">参加コード</p>
-        <p data-testid="join-code" className="lobby__digits" aria-label={code.split("").join(" ")}>{code.length === 6 ? <>{code.slice(0, 3)}<span aria-hidden="true"> </span>{code.slice(3)}</> : code}</p>
-        <p className="t-note">スマホで QR を読み取るか、6桁の数字を入力します。</p>
-        <div className="session-lobby-actions"><button className="btn btn--small" onClick={() => void copy()}>コードをコピー</button><button className="btn btn--small" onClick={() => void copy(true)}>参加リンクをコピー</button></div>
-        {copied && <p className="t-note" role="status">{copied}</p>}
-      </section>
-      <section className="lobby__side" aria-label="集まり具合">
-        <div className="session-qr">
-          {qr
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img className="lobby__qr" src={qr} alt={`参加用のQRコード（参加コード ${code}）`} />
-            : <div className="lobby__qr" aria-hidden="true" />}
-        </div>
+      <div className="session-lobby-main">
+        <section className="session-theme-hero" aria-label="議論のテーマ">
+          <p className="t-label">今回のテーマ</p>
+          <h1>{room.theme || room.title}</h1>
+          {room.className && <p className="t-note">{room.className}</p>}
+        </section>
+        <SessionMaterials roomId={roomId} editable />
+      </div>
+      <section className="session-invite" aria-label="集まり具合">
+        <SessionJoinCode code={code} />
         <dl className="stats">
           <div><dt>参加</dt><dd>{seats}人</dd></div>
           <div><dt>事前意見</dt><dd>{opinions}/{seats}人</dd></div>
@@ -117,15 +104,9 @@ function Lobby({ roomId, room, seats, opinions, members }: { roomId: string; roo
           <button className="btn btn--blue" disabled={busy} onClick={() => void start(true)}>未準備の参加者を外して開始</button></div>}
         {message && <p className="notice notice--error" role="alert">{message}</p>}
         <button className="btn btn--blue btn--block start-btn" disabled={busy} onClick={() => void start()}>{busy ? "開始しています…" : "議論を開始"}</button>
-        <p className="t-note">開始したあとも、同じ参加コードで途中から参加できます。</p>
-        <section className="session-roster" aria-labelledby="lobby-members-title">
-          <h2 id="lobby-members-title" className="t-sm">参加者</h2>
-          {!members.length ? <p className="t-note">まだ参加者がいません。</p> : <ul>{members.map((m, i) => <li key={m.id}>
-            <span>{m.attendees?.map((a) => a.displayName).join("、") || m.displayName || `参加者${i + 1}`}</span>
-            <span className="t-note">{m.group ? `グループ${m.group}` : "所属待ち"}<br />{m.ready ? "声：登録済み" : "声：未登録"}</span>
-          </li>)}</ul>}
-        </section>
+        <p className="t-note">開始後も、同じコードで途中から参加できます。</p>
       </section>
+      <SessionGroups roomId={roomId} room={room} members={members} />
     </div>
   );
 }

@@ -2,8 +2,8 @@
 import { Stepper } from "@/components/shell";
 import { SessionShell as AppShell } from "@/components/SessionShell";
 import { SessionStage } from "@/components/SessionStage";
+import { SessionMaterials } from "@/components/SessionMaterials";
 import { mmss } from "@/lib/recorder";
-import { Check, Mic } from "lucide-react";
 import { SpeakerCapture } from "@/lib/speaker-capture";
 import { GuestSpeaking } from "@/components/Speaking";
 import { useEffect, useRef, useState } from "react";
@@ -130,6 +130,7 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
     steps={<Stepper steps={STEPS} current={step} />} back="/home" onLeave={leave}>
     <div className="flow">
       {error && <p className="notice notice--error" role="alert">{error}</p>}
+      <SessionMaterials roomId={roomId} />
 
       {ended ? <>
         <SessionStage stage={room.resultsPublished && (result || status === "done") ? "result" : "ended"} title={room.resultsPublished && (result || status === "done") ? "議論を振り返りましょう" : "セッションが終了しました"}>
@@ -172,7 +173,7 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
         {own!.attendees!.map((a) => <div className="stack stack--tight" key={a.id}>
           {own!.attendees!.length > 1 && <p className="t-label">{a.displayName}</p>}
           <button className="mic session-mic" aria-label={a.voiceRegistered ? `${a.displayName} 登録済み` : "声を登録する"} data-active={registering === a.id || undefined} data-done={a.voiceRegistered || undefined} disabled={!consent || !!registering || a.voiceRegistered} onClick={() => void enroll(a.id)}>
-            {a.voiceRegistered ? <Check aria-hidden="true" size={32} /> : <Mic aria-hidden="true" size={32} strokeWidth={1.5} />}
+            {a.voiceRegistered ? "登録済み" : registering === a.id ? `${registrationSeconds}/9秒` : "声を登録"}
             {registering === a.id && registrationMode === "mic" && <span className="mic__meter" role="progressbar" aria-label={`${a.displayName}の音声登録の進捗`} aria-valuemin={0} aria-valuemax={9} aria-valuenow={registrationSeconds}><span style={{ width: `${(registrationSeconds / 9) * 100}%` }} /></span>}
           </button>
           <p className="session-mic__label">{a.voiceRegistered ? "登録済み" : registering === a.id ? (registrationMode === "mic" ? "読み上げてください" : "音声を登録しています…") : "マイクを押して登録"}</p>
@@ -191,7 +192,6 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
         <section className="talk-hero" aria-labelledby="talk-title">
           <p className="pill pill--live">セッション中</p>
           <h2 id="talk-title" className="talk-hero__title">グループで話し合いましょう</h2>
-          <div className="session-live-mic" data-recording={recorderState === "recording" || undefined} aria-hidden="true"><Mic size={36} strokeWidth={1.5} /></div>
           <p className="t-note">{recorderState === "recording" ? "この端末で録音中" : recorder?.name ? `${recorder.name}さんが録音担当` : room.recording === false ? "このセッションでは録音しません" : "録音はグループで1台"}</p>
           {room.participantView?.theme !== false && room.theme && <p className="talk-hero__theme">テーマ：{room.theme}</p>}
           {room.participantView?.timer !== false && room.endsAt && <p className="talk-hero__timer" role="timer">残り時間 {clock.text}</p>}
