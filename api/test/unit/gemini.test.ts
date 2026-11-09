@@ -114,6 +114,14 @@ describe('実SDK接続部分のモック検査', () => {
     expect(result).toMatchObject(responseBody);
     expect(calls.at(-1)!.req.config.abortSignal).toBeInstanceOf(AbortSignal);
   });
+  it('区間に分けた録音は、区間ごとの音声を順に添付し、1つの話し合いとして扱うよう指示する', async () => {
+    const { mockGemini } = await import('../../src/gemini.js');
+    responseBody = await mockGemini().analyzeDiscussion({ audio: Buffer.alloc(1), mimeType: 'audio/webm', durationSec: 60, theme: '架空のテーマ', opinions: [] });
+    await vertexGemini('p', 'global', 'gemini-3.5-flash').analyzeDiscussion({ audio: [Buffer.from('a'), Buffer.from('b')], mimeType: 'audio/webm', durationSec: 60, theme: '架空のテーマ', opinions: [] });
+    const parts = calls.at(-1)!.req.contents[0].parts;
+    expect(parts.slice(1).map((p: { inlineData: { data: string } }) => Buffer.from(p.inlineData.data, 'base64').toString())).toEqual(['a', 'b']);
+    expect(parts[0].text).toContain('2個の音声に分かれています');
+  });
 });
 
 // Zodのメジャー更新でも、AI応答の型を暗黙に変換して受理しないことを固定する。

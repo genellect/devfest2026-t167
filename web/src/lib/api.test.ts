@@ -33,6 +33,17 @@ describe("画面とAPIの接続", () => {
     expect(fetcher.mock.calls[0][0]).toBe("/api/rooms/room/groups/recording?consent=1&durationSec=2");
     expect(fetcher.mock.calls[0][1]?.body).toBe(blob);
   });
+  it("途中で止まって続きを録った録音は、区間を順につなげ、各区間のバイト数を parts に付けて送る", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({ group: 1, status: "done" }));
+    vi.stubGlobal("fetch", fetcher);
+    const parts = [new Blob(["first"], { type: "audio/webm" }), new Blob(["second!"], { type: "audio/webm" })];
+    await uploadRecording("room", parts, 4000);
+    // 長さは端末の見積もりなので、API の上限（31分）を超えて送らない
+    expect(fetcher.mock.calls[0][0]).toBe("/api/rooms/room/groups/recording?consent=1&durationSec=1860&parts=5,7");
+    const body = fetcher.mock.calls[0][1]?.body as Blob;
+    expect(await body.text()).toBe("firstsecond!");
+    expect(body.type).toBe("audio/webm");
+  });
   it("429の待機秒数・追跡IDを保持する", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: { code: "audio_busy", message: "待機してください" } }, { status: 429, headers: { "retry-after": "3", "x-request-id": "test-id" } })));
     await expect(callApi("/rooms")).rejects.toMatchObject({ code: "audio_busy", retryAfterSec: 3, requestId: "test-id" });

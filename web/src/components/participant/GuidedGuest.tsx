@@ -16,11 +16,6 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
   const result = useDoc<GroupResult>(group ? `sessions/${roomId}/results/group-${group}` : undefined).data;
   const insights = useInsights(roomId, true, true);
   const status = group ? room.groupState?.[String(group)]?.status : undefined;
-  // 音声登録は任意。「あとで登録する」を選んだことはこの端末に覚えておく
-  const skipKey = `t167:voice-skip:${roomId}:${uid}`;
-  const [voiceSkipped, setVoiceSkipped] = useState(false);
-  useEffect(() => { try { setVoiceSkipped(localStorage.getItem(skipKey) === "1"); } catch { /* 保存できなくても進める */ } }, [skipKey]);
-  const skipVoice = () => { try { localStorage.setItem(skipKey, "1"); } catch { /* 保存できなくても進める */ } setVoiceSkipped(true); };
   const [names, setNames] = useState([""]), [mode, setMode] = useState<"personal" | "shared">("personal");
   const [error, setError] = useState(""), [busy, setBusy] = useState(false), [registering, setRegistering] = useState<string>(), [consent, setConsent] = useState(false);
   const [registrationSeconds, setRegistrationSeconds] = useState(0);
@@ -83,9 +78,11 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
   const ended = !!room.endedAt || room.phase === "closed";
   const waiting = room.phase === "collecting";
   const named = !!own?.attendees?.length;
-  // 途中から参加した人は、声を登録せずに議論へ進む（議論中の話者の推定には加えない）
+  // 録音する部屋では、声の登録は必須（登録していない人の声は、話者の推定でだれのものか分からないため。MVPフロー「初回だけ：音声登録」）。
+  // 録音しない部屋・話者モデルがない環境では登録しない。途中から参加した人は、声を登録せずに議論へ進む（議論中の話者の推定の名簿を変えないため）
   const late = room.phase !== "collecting";
-  const voiced = !!own?.ready || voiceSkipped || late;
+  const voiceRequired = room.recording !== false && !!own?.voiceSource;
+  const voiced = !!own?.ready || late || !voiceRequired;
   const gs = group ? room.groupState?.[String(group)] : undefined;
   // 進み具合（Figma「最新」）：事前意見（表示名・声・意見）→ 議論 → 結論 → 結果
   const STEPS = ["事前意見", "議論", "結論", "結果"];
@@ -137,6 +134,8 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { if (canRecord) return; const t = setInterval(() => setNow(Date.now()), 5_000); return () => clearInterval(t); }, [canRecord]);
   const othersRecording = !canRecord && isRecordingLive(recorder, now);
+  // 止まった録音・画面を開き直す前の録音が端末にあれば、続きを録る（区間を増やす）
+  const resumable = recorderState === "stopped" || recording.saved.count > 0;
   const leave = () => !recording.unsaved || window.confirm("録音がまだ送られていません。ホームに戻ると、録音は送られず分析されません。戻りますか？");
   const uploadState = recording.upload.state;
   const who = [own?.displayName, group && (room.groups ?? 1) > 1 ? `グループ${group}` : ""].filter(Boolean).join("・");
@@ -186,7 +185,6 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
           <details><summary className="t-small">録音済みの音声から登録する</summary><p className="t-small">本人だけが話す8〜12秒、1MB以内の音声を選んでください。</p><input type="file" accept="audio/*" aria-label={`${a.displayName}の登録用音声ファイル`} disabled={!consent || !!registering || a.voiceRegistered} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void enroll(a.id, file); }} /></details>
         </div>)}
         {own!.voiceSource === "mock" && <p className="t-small">ローカルでは音声登録のモックを使います。実際の声の識別精度を表すものではありません。</p>}
-        <button type="button" className="text-btn" disabled={!!registering} onClick={skipVoice}>あとで登録する</button>
       </section>
 
       : waiting ? (!group
@@ -211,10 +209,13 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
             <label className="check"><input type="checkbox" checked={recordingConsent} onChange={(e) => { setRecordingConsent(e.target.checked); if (!e.target.checked) void recording.discard(); }} /><span>グループ全員が録音・声の照合・発言時間の集計に同意しました</span></label>
             <p className="t-small">録音はグループで1台です。同意を取り消すと、ここまでの録音は送らずに削除します。</p>
             <div className="home-actions">
-              <button className="btn btn--blue" disabled={!recordingConsent || claiming || ["asking", "recording", "stopped"].includes(recording.rec.state)} onClick={() => void startRecording()}>{recording.rec.state === "recording" ? "録音中" : recording.rec.state === "stopped" ? "録音は停止済みです" : "録音を始める"}</button>
+              <button className="btn btn--blue" disabled={!recordingConsent || claiming || ["asking", "recording"].includes(recording.rec.state)} onClick={() => void startRecording()}>{recording.rec.state === "recording" ? "録音中" : resumable ? "録音を再開する" : "録音を始める"}</button>
               {recorderState === "recording" && <button className="btn" onClick={() => void recording.rec.stop()}>録音を停止して端末に保管</button>}
-              {recorder?.mine && ["idle", "denied", "unsupported"].includes(recorderState) && <button className="btn" onClick={() => void releaseRecorder()}>録音の担当をやめる</button>}
+              {recorder?.mine && !recording.saved.count && ["idle", "denied", "unsupported"].includes(recorderState) && <button className="btn" onClick={() => void releaseRecorder()}>録音の担当をやめる</button>}
             </div>
+            {/* 録音が止まっても、議論中は続きを録れる。止まるまでの録音は端末に残し、議論が終わったらまとめて送る */}
+            {recorderState !== "recording" && recording.rec.interrupted && <p className="notice notice--error" role="alert">録音が止まりました（画面が消えた、別のアプリに切り替えたなど）。ここまでの録音はこの端末に残っています。「録音を再開する」を押して続けてください。</p>}
+            {recorderState !== "recording" && !recording.rec.interrupted && recording.saved.count > 0 && <p className="t-small" role="status">この端末に、ここまでの録音が残っています。続けるときは「録音を再開する」を押してください。議論が終わると、まとめて送ります。</p>}
             {speakerStatus && <p className="t-small" role="status">{speakerStatus}</p>}
             {recording.rec.saveError && <p className="notice notice--error" role="alert">{recording.rec.saveError}</p>}
           </section>

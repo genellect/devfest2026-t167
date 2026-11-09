@@ -54,14 +54,35 @@ export async function recoveryAudio(uid: string, id: string): Promise<Blob> {
   }
   const recordings = await recoveryRecordings(uid), recording = recordings.find((r) => r.id === id);
   if (!recording?.complete) throw new Error("途中で停止した録音は、再生できることを確認できません");
+  return storedAudio(recording, false);
+}
+/** 端末に保存した区間を、MediaRecorder の開始からの順に復元する。partial なら、書きかけの区間も、続いて保存できたところまで返す */
+async function storedAudio(recording: RecoveryRecording, partial: boolean): Promise<Blob> {
   const db = await database();
   const chunks = await new Promise<{ sequence: number; blob: Blob }[]>((resolve, reject) => {
-    const r = db.transaction("chunks").objectStore("chunks").getAll(IDBKeyRange.bound([id, 0], [id, Number.MAX_SAFE_INTEGER]));
+    const r = db.transaction("chunks").objectStore("chunks").getAll(IDBKeyRange.bound([recording.id, 0], [recording.id, Number.MAX_SAFE_INTEGER]));
     r.onsuccess = () => resolve(r.result); r.onerror = () => reject(new Error("音声を読み込めません"));
   });
-  if (chunks.length !== recording.chunks || chunks.some((v, i) => v.sequence !== i)) throw new Error("録音の一部が見つかりません");
   // 同じMediaRecorderの開始からstopまでを順番通り復元する。各timesliceが単体で再生可能とは仮定しない。
-  return new Blob(chunks.map((v) => v.blob), { type: recording.mimeType });
+  if (!partial && (chunks.length !== recording.chunks || chunks.some((v, i) => v.sequence !== i))) throw new Error("録音の一部が見つかりません");
+  const contiguous = chunks.sort((a, b) => a.sequence - b.sequence).filter((v, i) => v.sequence === i);
+  return new Blob(contiguous.map((v) => v.blob), { type: recording.mimeType });
+}
+/** 区間の長さが分からない（書きかけの）ときの見積もり。MediaRecorder は15秒ごとに保存する */
+const CHUNK_MS = 15_000;
+export interface RoomSegment { id: string; blob: Blob; durationMs: number; createdAt: number }
+/**
+ * この部屋で、この端末に残っている録音の区間（古い順）。録音が途中で止まって続きを録った・画面を開き直したときに、
+ * 区間が複数になる。書きかけのまま画面が閉じた区間も、保存できたところまで含める（読めない区間は API が除く）。
+ */
+export async function roomSegments(uid: string, roomId: string): Promise<RoomSegment[]> {
+  const found = new Map<string, RoomSegment>();
+  for (const { recording, blob } of unsavedAudio(uid)) if (recording.roomId === roomId && blob.size) found.set(recording.id, { id: recording.id, blob, durationMs: recording.durationMs ?? 0, createdAt: recording.createdAt });
+  for (const r of (await recoveryRecordings(uid).catch(() => [] as RecoveryRecording[])).filter((r) => r.roomId === roomId && !found.has(r.id))) {
+    const blob = await storedAudio(r, !r.complete).catch(() => null);
+    if (blob?.size) found.set(r.id, { id: r.id, blob, durationMs: r.durationMs ?? r.chunks * CHUNK_MS, createdAt: r.createdAt });
+  }
+  return [...found.values()].sort((a, b) => a.createdAt - b.createdAt);
 }
 export function releaseUnsavedAudio(id: string) { memory.delete(id); }
 export async function deleteRecovery(uid: string, id: string) {

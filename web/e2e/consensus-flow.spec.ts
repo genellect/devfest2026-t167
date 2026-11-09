@@ -9,8 +9,10 @@ async function joinAndWriteOpinion(guest: Page, code: string, name: string, opin
   await expect(guest).toHaveURL(/\/rooms\//);
   await guest.getByLabel("参加者1の表示名").fill(name);
   await guest.getByRole("button", { name: "表示名を保存して進む" }).click();
-  // 音声登録は任意。あとで登録を選んでも、そのまま進める
-  await guest.getByRole("button", { name: "あとで登録する", exact: true }).click();
+  // 録音する部屋では、声の登録は必須（話者の推定に、登録していない人の声は使えないため）
+  await guest.getByLabel("声の特徴の登録と、上記の利用方法に同意します").check();
+  await guest.getByRole("button", { name: "声を登録する", exact: true }).click();
+  await expect(guest.getByRole("heading", { name: "声の登録" })).toHaveCount(0, { timeout: 20_000 });
   await guest.getByLabel("あなたの意見（本人だけが見られます）").fill(opinion);
   await guest.getByRole("button", { name: "提出する", exact: true }).click();
   await expect(guest.getByText("提出しました")).toBeVisible();

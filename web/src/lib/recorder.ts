@@ -27,12 +27,22 @@ export function useRecorder(roomId?: string) {
   const audio = useRef<AudioContext | null>(null);
   const raf = useRef<number>(0);
   const clock = useRef({ startedAt: 0, carried: 0, running: false });
+  // 録音が利用者の操作以外で止まったか（画面が消えた・別のアプリに切り替えた・マイクが切れたなど）。続きを録るよう案内する
+  const [interrupted, setInterrupted] = useState(false);
+  const stopCalled = useRef(false);
+  // 録音中は画面を消さない（スマホは画面が消えるとマイクが止まり、録音も止まる）
+  const wake = useRef<{ release: () => Promise<void> } | null>(null);
+  const keepAwake = useCallback(async () => {
+    try { wake.current = (await (navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<{ release: () => Promise<void> }> } }).wakeLock?.request("screen")) ?? null; }
+    catch { /* 対応していない・省電力モードなどで取れなくても、録音は続ける */ }
+  }, []);
 
   const cleanup = useCallback(() => {
     cancelAnimationFrame(raf.current);
     stream.current?.getTracks().forEach((t) => { t.onended = null; t.stop(); });
     audio.current?.close().catch(() => {});
     stream.current = null; audio.current = null;
+    void wake.current?.release().catch(() => {}); wake.current = null;
   }, []);
   useEffect(() => cleanup, [cleanup]);
 
@@ -49,7 +59,7 @@ export function useRecorder(roomId?: string) {
     }
     setState("asking");
     try {
-      setSaveError(undefined); savedFailure.current = false; stopped.current = null;
+      setSaveError(undefined); savedFailure.current = false; stopped.current = null; stopCalled.current = false; setInterrupted(false);
       const uid = firebase().auth.currentUser?.uid;
       if (!uid) throw new Error("録音にはログインが必要です");
       const capacity = await navigator.storage?.estimate?.();
@@ -77,9 +87,9 @@ export function useRecorder(roomId?: string) {
       // ブラウザによる許可取り消しなど、外部要因の停止でも最終チャンクを保存する。
       let resolveCompletion: () => void;
       const completed = new Promise<void>((resolve) => { resolveCompletion = resolve; });
-      r.onstop = () => { resolveCompletion(); void stopRef.current(); };
+      r.onstop = () => { resolveCompletion(); if (!stopCalled.current) setInterrupted(true); void stopRef.current(); };
       finalizeRef.current = async () => { await completed; };
-      s.getTracks().forEach((track) => { track.onended = () => { void stopRef.current(); }; });
+      s.getTracks().forEach((track) => { track.onended = () => { setInterrupted(true); void stopRef.current(); }; });
       r.start(15_000);
       // 音量を測って、円の大きさに反映する
       const ctx = new AudioContext();
@@ -99,12 +109,20 @@ export function useRecorder(roomId?: string) {
       clock.current = { startedAt: Date.now(), carried: 0, running: true };
       setElapsedMs(0);
       setState("recording");
+      void keepAwake();
     } catch (e) {
       cleanup();
       setSaveError(e instanceof Error ? e.message : "録音を開始できません");
       setState((e as DOMException)?.name === "NotAllowedError" ? "denied" : "unsupported");
     }
-  }, [cleanup, roomId]);
+  }, [cleanup, roomId, keepAwake]);
+  // 画面を戻したら、画面を消さない設定を取り直す（ブラウザは画面が隠れると解除する）
+  useEffect(() => {
+    if (state !== "recording") return;
+    const again = () => { if (document.visibilityState === "visible") void keepAwake(); };
+    document.addEventListener("visibilitychange", again);
+    return () => document.removeEventListener("visibilitychange", again);
+  }, [state, keepAwake]);
 
   const pause = useCallback(() => {
     if (rec.current?.state !== "recording") return;
@@ -132,7 +150,7 @@ export function useRecorder(roomId?: string) {
     const task = (async () => {
       const durationMs = clock.current.carried + (clock.current.running ? Date.now() - clock.current.startedAt : 0);
       clock.current.running = false;
-      if (r.state !== "inactive") r.stop();
+      if (r.state !== "inactive") { stopCalled.current = true; r.stop(); }
       await finalizeRef.current();
       cleanup(); setLevel(0); setState("stopped");
       const result = { blob: new Blob(chunks.current, { type: r.mimeType || "audio/webm" }), durationMs };
@@ -168,12 +186,14 @@ export function useRecorder(roomId?: string) {
     await stop();
     stopped.current = null; manifest.current = null; chunks.current = [];
     if (m) { releaseUnsavedAudio(m.id); await deleteRecovery(m.uid, m.id).catch(() => {}); }
-    setElapsedMs(0); setState("idle");
+    setElapsedMs(0); setState("idle"); setInterrupted(false);
   }, [stop]);
   useEffect(() => registerRecordingGuard(async () => { await stop(); }), [stop]);
 
   const capture = useCallback(() => ({ stream: stream.current, context: audio.current }), []);
-  return { state, saveError, level, elapsedMs, start, pause, resume, stop, discard, clearCompleted, capture };
+  /** いま録っている区間の ID（端末に保存する録音の ID） */
+  const segmentId = useCallback(() => manifest.current?.id, []);
+  return { state, interrupted, segmentId, saveError, level, elapsedMs, start, pause, resume, stop, discard, clearCompleted, capture };
 }
 
 export const mmss = (ms: number) => {

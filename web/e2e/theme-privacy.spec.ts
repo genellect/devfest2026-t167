@@ -28,7 +28,10 @@ test("テーマを非公開にすると、参加者の画面・再読み込み�
     await expect(guest).toHaveURL(/\/rooms\//);
     await guest.getByLabel("参加者1の表示名", { exact: true }).fill("参加者");
     await guest.getByRole("button", { name: "表示名を保存して進む", exact: true }).click();
-    await guest.getByRole("button", { name: "あとで登録する", exact: true }).click();
+    // 録音する部屋では、声の登録は必須（話者の推定に、登録していない人の声は使えないため）
+    await guest.getByLabel("声の特徴の登録と、上記の利用方法に同意します").check();
+    await guest.getByRole("button", { name: "声を登録する", exact: true }).click();
+    await expect(guest.getByRole("heading", { name: "声の登録" })).toHaveCount(0, { timeout: 20_000 });
     await expect(guest.getByRole("heading", { name: "話し合い", exact: true })).toBeVisible();
     await expect(guest.locator("body")).not.toContainText(SECRET.slice(0, 12));
     await guest.reload();

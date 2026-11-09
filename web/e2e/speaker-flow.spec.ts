@@ -18,13 +18,16 @@ test('録音と同じマイクで登録済みの声を照合し、Hostが表示�
     await guest.getByLabel('声の特徴の登録と、上記の利用方法に同意します').check();
     await guest.getByRole('button', { name: '声を登録する', exact: true }).click();
     await expect(guest.getByRole('heading', { name: '議論の前に書く' })).toBeVisible({ timeout: 20_000 });
-    // 同じグループのもう1人（声は登録しない）。録音の担当がだれかを、この人の画面で確かめる
+    // 同じグループのもう1人。録音の担当がだれかを、この人の画面で確かめる
     const peerContext = await browser.newContext({ baseURL: new URL(page.url()).origin });
     const peer = await peerContext.newPage(); await loginStudent(peer, 'peer');
     await peer.goto(`/join?code=${code}`); await expect(peer).toHaveURL(/\/rooms\//);
     await peer.getByLabel('参加者1の表示名').fill('となりの参加者');
     await peer.getByRole('button', { name: '表示名を保存して進む' }).click();
-    await peer.getByRole('button', { name: 'あとで登録する', exact: true }).click();
+    // 録音する部屋では、声の登録は必須（話者の推定に、登録していない人の声は使えないため）
+    await peer.getByLabel('声の特徴の登録と、上記の利用方法に同意します').check();
+    await peer.getByRole('button', { name: '声を登録する', exact: true }).click();
+    await expect(peer.getByRole('heading', { name: '声の登録' })).toHaveCount(0, { timeout: 20_000 });
     await page.getByRole('button', { name: '議論を開始', exact: true }).click();
     await expect(guest.getByRole('heading', { name: 'グループで話し合いましょう' })).toBeVisible();
     // 教員が録音担当を決めただけでは、ほかの人の画面に「録音中」と出さない（担当の端末が録音を始めたときだけ）

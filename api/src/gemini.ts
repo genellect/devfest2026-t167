@@ -31,7 +31,7 @@ export interface Gemini {
   summarizeGroups(input: LiveOverviewInput): Promise<LiveOverview>;
   findPoints(opinions: string[], messages: string[]): Promise<Point[]>;
   compare(statements: string[], insights: { id: string; summary: string }[], messagesAfterApproval: string[]): Promise<Comparison>;
-  analyzeDiscussion(input: { audio: Buffer; mimeType: string; durationSec: number; theme: string; opinions: string[] }): Promise<Discussion>;
+  analyzeDiscussion(input: { audio: Buffer | Buffer[]; mimeType: string; durationSec: number; theme: string; opinions: string[] }): Promise<Discussion>;
   /** 教員の依頼から、議論のテーマ案を3つ出す。previous にある案は避ける（「別の案」） */
   suggestThemes(request: string, previous: string[]): Promise<string[]>;
 }
@@ -189,6 +189,7 @@ export function vertexGemini(project: string, location: string, model: string, c
         'あなたは、中学・高校・大学のグループ学習を見守る記録係です。添付の音声は、1つのグループの話し合いを1台の端末で録音したものです。',
         `テーマ：${theme}`,
         `録音の長さ：約${Math.round(durationSec)}秒（${(durationSec / 60).toFixed(3)}分）。短い録音を1分に切り上げない。`,
+        ...(Array.isArray(audio) && audio.length > 1 ? [`録音は端末の都合で途中が途切れ、${audio.length}個の音声に分かれています。添付の順に続けて、1つの話し合いとして扱ってください。at は、区間をつなげたときの経過時間で書きます。`] : []),
         '話し合いの流れと、対話の行動（質問・応答・根拠の提示・協働）を分析してください。',
         '# 守ること',
         '- 「観測された事実」と「解釈」を分ける。behaviors・good・review の text は、実際の発言を短く言い換えたもので、at はその発言の録音の経過時間（mm:ss）。',
@@ -212,7 +213,7 @@ export function vertexGemini(project: string, location: string, model: string, c
       ].join('\n');
       const res = await externalCall((abortSignal) => ai.models.generateContent({
         model,
-        contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType, data: audio.toString('base64') } }] }],
+        contents: [{ role: 'user', parts: [{ text: prompt }, ...(Array.isArray(audio) ? audio : [audio]).map((a) => ({ inlineData: { mimeType, data: a.toString('base64') } }))] }],
         config: { ...GENERATION_CONFIG, abortSignal, responseSchema: discussionSchema },
       }), AUDIO_TIMEOUT_MS);
       return boundDiscussion(DiscussionSchema.parse(JSON.parse(res.text ?? '{}')), durationSec);

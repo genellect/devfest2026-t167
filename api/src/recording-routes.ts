@@ -28,6 +28,7 @@ export function registerRecordingRoutes(app: Express, deps: Dependencies, guards
     const durationSec = Number(req.query.durationSec);
     if (!Number.isFinite(durationSec) || durationSec <= 0) throw new HttpError(400, 'bad_request', '録音の長さ（durationSec）が要ります');
     if (durationSec > MAX_RECORDING_SEC) throw new HttpError(413, 'recording_too_long', '録音は30分までです');
+    const segments = splitSegments(audio, req.query.parts);
     const fingerprint = createHash('sha256').update(req.ctx.uid).update(mimeType).update(String(durationSec)).update(audio).digest('hex');
     const cachedReceipt = await db.runTransaction(async (tx) => {
       const room = await tx.get(roomRef(roomId));
@@ -42,7 +43,19 @@ export function registerRecordingRoutes(app: Express, deps: Dependencies, guards
       if (!['discussing', 'consensus', 'done'].includes(statusOf(room, group))) throw new HttpError(409, 'wrong_phase', '議論開始後に送信してください');
     });
     if (cachedReceipt) { res.json(cachedReceipt); return; }
-    await validateAudio(audio, mimeType, durationSec);
+    // 区間に分けた録音（途中で止まって続きを録った・画面を開き直した）は、区間ごとに確かめ、測った長さの合計を使う
+    // 画面を開き直す前の、書きかけの区間が読めないときは、その区間だけを除く（全部読めなければ送り直しを求める）
+    let measuredSec = durationSec, usable = segments;
+    if (segments) {
+      measuredSec = 0; usable = [];
+      let invalid: unknown;
+      for (const segment of segments) {
+        try { measuredSec += await validateAudio(segment, mimeType); usable.push(segment); }
+        catch (e) { if (e instanceof HttpError && e.code === 'invalid_audio') invalid = e; else throw e; }
+      }
+      if (!usable.length) throw invalid;
+      if (measuredSec > MAX_RECORDING_SEC) throw new HttpError(413, 'recording_too_long', '録音は30分までです');
+    } else await validateAudio(audio, mimeType, durationSec);
     const jobId = randomUUID();
     // 完了済みの同一送信は解析も課金も繰り返さず、保存済みの受領結果を返す。
     const { room, group, receipt, opinions } = await db.runTransaction(async (tx) => {
@@ -79,7 +92,7 @@ export function registerRecordingRoutes(app: Express, deps: Dependencies, guards
     });
     let result;
     try {
-      result = await trackJob(deps, 'recording', jobId, () => gemini.analyzeDiscussion({ audio, mimeType, durationSec, theme: recordingAnalysisTheme(room), opinions: opinions ?? [] }));
+      result = await trackJob(deps, 'recording', jobId, () => gemini.analyzeDiscussion({ audio: usable ?? audio, mimeType, durationSec: measuredSec, theme: recordingAnalysisTheme(room), opinions: opinions ?? [] }));
     } catch {
       await finishIfMine((tx) => tx.set(roomRef(roomId), { groupState: { [group]: { recording: { status: 'failed', failedAt: Timestamp.fromMillis(now()) } } } }, { merge: true }));
       throw new HttpError(503, 'gemini_unavailable', 'AI の分析は一時停止中です。少し待ってから、もう一度送ってください');
@@ -89,7 +102,7 @@ export function registerRecordingRoutes(app: Express, deps: Dependencies, guards
     const { points, ...flow } = result;
     const saved = await finishIfMine((tx) => {
       tx.set(db.doc(`sessions/${roomId}/results/flow-g${group}`), {
-        group, ...flow, durationSec: Math.round(durationSec), source: gemini.source, jobId, consentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+        group, ...flow, durationSec: Math.round(measuredSec), ...(usable ? { recordingParts: usable.length } : {}), source: gemini.source, jobId, consentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
       });
       tx.set(db.doc(`sessions/${roomId}/results/points-g${group}`), {
         group, points, opinions: opinions?.length ?? 0, source: gemini.source, jobId, updatedAt: FieldValue.serverTimestamp(),
@@ -101,4 +114,19 @@ export function registerRecordingRoutes(app: Express, deps: Dependencies, guards
     res.json(response);
   })));
 
+}
+
+/** 区間の数の上限（端末の録音が途中で止まるたびに区間が増える） */
+export const MAX_RECORDING_SEGMENTS = 8;
+/**
+ * parts（各区間のバイト数をカンマでつないだもの）があれば、本文を区間に分ける。なければ1つの録音として扱う（undefined）。
+ * 区間はそれぞれ別の MediaRecorder で録った完全なファイルで、つなげても1つのファイルにはならないため、分けたまま確かめて Gemini に渡す。
+ */
+export function splitSegments(audio: Buffer, parts: unknown): Buffer[] | undefined {
+  if (parts === undefined) return undefined;
+  const sizes = typeof parts === 'string' ? parts.split(',').map(Number) : [];
+  if (!sizes.length || sizes.length > MAX_RECORDING_SEGMENTS || sizes.some((n) => !Number.isInteger(n) || n < 1000)
+    || sizes.reduce((a, b) => a + b, 0) !== audio.length) throw new HttpError(400, 'invalid_segments', '録音の区間を確認できません。もう一度送ってください');
+  let at = 0;
+  return sizes.map((n) => audio.subarray(at, (at += n)));
 }

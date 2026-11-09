@@ -388,6 +388,28 @@ describe('録音の分析', () => {
     expect((await db.doc(`sessions/${roomId}`).get()).get('groupState')['1'].recording.status).toBe('done');
     await upload(p2, roomId).expect(409); // 同じグループの2台目の送信は分析しない
   });
+  it('途中で止まって続きを録った録音は、区間ごとに確かめ、読めない区間だけを除いて、測った長さの合計で分析する', async () => {
+    const { roomId, p1 } = await discussingRoom();
+    const parts = [wave(300), Buffer.alloc(2000, 7), wave(240)]; // 2つ目は、画面を開き直す前の読めない区間
+    const send = (q: string, body = Buffer.concat(parts)) => request(app).post(`/rooms/${roomId}/groups/recording?${q}`)
+      .set('authorization', `Bearer ${p1}`).set('cookie', cookies.get(p1) ?? '').set('content-type', 'audio/wav').send(body);
+    const sizes = parts.map((p) => p.length).join(',');
+    await send(`consent=1&durationSec=600&parts=${parts[0].length},${parts[1].length}`).expect(400); // 区間の合計が本文と合わない
+    await send(`consent=1&durationSec=600&parts=${sizes},1000`).expect(400);
+    await send(`consent=1&durationSec=10&parts=${Array(9).fill(1000).join(',')}`, Buffer.alloc(9000, 1)).expect(400); // 区間は8つまで
+    await send(`consent=1&durationSec=10&parts=1000,1000`, Buffer.alloc(2000, 1)).expect(400); // どの区間も読めない
+    expect((await db.doc(`sessions/${roomId}`).get()).get('groupState')?.['1']?.recording).toBeUndefined(); // 分析を始めていない
+    // 端末の見積もり（durationSec）と合わなくても、測った長さ（300秒＋240秒＝9分）を使う
+    const r = await send(`consent=1&durationSec=700&parts=${sizes}`).expect(200);
+    expect(r.body).toMatchObject({ group: 1, status: 'done', totalMinutes: 9 });
+    expect((await db.doc(`sessions/${roomId}/results/flow-g1`).get()).data()).toMatchObject({ durationSec: 540, recordingParts: 2 });
+  });
+  it('区間の長さの合計が30分を超える録音は分析しない', async () => {
+    const { roomId, p1 } = await discussingRoom();
+    const parts = [wave(1000), wave(900)];
+    await request(app).post(`/rooms/${roomId}/groups/recording?consent=1&durationSec=1800&parts=${parts.map((p) => p.length).join(',')}`)
+      .set('authorization', `Bearer ${p1}`).set('cookie', cookies.get(p1) ?? '').set('content-type', 'audio/wav').send(Buffer.concat(parts)).expect(413);
+  });
   it('事前の意見と照らし合わせた論点は、先生だけが読む results/points-g{番号} に保存し、意見の本文を写さない', async () => {
     const { roomId, mod, p1, p2 } = await setupRoom(true);
     await api(p1).post(`/rooms/${roomId}/opinion`, { text: '架空の非公開意見：申告すべき' }).expect(200);

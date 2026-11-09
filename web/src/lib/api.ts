@@ -34,9 +34,17 @@ async function send<T>(path: string, contentType: string, body: BodyInit, timeou
 /** 同じオリジンの /api を ID トークン付きで呼ぶ。通信失敗や5xxを自動再送しない。 */
 export const callApi = <T>(path: string, body: object = {}) => send<T>(path, "application/json", JSON.stringify(body));
 
-/** 音声は同じBlobを保持して再送する。受領済みかはAPIの指紋・受領結果で確認する。 */
-export const uploadRecording = (roomId: string, audio: Blob, durationSec: number) =>
-  send<{ group: number; status: "done"; speechDetected: boolean; totalMinutes: number }>(
-    `/rooms/${roomId}/groups/recording?consent=1&durationSec=${Math.max(1, Math.round(durationSec))}`,
-    audio.type || "audio/webm", audio, 210_000,
+/**
+ * 音声は同じBlobを保持して再送する。受領済みかはAPIの指紋・受領結果で確認する。
+ * 録音が途中で止まって続きを録ったときは、区間（それぞれ別の録音ファイル）を順につなげて送り、parts に各区間のバイト数を付ける。
+ */
+export const uploadRecording = (roomId: string, audio: Blob | Blob[], durationSec: number) => {
+  const parts = Array.isArray(audio) ? audio : [audio];
+  const body = parts.length === 1 ? parts[0] : new Blob(parts, { type: parts[0].type });
+  const query = `consent=1&durationSec=${Math.min(MAX_UPLOAD_SEC, Math.max(1, Math.round(durationSec)))}${parts.length > 1 ? `&parts=${parts.map((p) => p.size).join(",")}` : ""}`;
+  return send<{ group: number; status: "done"; speechDetected: boolean; totalMinutes: number }>(
+    `/rooms/${roomId}/groups/recording?${query}`, parts[0].type || "audio/webm", body, 210_000,
   );
+};
+/** API が受け付ける録音の長さの上限（31分）。区間の長さは端末の見積もりなので、上限を超えて送らない */
+const MAX_UPLOAD_SEC = 31 * 60;

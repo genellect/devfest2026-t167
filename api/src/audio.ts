@@ -10,7 +10,8 @@ function matchesContainer(audio: Buffer, mime: string): boolean {
   return audio.toString('ascii', 0, 3) === 'ID3' || (audio[0] === 255 && (audio[1] & 0xe0) === 0xe0);
 }
 /** 認証・所属確認後だけ呼ぶ。壊れたファイルのCPU・メモリ消費をAPIから隔離する。 */
-export async function validateAudio(audio: Buffer, mimeType: string, claimedDuration: number): Promise<number> {
+/** claimedDuration を省くと、長さの一致を確かめない（区間に分けて送る録音は、端末の時計と録音の長さがずれるため、測った長さを使う） */
+export async function validateAudio(audio: Buffer, mimeType: string, claimedDuration?: number): Promise<number> {
   if (!matchesContainer(audio, mimeType)) throw new HttpError(400, 'invalid_audio', '音声の形式を確認できません。録音し直してください');
   if (active >= 2) throw new HttpError(429, 'audio_busy', '音声を確認中です。少し待ってから送ってください', { retryAfterSec: 3 });
   const extension = import.meta.url.endsWith('.ts') ? 'ts' : 'js';
@@ -25,7 +26,7 @@ export async function validateAudio(audio: Buffer, mimeType: string, claimedDura
       worker.once('exit', () => { clearTimeout(timer); fail(); });
     });
     if (duration > MAX_RECORDING_SEC) throw new HttpError(413, 'recording_too_long', '録音は30分までです');
-    if (Math.abs(duration - claimedDuration) > Math.max(3, duration * 0.05)) throw new HttpError(400, 'duration_mismatch', '録音の長さが一致しません。録音し直してください');
+    if (claimedDuration !== undefined && Math.abs(duration - claimedDuration) > Math.max(3, duration * 0.05)) throw new HttpError(400, 'duration_mismatch', '録音の長さが一致しません。録音し直してください');
     return duration;
   } finally { await worker.terminate(); active--; }
 }
