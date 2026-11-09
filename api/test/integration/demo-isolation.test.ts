@@ -35,7 +35,8 @@ it('デモのライブ結果を論理パスで配信し、Firestoreの保存ル�
   const h = await login(first, host.idToken), g = await login(first, guest.idToken);
   const room = (await request(first).post('/rooms').set(h).send({ title: '配信確認', groups: 1 }).expect(201)).body;
   await request(first).post('/rooms/join').set(g).send({ code: room.joinCode }).expect(200);
-  await a.doc(`sessions/${room.roomId}`).update({ resultsPublished: true, participantView: { speaking: true } });
+  // 話者の集計は、議論の終了後に結果を公開したときだけ学生へ届く（本人の分だけに絞った形）
+  await a.doc(`sessions/${room.roomId}`).update({ resultsPublished: true, participantView: { speaking: true }, endedAt: new Date(), phase: 'closed' });
   await a.doc(`sessions/${room.roomId}/results/group-1`).set({ label: 'DEMO-RESULT' });
   await a.doc(`sessions/${room.roomId}/speaking/1`).set({ label: 'DEMO-SPEAKING' });
   const server = first.listen(0, '127.0.0.1'); await new Promise<void>((r) => server.once('listening', r));
@@ -43,7 +44,7 @@ it('デモのライブ結果を論理パスで配信し、Firestoreの保存ル�
   try {
     const response = await fetch(`http://127.0.0.1:${(server.address() as { port: number }).port}/rooms/${room.roomId}/live`, { headers: g, signal: controller.signal });
     const reader = response.body!.getReader(); let text = '';
-    while (!text.includes('DEMO-RESULT') || !text.includes('DEMO-SPEAKING')) { const { value, done } = await reader.read(); if (done) break; text += new TextDecoder().decode(value); }
+    while (!text.includes('DEMO-RESULT') || !text.includes('"scope":"self"')) { const { value, done } = await reader.read(); if (done) break; text += new TextDecoder().decode(value); }
     expect(text).toContain(`sessions/${room.roomId}/speaking/1`); expect(text).not.toContain('demoEnvironments/');
   } finally { clearTimeout(timer); controller.abort(); server.closeAllConnections(); await new Promise<void>((r) => server.close(() => r())); }
 });
