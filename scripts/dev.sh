@@ -144,6 +144,7 @@ check() {
   bash tests/session-security.test.sh
   node --test tests/deploy-rules.test.mjs
   node --test tests/speaker-container.test.mjs
+  python3 tests/setup-models.test.py
   bash tests/demo-deploy.test.sh
   node --test tests/demo-start.test.mjs
   step "ビルド"

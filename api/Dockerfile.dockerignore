@@ -10,3 +10,6 @@
 !speech/requirements.txt
 !speech/setup_models.py
 !speech/worker.py
+# deploy がいまの API のイメージから取り出したモデルの控え（SHA-256 で照合してから使う）
+!speech/models-cache/
+!speech/models-cache/*.onnx
