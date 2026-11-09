@@ -126,8 +126,8 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     await expect(a.getByRole("heading", { name: "あなたの考えの変化" })).toBeVisible();
     // 納得度：回答が4人未満なので、グループの分布と平均は出さず、本人の値だけを出す
     const agreement = a.getByRole("region", { name: "納得度" });
-    await expect(agreement).toContainText("あなた 4");
-    await expect(agreement).not.toContainText("平均");
+    await expect(agreement.getByText("あなた 4", { exact: true })).toBeVisible();
+    await expect(agreement).not.toContainText(/平均 \d/);
     await expect(agreement).toContainText("回答が4人未満のため、グループの分布と平均は表示しません。");
     // 振り返りは、自分の言葉で2つとも書くまで保存できない
     const save = a.getByRole("button", { name: "振り返りを保存", exact: true });
