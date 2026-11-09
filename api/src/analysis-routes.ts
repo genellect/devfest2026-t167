@@ -5,7 +5,7 @@ import { HttpError, wrap, requireOpenRoom, type Handler } from './http.js';
 import { createAnalysisJobs } from './analysis-jobs.js';
 import { validateComparison } from './gemini.js';
 import { groupNumber, messageCounts } from './policy.js';
-import { alignmentRate, interventionEffectiveness, participationFairness, reflectionRate } from './metrics.js';
+import { agreementSummary, alignmentRate, interventionEffectiveness, participationFairness, reflectionRate } from './metrics.js';
 import type { Dependencies } from './dependencies.js';
 export function registerAnalysisRoutes(app: Express, deps: Dependencies, guards: { authenticate: Handler; member: Handler; moderator: Handler }) {
   const { db, gemini } = deps;
@@ -134,7 +134,7 @@ export function registerAnalysisRoutes(app: Express, deps: Dependencies, guards:
       const clusters = cmp.groups
         .map((c, ci) => ({ label: c.label, count: idx.filter((i) => clusterOf.get(i) === ci).length }))
         .filter((c) => c.count > 0);
-      return { group: gi + 1, respondents: idx.length, clusters, alignmentRate: alignmentRate(clusters.map((c) => ({ members: Array.from({ length: c.count }, (_, k) => k) })), idx.length) };
+      return { group: gi + 1, respondents: idx.length, clusters, alignmentRate: alignmentRate(clusters.map((c) => ({ members: Array.from({ length: c.count }, (_, k) => k) })), idx.length), agreement: agreementSummary(idx.map((i) => stmts.docs[i].get('agreement'))) };
     });
     const summary = {
       respondents: stmts.size,
@@ -143,6 +143,7 @@ export function registerAnalysisRoutes(app: Express, deps: Dependencies, guards:
       metrics: {
         reflectionRate: coverage.exists ? coverage.get('reflectionRate') : null,
         alignmentRate: alignmentRate(cmp.groups, stmts.size),
+        agreement: agreementSummary(stmts.docs.map((d) => d.get('agreement'))),
         participationFairness: participationFairness(counts),
         interventionEffectiveness: interventionEffectiveness(approved.size, new Set(cmp.addressedInsightIds).size),
       },

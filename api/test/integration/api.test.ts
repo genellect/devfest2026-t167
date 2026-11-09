@@ -294,6 +294,8 @@ describe('グループごとの進行', () => {
     expect(r2.body).toMatchObject({ ready: true, analyzed: true, submitted: 2, total: 2 });
     const result = (await db.doc(`sessions/${roomId}/results/group-1`).get()).data();
     expect(result).toMatchObject({ group: 1, respondents: 2, alignmentRate: 0.5, source: 'mock' });
+    // 2人では納得度の分布・平均を出さない（自分の値から相手の値が分かるため）
+    expect(result?.agreement).toEqual({ respondents: 2, counts: null, average: null });
     expect(result?.clusters).toHaveLength(2);
     expect((await db.doc(`sessions/${roomId}`).get()).get('groupState')['1'].status).toBe('done');
   });
@@ -519,9 +521,10 @@ describe('承認と合意の検証', () => {
     expect(r.body.metrics).toMatchObject({ reflectionRate: 0.5, alignmentRate: 0.5, interventionEffectiveness: 1 });
     expect(r.body.metrics.participationFairness).toBeGreaterThan(0);
     expect(r.body.source).toBe('mock');
-    expect(r.body.byGroup).toEqual([{ group: 1, respondents: 2, alignmentRate: 0.5, clusters: [
+    expect(r.body.byGroup).toEqual([{ group: 1, respondents: 2, alignmentRate: 0.5, agreement: { respondents: 2, counts: null, average: null }, clusters: [
       { label: expect.any(String), count: 1 }, { label: expect.any(String), count: 1 },
     ] }]);
+    expect(r.body.metrics.agreement).toEqual({ respondents: 2, counts: null, average: null });
   });
 });
 

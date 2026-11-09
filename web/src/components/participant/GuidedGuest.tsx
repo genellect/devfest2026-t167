@@ -199,7 +199,14 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
             {recording.rec.saveError && <p className="notice notice--error" role="alert">{recording.rec.saveError}</p>}
           </section>
         )}
-        {!canRecord && room.recording !== false && <p className="notice" role="status">{recorder?.name ? `${recorder.name}さんの端末が録音を担当しています。` : "録音は、グループの別の端末が担当しています。"}</p>}
+        {/* Figma「最新」P3（他の人が録音中）345:44：誰の端末が録音しているかを、赤い点と名前で目立たせる（アプリフィードバック「誰が録音しているか分からない」） */}
+        {!canRecord && room.recording !== false && (
+          <section className="other-recording" aria-labelledby="other-recording-title" role="status">
+            <p id="other-recording-title" className="other-recording__title"><span className="other-recording__dot" aria-hidden="true" />{recorder?.name ? `${recorder.name}さんが録音中です` : "グループの別の端末が録音を担当しています"}</p>
+            <p className="t-small">録音はグループで1台です。この端末では録音しません。同意を取り消すと、録音は削除されます。</p>
+            <button type="button" className="btn" disabled>録音を始める</button>
+          </section>
+        )}
         {insights.length === 0 && question}
       </>}
 

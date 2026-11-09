@@ -33,12 +33,14 @@ test('録音と同じマイクで登録済みの声を照合し、Hostが表示�
     await guest.getByRole('button', { name: '録音を始める', exact: true }).click();
     // 録音を始めた端末が担当になり、ほかの人と教員の画面に担当の名前が出る
     await expect(guest.getByRole('heading', { name: '録音（この端末が担当）', exact: true })).toBeVisible();
-    await expect(peer.getByText('架空の参加者さんの端末が録音を担当しています。', { exact: true })).toBeVisible();
-    await expect(peer.getByRole('button', { name: '録音を始める', exact: true })).toHaveCount(0);
-    await expect(page.getByLabel('グループと発言').getByText(/録音：架空の参加者さん/)).toBeVisible();
+    await expect(peer.getByText('架空の参加者さんが録音中です', { exact: true })).toBeVisible();
+    // ほかの人の画面では、録音を始めるボタンは押せない
+    await expect(peer.getByRole('button', { name: '録音を始める', exact: true })).toBeDisabled();
+    await expect(page.getByRole('region', { name: 'グループ', exact: true }).getByText(/録音：架空の参加者さん/)).toBeVisible();
     await peerContext.close();
-    const hostState = page.getByRole('region', { name: 'グループ1の発言時間', exact: true });
-    await expect(hostState.getByText('直近の発言者：架空の参加者')).toBeVisible({ timeout: 15_000 });
+    // 教員のダッシュボードでは、グループのカードにメンバーの発言率の棒が出る
+    const hostState = page.getByLabel('グループ1の発言率（リアルタイム・推定）', { exact: true });
+    await expect(hostState.getByText('架空の参加者')).toBeVisible({ timeout: 15_000 });
     await expect(guest.getByRole('region', { name: 'グループ1の発言時間' })).toHaveCount(0);
     // 設定は歯車のボタンから開くダイアログにある
     await page.getByRole('button', { name: '設定', exact: true }).click();

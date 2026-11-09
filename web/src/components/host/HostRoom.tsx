@@ -2,10 +2,11 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { HostSpeaking } from "@/components/Speaking";
+import { MemberFlow, MemberList } from "./MemberFlow";
 import { GuidedHostResults } from "./GuidedHostResults";
 import { SessionSettings } from "./SessionSettings";
 import { SplitBar, UnderstandingNotes, describeUnderstanding } from "@/components/understandings";
-import { FlowTimeline, GoodReview, useFlow } from "@/components/flow";
+import { GoodReview, useFlow } from "@/components/flow";
 import { SourceTag, Tag, useGeminiSource } from "@/components/ui";
 import { AppShell } from "@/components/shell";
 import { ApiError, callApi } from "@/lib/api";
@@ -411,13 +412,16 @@ export function GroupResultView({ result, group, roomId, source }: { result: Gro
   const { flow } = useFlow(roomId, group, source);
   return (
     <div className="body">
-      <section className="box box--lg pad stack" aria-labelledby="understand-title">
-        <div className="heading-row"><p className="t-label">結論をどう理解したか</p>{result && <SourceTag source={result.source} />}</div>
-        <h2 id="understand-title" className="t-md">{!result ? "このグループの結果はまだありません" : describeUnderstanding(clusters)}</h2>
-        {result && <UnderstandingNotes clusters={clusters} />}
-        {result && clusters.length > 1 && <p className="t-note">付箋の言葉は、学生が書いた結論の一文を AI がまとめ直したものです。色はまとまりの区別だけで、よい・悪いを表しません。</p>}
+      {/* Figma「最新」T2：結論の理解（黄色）→ 議論の流れとメンバー別の発言率 → よかった点・見直す点 → 次の支援の案 → グループメンバー */}
+      <section className="group-understand" aria-labelledby="understand-title">
+        <div className="heading-row"><p className="group-understand__label">結論の理解</p>{result && <SourceTag source={result.source} />}</div>
+        <h2 id="understand-title" className="group-understand__title">{!result ? "このグループの結果はまだありません" : describeUnderstanding(clusters)}</h2>
+        {result && <div className="group-understand__cards">
+          {clusters.map((c, i) => <div key={i} className="group-understand__card"><p>{c.label}</p><span className="tag tag--blue">{c.count}人の入力</span></div>)}
+        </div>}
+        {result && clusters.length > 1 && <p className="t-note">学生が書いた結論の一文を AI がまとめ直したものです。よい・悪いを表しません。</p>}
       </section>
-      <FlowTimeline flow={flow} />
+      <MemberFlow roomId={roomId} group={group} flow={flow} />
       <GoodReview flow={flow} />
       {flow && (flow.teacherSuggestions?.length || flow.review[0]?.question) && (
         <section className="box box--lg box--blue pad stack">
@@ -428,6 +432,7 @@ export function GroupResultView({ result, group, roomId, source }: { result: Gro
             : <p className="t-label">問い：{flow.review[0].question}</p>}
         </section>
       )}
+      <MemberList roomId={roomId} group={group} />
     </div>
   );
 }

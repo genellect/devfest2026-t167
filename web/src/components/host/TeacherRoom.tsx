@@ -49,9 +49,10 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
         </button></>}>
 
       {room.phase === "collecting" && <Lobby roomId={roomId} room={room} seats={seats} opinions={opinions} />}
-      {!ended && room.phase !== "collecting" && <LiveBoard roomId={roomId} room={room} members={members} insights={insights} />}
+      {!ended && room.phase !== "collecting" && !openGroup && <LiveBoard roomId={roomId} room={room} members={members} insights={insights} results={results} onOpenGroup={setOpenGroup} />}
+      {!ended && openGroup && <div className="teacher__body"><button className="btn back-btn" onClick={() => setOpenGroup(undefined)}>ダッシュボードに戻る</button><GroupResultView result={results.find((r) => r.group === openGroup) ?? null} group={openGroup} roomId={roomId} source={source} /></div>}
       {ended && (openGroup
-        ? <div className="teacher__body"><button className="text-btn" onClick={() => setOpenGroup(undefined)}>セッション全体に戻る</button><GroupResultView result={results.find((r) => r.group === openGroup) ?? null} group={openGroup} roomId={roomId} source={source} /></div>
+        ? <div className="teacher__body"><button className="btn back-btn" onClick={() => setOpenGroup(undefined)}>クラス全体に戻る</button><GroupResultView result={results.find((r) => r.group === openGroup) ?? null} group={openGroup} roomId={roomId} source={source} /></div>
         : <div className="teacher__body">
           {/* いまやることを1つだけ大きく：結論の提出待ち → 結果をまとめる。データのない欄は出さない */}
           <EndedFocus roomId={roomId} room={room} results={results} summary={summary ?? null} />

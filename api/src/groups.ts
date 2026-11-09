@@ -6,7 +6,7 @@ import { HttpError, requireOpenRoom } from './http.js';
 import { ANALYZE_COOLDOWN_MS, RUNNING_TIMEOUT_MS, statusOf, nextGroupState } from './policy.js';
 import { groupMembers, groupDocuments } from './group-data.js';
 import { validateComparison } from './gemini.js';
-import { alignmentRate } from './metrics.js';
+import { agreementSummary, alignmentRate } from './metrics.js';
 import type { Dependencies } from './dependencies.js';
 export function createGroupService(deps: Dependencies) {
   const { db, gemini, now } = deps;
@@ -96,6 +96,7 @@ export function createGroupService(deps: Dependencies) {
     const saved = await finishIfMine((tx) => {
       tx.set(db.doc(`sessions/${roomId}/results/group-${group}`), {
         group, respondents: stmts.length, clusters, alignmentRate: alignmentRate(cmp.groups, stmts.length),
+        agreement: agreementSummary(stmts.map((d) => d.get('agreement'))),
         source: gemini.source, jobId, updatedAt: FieldValue.serverTimestamp(),
       });
       tx.set(roomRef(roomId), { groupState: { [group]: { status: 'done', analysis: { running: false } } } }, { merge: true });

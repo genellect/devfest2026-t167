@@ -39,7 +39,11 @@ export type GroupStatus = "opinions" | "discussing" | "consensus" | "done";
 export const groupStatus = (room: Room, g: number): GroupStatus => room.groupState?.[String(g)]?.status ?? "opinions";
 
 /** グループの結果（rooms/{部屋}/results/group-{番号}） */
-export interface GroupResult { group: number; respondents: number; clusters: { label: string; count: number }[]; alignmentRate: number | null; source?: string }
+export interface GroupResult {
+  group: number; respondents: number; clusters: { label: string; count: number }[]; alignmentRate: number | null; source?: string;
+  /** 納得度（1〜5）の人数と平均。回答が3人未満のときは counts・average が null（個人が分かるため） */
+  agreement?: { respondents: number; counts: number[] | null; average: number | null };
+}
 /** 部屋内の認可済み結果を同じ1接続から受け取る。 */
 export const useGroupResults = (roomId: string, on: boolean) =>
   useRoomFeed(on ? roomId : undefined).collections[`sessions/${roomId}/results`]?.filter((r) => r.id.startsWith("group-")).map((r) => r as unknown as GroupResult & { id: string }).sort((a, b) => a.group - b.group) ?? [];

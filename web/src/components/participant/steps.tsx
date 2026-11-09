@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { FlowTimeline, GoodReview, useFlow } from "@/components/flow";
 import { FlowSpeaking } from "@/components/FlowSpeaking";
 import { SourceTag, Tag } from "@/components/ui";
-import { UnderstandingNotes, describeUnderstanding } from "@/components/understandings";
+import { describeUnderstanding } from "@/components/understandings";
 import { callApi } from "@/lib/api";
 import { formatMetric } from "@/lib/format";
 import { getNextGoal, getReflection, saveReflection } from "@/lib/local";
@@ -181,92 +181,137 @@ const SPOKE = ["言えた", "一部言えた", "言えなかった", "特にな�
 
 /** P4-2 認識のちがい ＋ P5 振り返り。グループの結果は全員に、振り返りはこの端末にだけ残す */
 export function ResultStep({ roomId, uid, group, source, title, result, showSpeaking = false }: { roomId: string; uid: string; group: number; source?: string; title: string; result: GroupResult | null; showSpeaking?: boolean }) {
-  const mine = useDoc<{ text: string }>(`sessions/${roomId}/consensusStatements/${uid}`).data;
+  const mine = useDoc<{ text: string; agreement?: number }>(`sessions/${roomId}/consensusStatements/${uid}`).data;
   const opinion = useDoc<{ text: string }>(`sessions/${roomId}/privateOpinions/${uid}`).data;
-  const [r, setR] = useState(() => getReflection(roomId));
-  const [saved, setSaved] = useState(false);
-  const set = (patch: Partial<typeof r>) => { setR({ ...r, ...patch }); setSaved(false); };
   const groups = [...(result?.clusters ?? [])].sort((a, b) => b.count - a.count).map((c) => ({ label: c.label, count: c.count }));
   const alignment = result?.alignmentRate ?? null;
   const { flow } = useFlow(roomId, group, source);
+  // 見直す点の問い（録音の分析にあるとき）を、振り返りの最初の問いにする
+  const question = flow && flow.speechDetected !== false ? flow.review.find((r) => r.question)?.question : undefined;
 
   return (
-    <div className="body body--tablet">
-      <section className="box box--md box--blue pad">
-        <p className="t-label">議論のテーマ</p>
-        <p className="t-lg">{title}</p>
-      </section>
+    <div className="result-s" aria-label={`${title}の結果`}>
+      <h2 className="result-s__region">議論の分析</h2>
 
-      <h2 className="t-md">同じ結論を、どう理解した？</h2>
-      {!result ? (
-        <p className="box box--sm pad t-label">グループの結果はまだありません。グループ全員が結論の一文を書くと、ここに理解の分かれ方が出ます。</p>
-      ) : (
-        <section className="stack" aria-labelledby="split-title">
-          <div className="heading-row"><h3 id="split-title" className="t-sm">{describeUnderstanding(groups)}</h3><SourceTag source={result.source} /></div>
-          <div className="mine-note">
-            <p className="mine-note__label">あなたが書いた理解</p>
-            <p className="mine-note__text">{mine?.text ?? "（入力していません）"}</p>
-          </div>
-          <UnderstandingNotes clusters={groups} />
-          <p className="t-note">付箋の言葉は、グループ全員の一文を AI がまとめ直したものです。誰がどれを書いたかは表示しません。認識一致度：{formatMetric(alignment, result.source === "mock" ? "mock" : "gemini")}</p>
-        </section>
-      )}
+      <h3 className="result-s__h">結論の理解</h3>
+      <div className="result-s__understand">
+        <AgreementCard mine={mine?.agreement} summary={result?.agreement ?? null} />
+        <div className="result-s__col">
+          <section className="panel result-s__card" aria-labelledby="change-title">
+            <div className="heading-row"><h4 id="change-title" className="result-s__card-title">あなたの考えの変化</h4><span className="tag tag--blue">あなただけに表示</span></div>
+            <div className="result-s__change">
+              <div className="result-s__before"><p className="result-s__label">議論の前（事前の意見）</p><p>{opinion?.text ?? "（書いていません）"}</p></div>
+              <p className="result-s__arrow" aria-hidden="true">↓</p>
+              <div className="result-s__after"><p className="result-s__label">議論の後（あなたの結論）</p><p className="result-s__after-text">{mine?.text ?? "（書いていません）"}</p></div>
+            </div>
+          </section>
+          {!result ? (
+            <p className="notice">グループ全員が結論の一文を書くと、ここに理解の分かれ方が出ます。</p>
+          ) : (
+            <section className="result-s__split" aria-labelledby="split-title">
+              <div className="heading-row"><h4 id="split-title" className="result-s__card-title">グループの理解の分かれ方</h4><SourceTag source={result.source} /></div>
+              <p className="result-s__split-lead">{describeUnderstanding(groups)}</p>
+              <ul className="result-s__split-list">{groups.map((g, i) => <li key={i}>{g.label}（{g.count}人）</li>)}</ul>
+              <p className="result-s__split-note">同じ理解だった人：{formatMetric(alignment, result.source === "mock" ? "mock" : "gemini")}。誰がどれを書いたかは表示しません。</p>
+            </section>
+          )}
+        </div>
+      </div>
 
-      {(
-        <>
-          {/* 録音の分析も、教員が許可した発言の集計もないときは、空の欄を出さない */}
-          {(flow || showSpeaking) && <>
-            <h2 className="t-md">グループで何が起きたか</h2>
-            {showSpeaking ? <FlowSpeaking roomId={roomId} group={group} flow={flow} /> : <FlowTimeline flow={flow} compact />}
-          </>}
-          <h2 className="t-md">自分はどう関わっていたか</h2>
-          <div className="row">
-            <section className="box box--sm pad stack">
-              {r.goal && <>
-                <p className="t-small" style={{ fontWeight: 700 }}>今日の目標</p>
-                <p className="t-md">{r.goal}</p>
-              </>}
-              {opinion && (
-                <div className="box box--tint" style={{ padding: "8px 12px" }}>
-                  <p className="t-small" style={{ fontWeight: 700 }}>事前の意見</p>
-                  <p>{opinion.text}</p>
-                </div>
-              )}
-              {r.goal && <>
-                <p className="t-label">目標は達成できた？</p>
-                <div className="choices">
-                  {ACHIEVED.map((x) => <button key={x} type="button" className="choice" aria-pressed={r.achieved === x} onClick={() => set({ achieved: x })}>{x}</button>)}
-                </div>
-              </>}
-              <p className="t-label">言いたいことは言えた？</p>
-              <div className="choices">
-                {SPOKE.map((x) => <button key={x} type="button" className="choice" aria-pressed={r.spoke === x} onClick={() => set({ spoke: x })}>{x}</button>)}
-              </div>
-            </section>
-            <section className="box box--sm box--blue pad stack">
-              <h3 className="t-sm">自分の言葉で書く</h3>
-              <div className="field">
-                <label className="field__label" htmlFor="again">もう一度話すなら、どうする？</label>
-                <input id="again" className="input" style={{ color: "#000" }} value={r.ifAgain ?? ""} maxLength={120} placeholder="例：事前の意見を最初に話す" onChange={(e) => set({ ifAgain: e.target.value })} />
-              </div>
-              <div className="field">
-                <label className="field__label" htmlFor="next">次の議論で実践する目標</label>
-                <input id="next" className="input" style={{ color: "#000" }} value={r.nextGoal ?? ""} maxLength={60} placeholder="例：自分の意見の前に、1つ質問する" onChange={(e) => set({ nextGoal: e.target.value })} />
-              </div>
-              {/* 自分の言葉で2つとも書いてから保存する（空のままの振り返りを残さない） */}
-              <button type="button" className="btn btn--blue" style={{ alignSelf: "flex-end" }} disabled={!r.ifAgain?.trim() || !r.nextGoal?.trim()}
-                onClick={() => { saveReflection(roomId, { ...r, ifAgain: r.ifAgain?.trim(), nextGoal: r.nextGoal?.trim(), savedAt: Date.now() }); setSaved(true); }}>振り返りを保存</button>
-              {(!r.ifAgain?.trim() || !r.nextGoal?.trim()) && <p className="t-note">2つとも書くと保存できます。</p>}
-              {saved && <p role="status">保存しました。次の議論の前に表示します。</p>}
-            </section>
-          </div>
-          {flow ? <>
-            <h2 className="t-md">次はどうするか</h2>
-            <GoodReview flow={flow} />
-          </> : <p className="t-note">録音した議論では、分析が届くと、議論の流れと振り返りがここに出ます。</p>}
-          <Link className="btn" href="/student" style={{ alignSelf: "flex-start" }}>ホームに戻る</Link>
-        </>
-      )}
+      {/* 録音の分析も、教員が許可した発言の集計もないときは、空の欄を出さない */}
+      {(flow || showSpeaking) && <>
+        <h3 className="result-s__h">グループの議論</h3>
+        {showSpeaking ? <FlowSpeaking roomId={roomId} group={group} flow={flow} /> : <FlowTimeline flow={flow} compact />}
+      </>}
+
+      {flow && flow.speechDetected !== false && <>
+        <h3 className="result-s__h">よかった点と見直す点</h3>
+        <GoodReview flow={flow} />
+      </>}
+
+      <ReflectionCard roomId={roomId} question={question} />
+      <Link className="btn" href="/home" style={{ alignSelf: "flex-start" }}>ホームに戻る</Link>
     </div>
+  );
+}
+
+/**
+ * 納得度（Figma 335:44）。1〜5の棒で、グループの人数の分布を出し、本人の値を濃い青にする。
+ * 回答が3人未満のとき、サーバーは分布と平均を送らない（自分の値から相手の値が分かるため）。そのときは本人の値だけを出す。
+ */
+function AgreementCard({ mine, summary }: { mine?: number; summary: GroupResult["agreement"] | null }) {
+  const counts = summary?.counts ?? null;
+  const max = counts ? Math.max(1, ...counts) : 1;
+  const head = [mine ? `あなた ${mine}` : "", counts && summary?.average != null ? `平均 ${summary.average.toFixed(1)}` : ""].filter(Boolean).join("・");
+  return (
+    <section className="panel result-s__agree" aria-labelledby="agree-title">
+      <div>
+        <h4 id="agree-title" className="result-s__card-title">納得度</h4>
+        <p className="t-note">{head || "まだ回答がありません"}</p>
+      </div>
+      <div className="agree-bars" role="img" aria-label={counts ? `納得度の分布。${counts.map((c, i) => `${i + 1}は${c}人`).join("、")}。${mine ? `あなたは${mine}` : ""}` : mine ? `あなたの納得度は${mine}` : "納得度の回答なし"}>
+        {[1, 2, 3, 4, 5].map((n, i) => {
+          const c = counts ? counts[i] : n === mine ? 1 : 0;
+          const own = n === mine;
+          return (
+            <div key={n} className="agree-bars__col" data-own={own || undefined}>
+              <span className="agree-bars__bar" data-empty={!c || undefined} style={{ height: c ? `${(c / max) * 100}%` : undefined }} />
+              <span className="agree-bars__n">{n}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="agree-bars__ends" aria-hidden="true"><span>納得していない</span><span>とても納得</span></div>
+      {!counts && mine && <p className="t-note">回答が3人未満のため、グループの分布と平均は表示しません。</p>}
+    </section>
+  );
+}
+
+/** あなたの振り返り（Figma 182:1638）。入力はこの端末だけに残し、次の議論の前に「前回の目標」として出す */
+function ReflectionCard({ roomId, question }: { roomId: string; question?: string }) {
+  const [r, setR] = useState(() => getReflection(roomId));
+  const [saved, setSaved] = useState(false);
+  const set = (patch: Partial<typeof r>) => { setR({ ...r, ...patch }); setSaved(false); };
+  const ready = !!r.ifAgain?.trim() && !!r.nextGoal?.trim();
+  return (
+    <section className="result-s__reflect" aria-labelledby="reflect-title">
+      <div>
+        <h3 id="reflect-title" className="result-s__reflect-title">あなたの振り返り</h3>
+        <p className="t-note">入力内容はあなただけが見られます。</p>
+      </div>
+      <div className="result-s__reflect-grid">
+        <div className="result-s__reflect-box">
+          {r.goal && <>
+            <p className="result-s__label">今日の目標</p>
+            <p className="result-s__goal">{r.goal}</p>
+            <p className="result-s__q">目標の達成度</p>
+            <div className="choices choices--three">
+              {ACHIEVED.map((x) => <button key={x} type="button" className="choice" aria-pressed={r.achieved === x} onClick={() => set({ achieved: x })}>{x}</button>)}
+            </div>
+          </>}
+          <p className="result-s__q">意見を伝えられたか</p>
+          <div className="choices choices--two">
+            {SPOKE.map((x) => <button key={x} type="button" className="choice" aria-pressed={r.spoke === x} onClick={() => set({ spoke: x })}>{x}</button>)}
+          </div>
+        </div>
+        <div className="result-s__reflect-box">
+          <h4 className="result-s__reflect-sub">振り返り</h4>
+          <div className="field">
+            {question
+              ? <label className="result-s__question" htmlFor="again">問い：{question}</label>
+              : <label className="field__label" htmlFor="again">もう一度話すなら、どうする？</label>}
+            <textarea id="again" className="input" rows={2} value={r.ifAgain ?? ""} maxLength={120} placeholder="例：アルバイトで学んだことを、事前の意見として話す" onChange={(e) => set({ ifAgain: e.target.value })} />
+          </div>
+          <div className="field">
+            <label className="field__label" htmlFor="next">次の議論で実践する目標</label>
+            <input id="next" className="input" value={r.nextGoal ?? ""} maxLength={60} placeholder="例：自分の意見の前に、1つ質問する" onChange={(e) => set({ nextGoal: e.target.value })} />
+          </div>
+        </div>
+      </div>
+      {/* 自分の言葉で2つとも書いてから保存する（空のままの振り返りを残さない） */}
+      <button type="button" className="btn btn--blue btn--block" disabled={!ready}
+        onClick={() => { saveReflection(roomId, { ...r, ifAgain: r.ifAgain?.trim(), nextGoal: r.nextGoal?.trim(), savedAt: Date.now() }); setSaved(true); }}>振り返りを保存</button>
+      {saved ? <p role="status">保存済み。次回の議論前に表示します。</p> : !ready && <p className="t-note">2つとも書くと保存できます。</p>}
+    </section>
   );
 }

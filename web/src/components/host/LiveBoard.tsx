@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
-import { HostSpeaking, type SpeakingState } from "@/components/Speaking";
+import { type SpeakingState } from "@/components/Speaking";
 import { SourceTag } from "@/components/ui";
 import { ApiError, callApi } from "@/lib/api";
-import { millis, useDoc, useGroups, useMessages, type Coverage, type Insight, type Member, type Room } from "@/lib/room";
+import { millis, useDoc, useGroups, useMessages, type Coverage, type GroupResult, type Insight, type Member, type Room } from "@/lib/room";
 import { useRoomFeed } from "@/lib/room-stream";
 
 /** API は分析中の記録を60秒で期限切れにする。画面も同じ期限でボタンを戻す */
@@ -17,7 +17,7 @@ const AUTO_GAP_MS = 60_000;
  * 主役に AI が見つけた「まだ話されていない論点」の付箋（全員に表示する／見送る）を置く（Docs「アプリの構想」§3）。
  * 事前意見の本文は出さない（提案は Gemini が言い換えた論点だけ）。
  */
-export function LiveBoard({ roomId, room, members, insights }: { roomId: string; room: Room; members: Member[]; insights: Insight[] }) {
+export function LiveBoard({ roomId, room, members, insights, results = [], onOpenGroup }: { roomId: string; room: Room; members: Member[]; insights: Insight[]; results?: GroupResult[]; onOpenGroup?: (group: number) => void }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   const coverage = useDoc<Coverage>(`sessions/${roomId}/results/coverage`).data;
@@ -25,15 +25,12 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
   const speaking = (useRoomFeed(roomId).collections[`sessions/${roomId}/speaking`] ?? []) as unknown as SpeakingState[];
   const groupConfigs = useGroups(roomId);
   const pending = insights.filter((i) => i.status === "pending");
+  const groupNumbers = Array.from({ length: room.groups ?? 1 }, (_, i) => i + 1);
   const approved = insights.filter((i) => i.status === "approved");
 
   const started = millis(room.startedAt);
   const elapsed = started ? Math.max(0, Math.floor((now - started) / 1000)) : 0;
   const scan = useScan(roomId, room, messages.map((m) => millis(m.createdAt) ?? 0), now);
-  const voice = speaking.flatMap((s) => s.members ?? []);
-  const spoke = voice.length
-    ? { label: "話した人", count: speaking.reduce((n, s) => n + (s.members ?? []).filter((m) => (s.talkMs?.[m.uid] ?? 0) > 0).length, 0), total: voice.length }
-    : { label: "メモを書いた人", count: new Set(messages.map((m) => m.uid).filter((uid) => members.some((p) => p.id === uid))).size, total: members.length };
 
   const [busyId, setBusyId] = useState<string>(), [error, setError] = useState("");
   async function decide(id: string, action: "approve" | "dismiss") {
@@ -65,25 +62,21 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
 
   return (
     <div className="teacher__body live">
-      <section className="tally" aria-label="議論の進み具合">
-        <p className="tally__time" role="timer" aria-label="経過時間">{String(Math.floor(elapsed / 60)).padStart(2, "0")}:{String(elapsed % 60).padStart(2, "0")}</p>
-        <dl className="tally__list">
-          <div>
-            <dt>意見の検討率</dt>
-            <dd className="tally__num">{coverage?.reflectionRate == null ? "—" : `${Math.round(coverage.reflectionRate * 100)}%`}</dd>
-            {coverage && <dd className="tally__sub">話された論点 {coverage.discussed}/{coverage.total}</dd>}
-          </div>
-          <div data-alert={pending.length > 0 || undefined}>
-            <dt>未検討の論点</dt>
-            <dd className="tally__num">{pending.length}</dd>
-          </div>
-          <div>
-            <dt>{spoke.label}</dt>
-            <dd className="tally__num">{spoke.count}<small>/{spoke.total}人</small></dd>
-          </div>
-        </dl>
+      {/* Figma「最新」ダッシュボード（進行）182:445：上の青い帯に、経過時間・授業の進み具合・未検討の論点・終える */}
+      <section className="tally tally--blue" aria-label="議論の進み具合">
+        <div className="tally__clock"><p className="tally__label">経過時間</p><p className="tally__time" role="timer" aria-label="経過時間">{String(Math.floor(elapsed / 60)).padStart(2, "0")}:{String(elapsed % 60).padStart(2, "0")}</p></div>
+        <div className="tally__progress">
+          <p className="tally__label">授業の進み具合・参加 {members.length}人</p>
+          <p className="tally__headline">結果が出たグループ {groupNumbers.filter((g) => room.groupState?.[String(g)]?.status === "done").length}/{groupNumbers.length}</p>
+        </div>
+        <div className="tally__alert" data-alert={pending.length > 0 || undefined}>
+          <p className="tally__label">未検討の論点</p>
+          <p className="tally__num">{pending.length}{coverage && <small>話された {coverage.discussed}/{coverage.total}</small>}</p>
+        </div>
         <FinishButton roomId={roomId} />
       </section>
+
+      <GroupCards roomId={roomId} room={room} groups={groupNumbers} speaking={speaking} results={results} recorders={groupConfigs} onOpen={onOpenGroup} />
 
       <div className="live-grid">
         <section className="next" aria-labelledby="next-title">
@@ -143,16 +136,6 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
             </section>
           )}
           {room.joinCode && <p className="live-side__code">途中から参加するときの参加コード<strong aria-label={room.joinCode.split("").join(" ")}>{room.joinCode.slice(0, 3)} {room.joinCode.slice(3)}</strong></p>}
-          <section aria-labelledby="groups-title">
-            <h2 id="groups-title" className="live-side__title">グループ</h2>
-            <ul className="group-list">
-              {Array.from({ length: room.groups ?? 1 }, (_, i) => i + 1).map((g) => {
-                const st = room.groupState?.[String(g)], recorder = groupConfigs.find((c) => c.number === g)?.recorderName;
-                return <li key={g}><span>グループ{g}</span><span className="t-note">{st?.total ?? 0}人{recorder && room.recording !== false ? `・録音：${recorder}さん` : ""}{st?.recording?.status ? `・録音の分析：${{ analyzing: "分析中", done: "完了", failed: "失敗" }[st.recording.status]}` : ""}</span></li>;
-              })}
-            </ul>
-          </section>
-          <HostSpeaking roomId={roomId} card />
         </aside>
       </div>
     </div>
@@ -210,5 +193,74 @@ function FinishButton({ roomId }: { roomId: string }) {
         : <><button className="btn btn--blue" disabled={busy} onClick={() => void finish()}>{busy ? "終えています…" : "終えて結果を見る"}</button><button className="btn" disabled={busy} onClick={() => setConfirm(false)}>まだ続ける</button></>}
       {error && <p className="notice notice--error" role="alert">{error}</p>}
     </div>
+  );
+}
+
+const BAR_COLORS = ["#0b57d0", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
+const STATUS: Record<string, { label: string; tone: string }> = {
+  opinions: { label: "事前の意見を書いています", tone: "wait" },
+  discussing: { label: "話し合い中", tone: "talk" },
+  consensus: { label: "結論を記入中", tone: "write" },
+  done: { label: "結果あり", tone: "done" },
+};
+
+/**
+ * グループのカード（Figma 182:445）。左の色の線と大きな文字で、いまの段階を一目で分かるようにする（アプリフィードバック「視線誘導」）。
+ * 話し合い中は、メンバーの発言率（議論の開始からの割合・推定）を細い棒で出す。次にできる操作は1つだけボタンにする。
+ */
+function GroupCards({ roomId, room, groups, speaking, results, recorders, onOpen }: {
+  roomId: string; room: Room; groups: number[]; speaking: SpeakingState[]; results: GroupResult[];
+  recorders: { number: number; recorderName?: string | null }[]; onOpen?: (group: number) => void;
+}) {
+  const [busy, setBusy] = useState<number>(), [error, setError] = useState("");
+  async function analyze(group: number) {
+    setBusy(group); setError("");
+    try { await callApi(`/rooms/${roomId}/groups/analyze`, { group }); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(undefined); }
+  }
+  return (
+    <section aria-label="グループ" className="group-cards-wrap">
+      {error && <p className="notice notice--error" role="alert">{error}</p>}
+      <ul className="group-cards">
+        {groups.map((g) => {
+          const st = room.groupState?.[String(g)] ?? {};
+          const status = STATUS[st.status ?? ""] ?? STATUS.opinions;
+          const sp = speaking.find((s) => s.group === g || (s as unknown as { id?: string }).id === String(g));
+          const total = sp ? Object.values(sp.talkMs ?? {}).reduce((a, b) => a + b, 0) + (sp.unknownMs ?? 0) : 0;
+          const result = results.find((r) => r.group === g);
+          const recorder = recorders.find((c) => c.number === g)?.recorderName;
+          const sub = st.status === "consensus" ? `提出 ${st.submitted ?? 0}/${st.total ?? 0}人`
+            : st.status === "done" ? `${st.total ?? result?.respondents ?? 0}人${result ? `・${result.clusters.length > 1 ? `理解が${result.clusters.length}通り` : "大きな違いなし"}` : ""}`
+              : `${st.total ?? 0}人${st.status === "discussing" && sp ? "・発言率は変動中" : ""}`;
+          return (
+            <li key={g} className="group-card2" data-tone={status.tone}>
+              <div className="group-card2__main">
+                <p className="group-card2__name">グループ{g}</p>
+                <p className="group-card2__status">{status.label}</p>
+                <p className="group-card2__sub">{sub}{recorder && room.recording !== false && st.status === "discussing" ? `・録音：${recorder}さん` : ""}</p>
+                {st.status === "consensus" && (st.submitted ?? 0) > 0 && <button className="btn btn--small group-card2__action" disabled={busy === g} onClick={() => void analyze(g)}>{busy === g ? "分析しています…" : "現在の回答で分析"}</button>}
+                {st.status === "done" && onOpen && <button className="btn btn--small group-card2__action" onClick={() => onOpen(g)}>グループを見る</button>}
+              </div>
+              {st.status === "discussing" && sp && sp.members?.length > 0 && (
+                <div className="group-card2__rates" aria-label={`グループ${g}の発言率（リアルタイム・推定）`}>
+                  <p className="group-card2__rates-title">発言率（リアルタイム）</p>
+                  {sp.members.map((m, k) => {
+                    const pct = total ? Math.round(((sp.talkMs?.[m.uid] ?? 0) / total) * 100) : 0;
+                    return (
+                      <div key={m.uid} className="group-card2__rate">
+                        <span className="group-card2__who">{m.label}</span>
+                        <span className="group-card2__track"><span style={{ width: `${pct}%`, background: BAR_COLORS[k % BAR_COLORS.length] }} /></span>
+                        <span className="group-card2__pct">{pct}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

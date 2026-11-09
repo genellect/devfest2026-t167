@@ -11,7 +11,7 @@ import { useDoc, type Flow } from "@/lib/room";
  * 発言率は「その2分間のグループの発話のうち、本人が話した割合」。1分ごとだと相づち1回で大きく揺れるので、直前の1分と合わせて平らにする。
  * 音声の分析（議論の流れ）や本人の集計がまだないときは、これまでどおり議論の流れだけを出す。
  */
-const LINE = "#176b53", H = 210, PAD = { top: 12, right: 16, bottom: 26, left: 40 };
+const LINE = "#0b57d0", OTHERS = "#a3a7ad", H = 210, PAD = { top: 12, right: 16, bottom: 26, left: 40 };
 const DROP = 15; // これ以上下がったら「低下」として示す（ポイント）
 
 export function FlowSpeaking({ roomId, group, flow }: { roomId: string; group: number; flow: Flow | null }) {
@@ -34,22 +34,23 @@ function Card({ self, flow }: { self: SelfSpeaking; flow: Flow | null }) {
   }, []);
 
   const own = useMemo(() => new Set(self.members.map((m) => m.uid)), [self.members]);
+  // ほかのメンバーは名前を出さず、1人あたりの平均の1本だけにする（サーバーは本人と全体の時間しか送らない）
+  const others = Math.max(0, self.memberCount - self.members.length);
   const { points, overall } = useMemo(() => {
     const per = self.timeline.map((m) => ({ own: Object.entries(m.talkMs).reduce((a, [id, ms]) => a + (own.has(id) ? ms : 0), 0), total: m.totalMs ?? 0 }));
     const points = per.map((p, i) => {
       const prev = per[i - 1] ?? { own: 0, total: 0 };
-      const total = p.total + prev.total;
-      return { x: Math.min(i + 1, Math.max(self.processedMs / 60_000, i + 0.02)), v: total ? ((p.own + prev.own) / total) * 100 : 0 };
+      const total = p.total + prev.total, mine = p.own + prev.own;
+      return { x: Math.min(i + 1, Math.max(self.processedMs / 60_000, i + 0.02)), v: total ? (mine / total) * 100 : 0, o: total && others ? ((total - mine) / others / total) * 100 : null };
     });
     const ownAll = per.reduce((a, p) => a + p.own, 0);
     return { points, overall: self.totalMs ? (ownAll / self.totalMs) * 100 : 0 };
-  }, [self, own]);
+  }, [self, own, others]);
 
   const segments = flow?.segments ?? [];
   const flowMinutes = segments.reduce((a, s) => a + s.minutes, 0);
   const maxX = Math.max(points[points.length - 1].x, flowMinutes, 1);
-  const equal = self.memberCount > 1 ? 100 / self.memberCount : null;
-  const top = Math.min(100, Math.max(60, Math.ceil((Math.max(...points.map((p) => p.v), equal ?? 0) + 5) / 20) * 20));
+  const top = Math.min(100, Math.max(60, Math.ceil((Math.max(...points.map((p) => Math.max(p.v, p.o ?? 0))) + 5) / 20) * 20));
   const peak = points.reduce((a, p) => (p.v > a.v ? p : a), points[0]);
   // いちばん大きく下がった区間：下がり続けた区間（山 → 谷）のうち、下げ幅が最大のもの
   let d: { from: number; to: number; start: number; i: number } | null = null;
@@ -70,6 +71,7 @@ function Card({ self, flow }: { self: SelfSpeaking; flow: Flow | null }) {
   let acc = 0;
   const bands = segments.map((s) => { const b = { ...s, start: acc }; acc += s.minutes; return b; });
   const path = points.map((p, i) => `${i ? "L" : "M"}${x(p.x).toFixed(1)},${y(p.v).toFixed(1)}`).join("");
+  const othersPath = others ? points.map((p, i) => `${i ? "L" : "M"}${x(p.x).toFixed(1)},${y(p.o ?? 0).toFixed(1)}`).join("") : "";
   const nearest = (clientX: number, rect: DOMRect) => {
     const v = ((clientX - rect.left) / rect.width * width - PAD.left) / plotW * maxX;
     return points.reduce((b, p, i) => (Math.abs(p.x - v) < Math.abs(points[b].x - v) ? i : b), 0);
@@ -81,10 +83,14 @@ function Card({ self, flow }: { self: SelfSpeaking; flow: Flow | null }) {
   return (
     <section className="box box--md pad stack flow-speak" aria-labelledby="flow-speak-title">
       <div className="heading-row">
-        <h3 id="flow-speak-title" className="t-sm">議論の流れとあなたの発言率</h3>
+        <h3 id="flow-speak-title" className="t-sm">議論の流れとグループの発言率</h3>
         {flow ? <SourceTag source={flow.source} /> : <span className="tag">推定</span>}
       </div>
       <p className="flow-speak__lead">{headline}</p>
+      <ul className="flow-speak__legend" aria-label="凡例">
+        <li><svg width="18" height="8" aria-hidden="true"><line x1="1" y1="4" x2="17" y2="4" stroke={LINE} strokeWidth="2.5" strokeLinecap="round" /></svg>あなた</li>
+        {others > 0 && <li><svg width="18" height="8" aria-hidden="true"><line x1="1" y1="4" x2="17" y2="4" stroke={OTHERS} strokeWidth="2" strokeLinecap="round" /></svg>ほかのメンバー（1人あたりの平均）</li>}
+      </ul>
 
       <div ref={box} className="speak-chart__plot">
         <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="img" tabIndex={0}
@@ -104,13 +110,10 @@ function Card({ self, flow }: { self: SelfSpeaking; flow: Flow | null }) {
             </g>
           ))}
           {bounds.map((b) => <line key={b} x1={x(b)} x2={x(b)} y1={PAD.top} y2={PAD.top + plotH} className="flow-speak__phase" />)}
-          {equal !== null && <>
-            <line x1={PAD.left} x2={PAD.left + plotW} y1={y(equal)} y2={y(equal)} className="flow-speak__equal" />
-            <text x={PAD.left + plotW - 4} y={y(equal) - 6} className="speak-chart__axis flow-speak__halo" textAnchor="end">均等な場合 {Math.round(equal)}%</text>
-          </>}
           {ticks.map((t) => <text key={t} x={x(t)} y={H - 8} className="speak-chart__axis" textAnchor={t === 0 ? "start" : t >= maxX ? "end" : "middle"}>{t}分</text>)}
           {active !== null && <line x1={x(points[active].x)} x2={x(points[active].x)} y1={PAD.top} y2={PAD.top + plotH} className="speak-chart__cross" />}
-          <path d={path} fill="none" stroke={LINE} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          {othersPath && <path d={othersPath} fill="none" stroke={OTHERS} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
+          <path d={path} fill="none" stroke={LINE} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
           {d && <>
             <circle cx={x(points[d.i].x)} cy={y(d.to)} r="4" fill={LINE} stroke="#fff" strokeWidth="2" />
             <text x={Math.min(x(points[d.i].x) + 8, PAD.left + plotW - 4)} y={PAD.top + 14} className="flow-speak__drop flow-speak__halo" textAnchor={x(points[d.i].x) + 120 > PAD.left + plotW ? "end" : "start"}>低下：{Math.round(d.from)}% → {Math.round(d.to)}%</text>
@@ -121,6 +124,7 @@ function Card({ self, flow }: { self: SelfSpeaking; flow: Flow | null }) {
           <div className="speak-chart__tip" style={{ left: Math.min(Math.max(x(points[active].x), 70), width - 70) }} role="status">
             <p className="speak-chart__tip-head">{fmt(points[active].x)}まで（直前2分）</p>
             <p><strong>{Math.round(points[active].v)}%</strong> あなた</p>
+            {points[active].o !== null && <p><strong>{Math.round(points[active].o ?? 0)}%</strong> ほかのメンバー（平均）</p>}
             {topicAt(points[active].x - 0.5) && <p>{topicAt(points[active].x - 0.5)}</p>}
           </div>
         )}
@@ -147,12 +151,12 @@ function Card({ self, flow }: { self: SelfSpeaking; flow: Flow | null }) {
         <summary>表で見る</summary>
         <div className="speak-chart__scroll">
           <table>
-            <thead><tr><th scope="col">時点</th><th scope="col">あなたの発言率（直前2分）</th><th scope="col">話題</th></tr></thead>
-            <tbody>{points.map((p, i) => <tr key={i}><th scope="row">{fmt(p.x)}</th><td>{Math.round(p.v)}%</td><td>{topicAt(p.x - 0.5) ?? "—"}</td></tr>)}</tbody>
+            <thead><tr><th scope="col">時点</th><th scope="col">あなた（直前2分）</th>{others > 0 && <th scope="col">ほかのメンバー（平均）</th>}<th scope="col">話題</th></tr></thead>
+            <tbody>{points.map((p, i) => <tr key={i}><th scope="row">{fmt(p.x)}</th><td>{Math.round(p.v)}%</td>{others > 0 && <td>{Math.round(p.o ?? 0)}%</td>}<td>{topicAt(p.x - 0.5) ?? "—"}</td></tr>)}</tbody>
           </table>
         </div>
       </details>
-      <p className="t-note">発言量の多さを評価する指標ではありません。ほかの人の時間は表示しません。{d ? `${dropStart}分ごろ、何を考えていましたか。` : ""}</p>
+      <p className="t-note">発言量の多さを評価する指標ではありません。ほかのメンバーは名前を出さず、1人あたりの平均だけを表示します。</p>
     </section>
   );
 }

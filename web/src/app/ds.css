@@ -2,9 +2,9 @@
  * Topos デザインシステム（この1枚だけを読む）。
  *
  * 方針：教育向けの商用ツールとして、静かで信頼できる画面にする。目立たせるのは2つだけ。
- * - 黄色の付箋：AI が見つけた「まだ話されていない論点」。ほかの装飾には黄色を使わない
+ * - 黄色の付箋：AI が見つけた「まだ話されていない論点」。ほかに黄色を使うのは、Figma「最新」の結果画面の「理解の分かれ方」と、議論の流れで脱線した区間だけ
  * - 色の違う付箋（青・桃・ミント・ラベンダー）：合意の一文の「理解の分かれ方」。色はまとまりの区別だけ
- * それ以外は、白い面・細い線・1つの主色（教室の緑）・1つの書体の組み合わせ（Inter と Noto Sans JP）でそろえる。
+ * それ以外は、白い面・細い線・1つの主色（Figma の青）・1つの書体の組み合わせ（Inter と Noto Sans JP）でそろえる。
  * 黒板の色は、教室に投影する画面（参加コード・タイマー・全員に表示した問いかけ）だけに使う。
  *
  * 部品は1種類ずつ：面（.panel／旧 .box・.flow-card・.card）、ボタン（.btn）、バッジ（.tag・.pill）、
@@ -22,10 +22,11 @@
   --ink-2: #4c5852;
   --ink-3: #69756f;
 
-  --brand: #176b53;
-  --brand-hover: #125842;
-  --brand-soft: #e4f1eb;
-  --brand-ink: #0f4a39;
+  /* 主色は Figma「最新」の青（2026-11-09：ホーム・設定〈#80〉と議論の画面の色をそろえる） */
+  --brand: #0b57d0;
+  --brand-hover: #0842a0;
+  --brand-soft: #d3e3fd;
+  --brand-ink: #041e49;
 
   --board: #1d3a32;
   --board-2: #274a40;
@@ -383,12 +384,12 @@ input[type=checkbox] { width: 20px; height: 20px; flex: none; margin: 3px 0 0; a
 /* ---------- 議論の流れ（話題ごとの時間） ---------- */
 .timeline { display: flex; flex-direction: column; gap: 4px; }
 .timeline__seg {
-  --seg: var(--surface-2);
+  --seg: var(--brand-soft);
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   min-height: 40px; min-width: 0; padding: 8px 12px; border-radius: 8px;
   background: var(--seg); color: var(--ink); font-size: 14px; font-weight: 600;
 }
-.timeline__seg--hl { --seg: var(--brand); color: #fff; }
+.timeline__seg--hl { --seg: #feefc3; color: #5f3b00; }
 @media (min-width: 768px) {
   .timeline { flex-direction: row; }
   .timeline__seg { flex-basis: 0; flex-direction: column; justify-content: center; gap: 0; padding: 8px; text-align: center; }
@@ -805,17 +806,17 @@ progress::-moz-progress-bar { background: var(--brand); }
 .speak-chart__table th, .speak-chart__table td { padding: 4px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .speak-chart__table th:first-child { text-align: left; }
 .flow-speak__lead { font-size: 16px; font-weight: 600; color: var(--ink); }
-.flow-speak__band { fill: var(--brand-soft); }
+.flow-speak__band { fill: #feefc3; }
 .flow-speak__phase { stroke: var(--line-strong); stroke-width: 1; }
 .flow-speak__equal { stroke: var(--ink-3); stroke-width: 1.5; stroke-dasharray: 6 4; }
 .flow-speak__drop { font-size: 12px; font-weight: 700; fill: var(--brand-ink); }
 .flow-speak__phases { position: relative; height: 56px; margin-top: 10px; }
 .flow-speak__halo { paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
-.flow-speak__seg { position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 0 4px; border-left: 2px solid var(--surface); border-right: 2px solid var(--surface); border-radius: 8px; background: var(--surface-2); color: var(--ink); font-size: 13px; font-weight: 600; text-align: center; overflow: hidden; }
+.flow-speak__seg { position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 0 4px; border-left: 2px solid var(--surface); border-right: 2px solid var(--surface); border-radius: 8px; background: var(--brand-soft); color: #001d35; font-size: 13px; font-weight: 500; text-align: center; overflow: hidden; }
 .flow-speak__seg span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .flow-speak__seg span + span { font-size: 12px; font-weight: 400; color: var(--ink-2); }
-.flow-speak__seg--hl { background: var(--brand); color: #fff; }
-.flow-speak__seg--hl span + span { color: #fff; }
+.flow-speak__seg--hl { background: #feefc3; color: #5f3b00; }
+.flow-speak__seg--hl span + span { color: #5f3b00; }
 .flow-speak__stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .flow-speak__stats > div { padding: 12px 14px; border-radius: var(--r-control); background: var(--surface-2); }
 .flow-speak__num { font-size: 18px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
@@ -826,3 +827,126 @@ progress::-moz-progress-bar { background: var(--brand); }
   .flow-speak__seg span:first-child { white-space: normal; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .flow-speak__seg span + span { font-size: 11px; }
 }
+
+
+/* ---------- 生徒の結果（Figma「最新」P4-2・P5：182:1481 / スマホ 199:170） ---------- */
+.result-s { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.result-s__region { font-size: 22px; font-weight: 500; color: var(--ink); }
+.result-s__h { font-size: 18px; font-weight: 500; color: var(--ink); margin-top: 6px; }
+.result-s__understand { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 18px; align-items: stretch; }
+.result-s__col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.result-s__card { display: flex; flex-direction: column; gap: 14px; padding: 22px; border-radius: 16px; }
+.result-s__card-title { font-size: 16px; font-weight: 500; color: var(--ink); flex: 1; }
+.result-s__change { display: flex; flex-direction: column; gap: 4px; }
+.result-s__before, .result-s__after { display: flex; flex-direction: column; gap: 4px; padding: 12px 16px; border-radius: 12px; }
+.result-s__before { background: #f0f4f9; color: var(--ink-2); font-size: 16px; }
+.result-s__after { background: var(--brand-soft); color: var(--ink); }
+.result-s__label { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.result-s__after-text { font-size: 18px; font-weight: 500; }
+.result-s__arrow { padding-left: 16px; color: var(--brand); font-weight: 700; }
+.result-s__split { display: flex; flex-direction: column; gap: 14px; padding: 22px; border-radius: 12px; background: #feefc3; }
+.result-s__split-lead { font-size: 18px; font-weight: 500; color: var(--ink); }
+.result-s__split-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding-left: 20px; font-size: 14px; color: var(--ink); }
+.result-s__split-note { font-size: 13px; color: var(--ink); }
+/* 納得度の棒 */
+.result-s__agree { display: flex; flex-direction: column; gap: 16px; padding: 22px; border-radius: 16px; min-height: 360px; }
+.agree-bars { flex: 1; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; min-height: 160px; }
+.agree-bars__col { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 8px; min-width: 0; }
+.agree-bars__bar { width: 100%; height: 4px; border-radius: 6px 6px 0 0; background: #a8c7fa; }
+.agree-bars__bar[data-empty] { height: 4px !important; background: #e1e3e1; }
+.agree-bars__col[data-own] .agree-bars__bar:not([data-empty]) { background: var(--brand); }
+.agree-bars__n { font-size: 14px; color: var(--ink-2); }
+.agree-bars__col[data-own] .agree-bars__n { color: #001d35; font-weight: 700; }
+.agree-bars__ends { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-2); }
+/* あなたの振り返り */
+.result-s__reflect { display: flex; flex-direction: column; gap: 20px; padding: 28px; border: 2px solid var(--brand); border-radius: 24px; background: var(--surface); }
+.result-s__reflect-title { font-size: 22px; font-weight: 500; color: var(--ink); }
+.result-s__reflect-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.result-s__reflect-box { display: flex; flex-direction: column; gap: 14px; padding: 22px; border-radius: 12px; background: #f0f4f9; min-width: 0; }
+.result-s__reflect-sub { font-size: 16px; font-weight: 500; color: #001d35; }
+.result-s__goal { font-size: 18px; font-weight: 500; color: var(--ink); }
+.result-s__q { font-size: 14px; color: var(--ink); }
+.result-s__question { display: block; padding: 10px 14px; border-radius: 12px; background: #fff0d1; color: #5f3b00; font-size: 14px; line-height: 1.7; }
+.result-s__reflect .choices--three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.result-s__reflect .choices--two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.result-s__reflect .choice { min-height: 48px; border-radius: 8px; background: var(--surface); }
+.result-s__reflect .choice[aria-pressed="true"] { background: #c2e7ff; border: 2px solid var(--brand); box-shadow: none; color: #001d35; }
+.result-s__reflect .choice[aria-pressed="true"]::before { content: "✓ " / ""; }
+.result-s__reflect textarea.input { min-height: 57px; resize: vertical; }
+.result-s__reflect .btn--block { border-radius: 22px; min-height: 44px; }
+.flow-speak__legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--ink-2); }
+.flow-speak__legend li { display: inline-flex; align-items: center; gap: 6px; }
+@media (max-width: 767px) {
+  .result-s__understand, .result-s__reflect-grid { grid-template-columns: minmax(0, 1fr); }
+  .result-s__agree { min-height: 280px; }
+  .result-s__reflect { padding: 20px 16px; border-radius: 20px; }
+  .result-s__reflect-box { padding: 16px; }
+}
+
+/* 結果画面は2列のカードを並べるので、議論の流れの列より広くする（Figma のタブレット幅） */
+.flow:has(> .result-s) { width: min(960px, 100%); }
+.result-s__reflect .choice { white-space: nowrap; padding-inline: 8px; }
+
+/* ---------- 先生のグループ別の分析（Figma「最新」T2：182:568） ---------- */
+.group-understand { display: flex; flex-direction: column; gap: 14px; padding: 22px; border-radius: 16px; background: #feefc3; }
+.group-understand__label { font-size: 14px; color: #5f3b00; flex: 1; }
+.group-understand__title { font-size: 20px; font-weight: 500; color: #5f3b00; }
+.group-understand__cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+.group-understand__card { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 20px 22px; border: 1px solid var(--ink-3); border-radius: 12px; background: var(--surface); font-size: 16px; color: var(--ink); }
+.member-flow { display: flex; flex-direction: column; gap: 14px; padding: 22px; border-radius: 16px; }
+.member-flow__title { font-size: 18px; font-weight: 500; color: var(--ink); flex: 1; }
+.member-flow__legend { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--ink); }
+.member-flow__legend li { display: inline-flex; align-items: center; gap: 6px; }
+.member-flow__dot { width: 10px; height: 10px; border-radius: 50%; }
+.member-list { display: flex; flex-direction: column; gap: 16px; padding: 22px; border-radius: 16px; }
+.member-list__rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
+.member-list__row { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 12px; background: #f0f4f9; }
+.member-list__avatar { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: #fff; font-weight: 700; font-size: 14px; }
+.member-list__name { flex: 1; font-size: 16px; color: var(--ink); }
+.member-list__rate { font-size: 13px; color: var(--brand); }
+.back-btn { align-self: flex-start; border-radius: 22px; }
+
+/* ---------- 先生のダッシュボード（進行）（Figma「最新」182:445） ---------- */
+.tally--blue { grid-template-columns: auto minmax(0, 1fr) auto auto; background: #c2e7ff; border-color: transparent; border-radius: 16px; padding: 22px 32px; }
+.tally__clock { padding-right: 24px; border-right: 1px solid rgb(0 29 53 / .18); }
+.tally__label { font-size: 13px; color: #001d35; }
+.tally--blue .tally__time { font-size: 32px; font-weight: 400; color: #001d35; }
+.tally__headline { font-size: 30px; font-weight: 400; color: #001d35; line-height: 1.3; }
+.tally__alert .tally__num { font-size: 28px; color: #001d35; }
+.tally__alert .tally__num small { display: block; margin: 0; font-size: 12px; font-weight: 400; }
+.tally__alert[data-alert] .tally__num { color: var(--insight-ink); }
+.group-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin: 0; padding: 0; list-style: none; }
+.group-card2__status { white-space: nowrap; }
+.group-card2 { --tone: var(--ink-3); display: flex; gap: 20px; align-items: center; padding: 22px 22px 22px 24px; border-radius: 16px; background: var(--surface); box-shadow: inset 6px 0 0 var(--tone); min-width: 0; }
+.group-card2[data-tone="talk"] { --tone: #188038; }
+.group-card2[data-tone="write"] { --tone: #b06000; }
+.group-card2[data-tone="done"] { --tone: #6f42c1; }
+.group-card2__main { flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+.group-card2__name { font-size: 14px; color: var(--ink); }
+.group-card2__status { font-size: 24px; color: var(--tone); line-height: 1.3; }
+.group-card2__sub { font-size: 13px; font-weight: 500; color: var(--ink); }
+.group-card2__action { margin-top: 8px; border-radius: 22px; }
+.group-card2__rates { flex: 0 1 260px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.group-card2__rates-title { font-size: 12px; color: var(--ink-2); }
+.group-card2__rate { display: grid; grid-template-columns: 52px minmax(0, 1fr) 36px; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); }
+.group-card2__who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-card2__track { height: 10px; border-radius: 5px; background: #eef1f6; overflow: hidden; }
+.group-card2__track span { display: block; height: 100%; border-radius: 5px; }
+.group-card2__pct { text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 767px) {
+  .tally--blue { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: 18px; }
+  .tally__clock { border-right: 0; padding-right: 0; }
+  .tally__headline { font-size: 22px; }
+  .group-cards { grid-template-columns: minmax(0, 1fr); }
+  .group-card2 { flex-direction: column; align-items: stretch; }
+  .group-card2__rates { flex-basis: auto; }
+}
+
+/* 他の人が録音中（Figma「最新」345:44 / スマホ 358:110） */
+.other-recording { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 16px 18px; border-radius: 12px; background: #feefc3; color: var(--ink); }
+.other-recording__title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; }
+.other-recording__dot { width: 10px; height: 10px; border-radius: 50%; background: #d93025; animation: rec-blink 1.6s ease-in-out infinite; }
+.other-recording .btn[disabled] { border-radius: 22px; background: rgb(0 0 0 / .08); color: var(--ink-3); border-color: transparent; }
+@keyframes rec-blink { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .other-recording__dot { animation: none; } }
+@media (max-width: 767px) { .other-recording .btn { width: 100%; } }

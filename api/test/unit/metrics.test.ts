@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alignmentRate, interventionEffectiveness, participationFairness, reflectionRate } from '../../src/metrics.js';
+import { agreementSummary, alignmentRate, interventionEffectiveness, participationFairness, reflectionRate } from '../../src/metrics.js';
 
 describe('指標', () => {
   it('意見の反映率：分母0は null', () => {
@@ -19,5 +19,18 @@ describe('指標', () => {
   it('介入の有効率：承認0件は null', () => {
     expect(interventionEffectiveness(0, 0)).toBeNull();
     expect(interventionEffectiveness(2, 1)).toBe(0.5);
+  });
+});
+
+describe('納得度の分布と平均', () => {
+  it('3人以上なら1〜5の人数と平均を出す', () => {
+    expect(agreementSummary([4, 3, 5, 4])).toEqual({ respondents: 4, counts: [0, 0, 1, 2, 1], average: 4 });
+  });
+  it('2人以下では、自分の値から相手が分かるので分布も平均も出さない', () => {
+    expect(agreementSummary([4, 3])).toEqual({ respondents: 2, counts: null, average: null });
+    expect(agreementSummary([])).toEqual({ respondents: 0, counts: null, average: null });
+  });
+  it('範囲外・整数でない値は数えない', () => {
+    expect(agreementSummary([0, 6, 2.5, '4', null, 1, 2, 3])).toEqual({ respondents: 3, counts: [1, 1, 1, 0, 0], average: 2 });
   });
 });
