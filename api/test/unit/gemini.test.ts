@@ -135,3 +135,9 @@ it('AI用の環境変数で受け取った認証をVertex SDKへ直接渡せる'
   await vertexGemini('p', 'global', 'gemini-3.5-flash', credentials).findPoints(['架空の意見'], []);
   expect(calls.at(-1)!.init).toMatchObject({ vertexai: true, project: 'p', googleAuthOptions: { credentials } });
 });
+
+it('グループの公開メモから議論の軸と提案を構造化し、不明なグループは採用しない', async () => {
+  responseBody = { groups: [{ group: 1, focus: '根拠の確かめ方', points: ['情報源の確認'] }, { group: 2, focus: '対象外', points: [] }], suggestions: [{ kind: 'new_angle', summary: '検証後の運用も考える' }] };
+  const result = await vertexGemini('p', 'global', 'gemini-3.5-flash').summarizeGroups({ theme: '架空のテーマ', groups: [{ group: 1, messages: ['公開済みの発言メモ'] }] });
+  expect(result.groups).toHaveLength(1); expect(result.suggestions[0].kind).toBe('new_angle'); expect(JSON.stringify(calls.at(-1)!.req)).toContain('公開済みの発言メモ'); expect(calls.at(-1)!.req.config.responseSchema).toBeDefined();
+});

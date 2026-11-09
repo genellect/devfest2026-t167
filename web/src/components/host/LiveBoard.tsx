@@ -3,13 +3,15 @@ import { useEffect, useState } from "react";
 import { type SpeakingState } from "@/components/Speaking";
 import { SourceTag } from "@/components/ui";
 import { ApiError, callApi } from "@/lib/api";
-import { millis, useDoc, useGroups, useMessages, type Coverage, type GroupResult, type Insight, type Member, type Room } from "@/lib/room";
+import { millis, useDoc, useGroups, useMessages, type Coverage, type GroupResult, type Insight, type LiveGroupOverview, type Member, type Room } from "@/lib/room";
 import { formatClock, useDiscussionClock } from "@/components/DiscussionClock";
 import { GroupCards } from "./GroupCards";
 import { useRoomFeed } from "@/lib/room-stream";
 
 /** API は分析中の記録を60秒で期限切れにする。画面も同じ期限でボタンを戻す */
 const ANALYSIS_LOCK_MS = 60_000;
+/** 提案の種類：事前の意見にあったのに話されていない論点か、Gemini が共有メモから出した新しい切り口か */
+const kindLabel = (i: Insight) => (i.kind === "new_angle" ? "新しい切り口（AIの提案）" : "まだ議論されていない論点");
 /** 新しいメモが届いたら、前の分析から60秒あけて自動で探す（Gemini の呼び出しは1部屋で1分に1回まで） */
 const AUTO_GAP_MS = 60_000;
 
@@ -43,7 +45,9 @@ export function LiveBoard({ roomId, room, members, insights, results = [] }: { r
   }
 
   // 未検討の論点が届いたら、論点を先に、グループのカードを後に並べる
-  const cards = <GroupCards roomId={roomId} room={room} groups={groupNumbers} results={results} speaking={speaking} configs={groupConfigs} now={now} />;
+  // 共有メモから Gemini がまとめた、グループごとの議論の軸（先生だけが読める）。未検討の論点の分析と同じ呼び出しで更新する
+  const overview = useDoc<LiveGroupOverview>(`sessions/${roomId}/results/live-groups`).data;
+  const cards = <GroupCards roomId={roomId} room={room} groups={groupNumbers} results={results} speaking={speaking} configs={groupConfigs} now={now} overview={overview?.groups} />;
   // 段階ごとに「今やること」を1つだけ大きく見せる。提案があれば、次に投げかける1つを主役に、残りは下に小さく並べる
   const [focus, ...rest] = pending;
   const headline = focus ? "この論点を投げかけましょう"
@@ -90,7 +94,7 @@ export function LiveBoard({ roomId, room, members, insights, results = [] }: { r
           {error && <p className="notice notice--error" role="alert">{error}</p>}
           {focus ? (
             <article className="box--yellow proposal proposal--focus" aria-label="次に投げかける論点">
-              <div className="proposal__head"><p className="t-label">まだ議論されていない論点</p><SourceTag source={focus.source} /></div>
+              <div className="proposal__head"><p className="t-label">{kindLabel(focus)}</p><SourceTag source={focus.source} /></div>
               <p className="t-md proposal__text">{focus.summary}</p>
               {actions(focus)}
             </article>
@@ -106,7 +110,7 @@ export function LiveBoard({ roomId, room, members, insights, results = [] }: { r
               <ul className="queue__list">
                 {rest.map((i) => (
                   <li key={i.id} className="box--yellow proposal proposal--queued">
-                    <p className="t-label sr-only">まだ議論されていない論点</p>
+                    <p className="t-label proposal__kind">{kindLabel(i)}</p>
                     <p className="t-md proposal__text">{i.summary}</p>
                     {actions(i, false)}
                   </li>

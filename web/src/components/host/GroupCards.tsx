@@ -19,9 +19,11 @@ const STATUS: Record<string, { label: string; tone: string }> = {
  * - 終了後：結論を記入中（今の回答で結果を出す）／結果あり（グループを見る）
  * 次にできる操作は1つだけボタンにする。結果が出たかは、グループの状態ではなく結果の文書で判定する。
  */
-export function GroupCards({ roomId, room, groups, results, speaking = [], configs = [], now = Date.now(), onOpen, label = "グループ" }: {
+export function GroupCards({ roomId, room, groups, results, speaking = [], configs = [], now = Date.now(), onOpen, label = "グループ", overview = [] }: {
   roomId: string; room: Room; groups: number[]; results: GroupResult[]; speaking?: SpeakingState[]; configs?: GroupConfig[];
   now?: number; onOpen?: (group: number) => void; label?: string;
+  /** 共有メモから Gemini がまとめた、グループごとの議論の軸と主な論点（#85。先生だけが読める） */
+  overview?: { group: number; focus: string; points: string[] }[];
 }) {
   const [busy, setBusy] = useState<number>(), [error, setError] = useState("");
   async function analyze(group: number) {
@@ -41,6 +43,7 @@ export function GroupCards({ roomId, room, groups, results, speaking = [], confi
           const status = STATUS[key] ?? STATUS.opinions;
           const sp = key === "discussing" ? speaking.find((s) => s.group === g || (s as unknown as { id?: string }).id === String(g)) : undefined;
           const config = configs.find((c) => c.number === g);
+          const axis = overview.find((o) => o.group === g);
           const recorder = room.recording !== false && key === "discussing" && config?.recorderName
             ? isRecordingLive(config, now) ? `録音中：${config.recorderName}さん` : `録音担当：${config.recorderName}さん（録音していません）` : "";
           const sub = key === "consensus" ? `提出 ${st.submitted ?? 0}/${st.total ?? 0}人`
@@ -52,6 +55,7 @@ export function GroupCards({ roomId, room, groups, results, speaking = [], confi
                 <p className="group-card2__name">グループ{g}</p>
                 <p className="group-card2__status">{status.label}</p>
                 <p className="group-card2__sub">{[sub, recorder].filter(Boolean).join("・")}</p>
+                {key === "discussing" && axis && <div className="group-card2__axis"><p><span className="group-card2__axis-label">議論の軸（AI）</span>{axis.focus}</p>{!!axis.points.length && <ul>{axis.points.map((p, k) => <li key={k}>{p}</li>)}</ul>}</div>}
                 {key === "consensus" && (st.submitted ?? 0) > 0 && <button className="btn btn--small group-card2__action" disabled={busy !== undefined} onClick={() => void analyze(g)}>{busy === g ? "結果を出しています…" : "今の回答で結果を出す"}</button>}
                 {key === "done" && onOpen && <button className="btn btn--small group-card2__action" onClick={() => onOpen(g)}>グループを見る</button>}
               </div>

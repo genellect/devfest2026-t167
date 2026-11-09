@@ -935,6 +935,12 @@ a.tally__alert:focus-visible { outline: 3px solid var(--brand); outline-offset: 
 .group-card2__track span { display: block; height: 100%; border-radius: 5px; }
 .group-card2__pct { text-align: right; font-variant-numeric: tabular-nums; }
 .group-card2__rate[data-unknown] { color: var(--ink-3); }
+/* グループの議論の軸（AI。共有メモから Gemini がまとめる。先生だけに出す） */
+.group-card2__axis { margin-top: 6px; font-size: 13px; color: var(--ink-2); }
+.group-card2__axis p { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; color: var(--ink); }
+.group-card2__axis-label { font-size: 12px; color: var(--ink-3); }
+.group-card2__axis ul { margin: 4px 0 0; padding-left: 18px; }
+.proposal__kind { margin-bottom: 4px; }
 /* 終了後の画面では、白い面の中に並べるので、カードに線を付ける */
 .ended-hero .group-card2 { box-shadow: inset 6px 0 0 var(--tone), inset 0 0 0 1px var(--line); }
 @media (max-width: 767px) {

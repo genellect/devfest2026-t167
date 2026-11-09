@@ -59,6 +59,10 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     await page.getByRole("button", { name: "未検討の論点を探す", exact: true }).click();
     const proposal = page.locator(".box--yellow").filter({ hasText: "まだ議論されていない論点" }).first();
     await expect(proposal).toBeVisible();
+    // 同じ分析で、共有メモから Gemini がまとめたグループの議論の軸が、グループのカードに出る（事前意見の本文は出さない）
+    const axis = page.getByRole("region", { name: "グループ", exact: true }).getByRole("listitem").filter({ hasText: "グループ1" });
+    await expect(axis).toContainText("議論の軸（AI）");
+    for (const o of opinions) await expect(axis).not.toContainText(o);
     // 未検討の論点が届くと、論点の欄をグループのカードより上に出す。帯の数字は論点の欄へのリンク
     const insightsFirst = await page.evaluate(() => {
       const next = document.getElementById("next-title"), cards = document.querySelector('[aria-label="グループ"]');
