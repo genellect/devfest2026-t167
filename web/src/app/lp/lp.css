@@ -280,15 +280,23 @@
 .tlp .faq details[open] summary::after{transform:rotate(45deg)}
 .tlp .faq summary:focus-visible{outline:2px solid var(--link);outline-offset:4px}
 .tlp .faq details p{font-size:17px;line-height:1.8;color:var(--g3);font-weight:500;padding:0 48px 28px 0;max-width:820px}
+.tlp .foot{background:#000;border-top:1px solid #1d1d1f;padding:24px 0 28px;font-size:14px}
+.tlp .foot .wrap{width:auto;margin:0 clamp(24px,3.7vw,72px);display:flex;align-items:center;justify-content:space-between;gap:16px 32px;flex-wrap:wrap}
+.tlp .foot .fl{display:flex;align-items:baseline;gap:8px 28px;flex-wrap:wrap}
+.tlp .foot .fb{font-size:19px;font-weight:700;color:#f5f5f7;letter-spacing:-.01em}
+.tlp .foot .fc{color:#86868b}
+.tlp .foot .ln{display:flex;gap:26px;flex-wrap:wrap}
+.tlp .foot .ln a{color:#a1a1a6;text-decoration:underline;text-underline-offset:4px}
+.tlp .foot .ln a:hover{color:#f5f5f7}
+.tlp .foot a:focus-visible{outline:2px solid var(--link);outline-offset:3px}
 .tlp .cta{position:relative;text-align:center;padding:200px 0 380px;overflow:hidden}
 .tlp .cta h2{font-size:clamp(44px,6.8vw,104px);line-height:1.15;font-weight:900;letter-spacing:-.02em;position:relative}
 .tlp .cta .acts{display:flex;justify-content:center;align-items:center;gap:28px;margin-top:52px;position:relative}
 .tlp .cta .pill{height:56px;padding:0 32px;font-size:19px}
 .tlp .cta .more{font-size:21px}
 .tlp .cta .wave{position:absolute;left:0;width:100%;height:340px;bottom:20px;opacity:.6}
-.tlp footer{background:var(--g1);color:var(--g3);font-size:12px;line-height:1.8;padding:24px 0 36px}
-.tlp footer .ln{display:flex;gap:28px;color:#424245;margin-top:8px}
 @media (max-width:734px){
+.tlp .foot .wrap{flex-direction:column;align-items:flex-start}.tlp .foot .fl{flex-direction:column;gap:6px}.tlp .foot{font-size:13px}
 .tlp br.sp{display:inline}
 .tlp br.pc{display:none}
 .tlp .st .big{font-size:28px}
@@ -374,7 +382,6 @@
 .tlp .pv{padding:110px 0}
 .tlp .cta{padding:120px 0 260px}
 .tlp .cta .wave{height:200px}
-.tlp footer .ln{flex-wrap:wrap;gap:8px 20px}
 
 }
 @media (prefers-reduced-motion:reduce){
