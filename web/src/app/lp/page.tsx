@@ -26,27 +26,27 @@ const APPLY = `mailto:${CONTACT}?subject=${encodeURIComponent("Topos の利用�
 
 /** 話し合いをさせるだけでは起きること（README「課題」） */
 const GAPS = [
-  { title: "最初の発言に、議論が引きずられる", body: "異論や疑問を持っていた学生も、流れに合わせて黙る。検討されないまま、結論が決まる。" },
-  { title: "自分がどう関わったかを、学生は知らない", body: "どの場面で話し、どこで黙ったか。振り返る材料がないまま、次の議論も同じように過ぎる。" },
-  { title: "教員に見えるのは、結論だけ", body: "全部のグループの過程は追えない。誰の考えが、どこで失われたかは分からないまま授業が終わる。" },
+  { title: "最初の意見に、議論が流される", body: "異論を持っていた学生も、流れに合わせて口を閉じる。誰も検討しないまま、結論が決まる。" },
+  { title: "自分の関わり方を、振り返れない", body: "どの場面で話し、どこで黙ったのか。材料がないから、次の議論も同じように過ぎていく。" },
+  { title: "教員に届くのは、結論だけ", body: "どのグループで、誰の考えが失われたのか。過程が見えないまま、授業が終わる。" },
 ];
 
 /** 3機能。それぞれが、学生のどの力を支えるか */
 const FEATURES = [
   {
-    art: "rate", name: "発言率の可視化", title: "自分の関わり方を、数字で振り返る。",
-    body: "話題ごとの発言率を示す。学生は、どの場面で話し、どこで黙ったかを客観的に捉え直せる。教員は、支援が必要な学生と場面を、根拠をもって特定できる。",
-    skill: "メタ認知：自分の参加の仕方を、外から見る",
+    art: "rate", name: "発言率の可視化", title: "どこで話し、どこで黙ったかが見える。",
+    body: "話題ごとの発言率を示す。学生は自分の関わり方を外から振り返り、教員は声をかけるべき学生と場面を見極められる。",
+    skill: "育つ力：自分の考えを見直す力",
   },
   {
-    art: "points", name: "音声認識による未検討の論点の可視化", title: "誰も検討しなかった論点を、残さない。",
-    body: "議論の録音と、学生が事前に書いた意見を照らし合わせ、話されなかった視点を示す。教員はそれを次の問いとして投げかけ、一人ひとりの考えを議論に取り込める。",
-    skill: "論理的思考：論点を漏らさず、比べて考える",
+    art: "points", name: "音声認識による未検討の論点の可視化", title: "誰も触れなかった論点を、議論に戻す。",
+    body: "議論の録音と、学生が事前に書いた意見を照らし合わせ、話されなかった視点を見つける。教員は、それを次の問いとして投げかけられる。",
+    skill: "育つ力：論理的に考える力",
   },
   {
-    art: "change", name: "事前の意見から結論への主張の変化の確認", title: "考えがどう変わったかを、自分の言葉で確かめる。",
-    body: "議論の前に書いた意見と、議論の後の結論を並べる。なぜ考えが変わったのか、なぜ変わらなかったのかを、学生が自分で説明できる。グループの合意が形だけかどうかも分かる。",
-    skill: "メタ認知と論理：考えの変化を、根拠とともに語る",
+    art: "change", name: "事前の意見から結論への主張の変化の確認", title: "考えがどう変わったかを、自分の言葉で語る。",
+    body: "議論の前の意見と、議論の後の結論を並べる。なぜ変わったのか、なぜ変わらなかったのかを説明することが、そのまま学びの振り返りになる。",
+    skill: "育つ力：論理的に考える力と、自分の考えを見直す力",
   },
 ] as const;
 
@@ -121,16 +121,15 @@ export default function LandingPage() {
         <section className="sec sec--white" aria-labelledby="lp-why-title">
           <div className="wrap">
             <header className="sec__head" data-reveal>
-              <p className="eyebrow">AI が答えを出せる時代に</p>
-              <h2 id="lp-why-title" className="h2">育てたいのは、自分の考えを持ち、<br />それを見直せる力。</h2>
+              <h2 id="lp-why-title" className="h2">答えは、AI が出せるようになった。</h2>
             </header>
             <div className="why" data-reveal>
-              <p>調べれば答えが出る。文章も AI が書ける。だからこそ学校で育てたいのは、答えを知っていることではなく、自分の考えを根拠とともに語り、他者の考えと比べ、必要なら考えを改める力だ。</p>
+              <p>だから教室で育てたいのは、答えを知っていることではない。自分の考えを根拠とともに語り、他者の考えと比べ、必要なら考えを改める力だ。</p>
               <dl className="why__skills">
-                <div><dt>論理的思考</dt><dd>主張と根拠を結びつけ、論点を漏らさず比べる。</dd></div>
-                <div><dt>メタ認知</dt><dd>自分がどう考え、どう関わったかを、外から捉え直す。</dd></div>
+                <div><dt>論理的に考える力</dt><dd>主張と根拠を結びつけ、論点を漏らさず比べる。</dd></div>
+                <div><dt>自分の考えを見直す力</dt><dd>自分がどう考え、どう関わったかを、外から捉え直す。メタ認知と呼ばれる力だ。</dd></div>
               </dl>
-              <p>グループディスカッションは、この2つを同時に鍛えられる数少ない場だ。ただし、話し合いをさせるだけでは育たない。</p>
+              <p>グループディスカッションは、この2つを同時に鍛えられる場だ。</p>
             </div>
           </div>
         </section>
@@ -139,7 +138,7 @@ export default function LandingPage() {
         <section className="sec sec--gray" aria-labelledby="lp-gap-title">
           <div className="wrap">
             <header className="sec__head" data-reveal>
-              <h2 id="lp-gap-title" className="h2">話し合いをさせるだけでは、<br />考えは埋もれる。</h2>
+              <h2 id="lp-gap-title" className="h2">なのに、教室の議論では<br />考えが埋もれていく。</h2>
             </header>
             <ol className="gaps">
               {GAPS.map((g, i) => (
@@ -157,8 +156,8 @@ export default function LandingPage() {
         <section className="sec sec--white" id="features" aria-labelledby="lp-feat-title">
           <div className="wrap">
             <header className="sec__head" data-reveal>
-              <h2 id="lp-feat-title" className="h2">議論の過程を、学びの材料に変える。</h2>
-              <p className="sec__lead">Topos は、議論の結論ではなく過程を残す。学生は自分を振り返る手がかりを、教員は指導の根拠を得る。</p>
+              <h2 id="lp-feat-title" className="h2">Topos は、議論の過程を学びに変える。</h2>
+              <p className="sec__lead">結論だけでなく、一人ひとりがどう関わり、何が話されず、考えがどう変わったかを残す。</p>
             </header>
             <div className="features">
               {FEATURES.map((f) => (
@@ -176,17 +175,17 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* 5. AI の役割：考えるのは人 */}
-        <section className="sec sec--dark" aria-labelledby="lp-ai-title">
+        {/* 5. 教室がこう変わる */}
+        <section className="sec sec--dark" aria-labelledby="lp-change-title">
           <div className="wrap">
             <header className="sec__head" data-reveal>
-              <h2 id="lp-ai-title" className="h2">AI は答えを出さない。<br />考えるきっかけを示す。</h2>
+              <h2 id="lp-change-title" className="h2">考えることを、AI に任せない教室へ。</h2>
+              <p className="sec__lead sec__lead--dark">AI が示すのは、考えるための手がかり。答えを出し、考えを決めるのは学生自身だ。</p>
             </header>
-            <ul className="facts" data-reveal>
-              <li><b>答えではなく、問いを返す</b>話されなかった論点は、結論ではなく問いとして示される。それにどう答えるかを考えるのは、学生自身だ。</li>
-              <li><b>振り返るのは、学生自身</b>発言の偏りも、考えの変化も、材料を渡すだけ。なぜそうなったのか、次にどうするかは、学生が自分の言葉で決める。</li>
-              <li><b>問いかけるのは、教員</b>どのグループの、どの場面に声をかけるか。AI の示す根拠をもとに、教員が判断する。</li>
-            </ul>
+            <div className="outcomes" data-reveal>
+              <div><h3>学生は</h3><p>発言の量ではなく、考えの中身で議論に加われる。自分の考えがなぜ変わったのかを、根拠とともに語れるようになる。</p></div>
+              <div><h3>教員は</h3><p>結論ではなく、考えた過程を見て指導できる。次の授業で何を問えばよいかが見えてくる。</p></div>
+            </div>
           </div>
         </section>
 
