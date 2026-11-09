@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { loginStudent } from "./student";
 
 test("教員のホームから作成し、開始・強制終了・結果・教員のホームへ進む", async ({ page }) => {
   await page.goto("/");
@@ -22,4 +23,30 @@ test("教員のホームから作成し、開始・強制終了・結果・教�
   await page.getByRole("link", { name: "教員のホームに戻る", exact: true }).click();
   await expect(page).toHaveURL(/\/teacher$/);
   await expect(page.getByRole("region", { name: "作った議論" }).getByRole("link", { name: /チームで何を作るか/ }).first()).toContainText("終了");
+});
+
+test("議論が始まったあとも、参加コードで途中から参加して、そのまま話し合いに加われる", async ({ page, browser }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
+  await page.getByRole("link", { name: "議論を作る", exact: true }).click();
+  await page.getByLabel("テーマ", { exact: true }).fill("途中参加の確認");
+  await page.getByRole("button", { name: "作成する", exact: true }).click();
+  await expect(page).toHaveURL(/\/rooms\//);
+  const code = (await page.getByTestId("join-code").innerText()).replace(/\D/g, "");
+  await page.getByRole("button", { name: "議論を開始", exact: true }).click();
+  // 議論中も、教員の画面に参加コードを出す
+  await expect(page.getByLabel("グループと発言").getByText("途中から参加するときの参加コード")).toBeVisible();
+
+  const student = await (await browser.newContext({ baseURL: new URL(page.url()).origin })).newPage();
+  await loginStudent(student, "late");
+  await student.goto("/join");
+  await student.getByLabel("参加コード").fill(code);
+  await student.getByRole("button", { name: "参加する", exact: true }).click();
+  await expect(student.getByText("議論はもう始まっています。")).toBeVisible();
+  await student.getByLabel("参加者1の表示名", { exact: true }).fill("途中の人");
+  await student.getByRole("button", { name: "表示名を保存して進む", exact: true }).click();
+  // 声の登録は出さずに、議論の画面へ進む
+  await expect(student.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
+  await expect(student.getByRole("heading", { name: "声の登録", exact: true })).toHaveCount(0);
+  await student.context().close();
 });

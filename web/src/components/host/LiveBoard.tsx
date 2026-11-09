@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { HostSpeaking, type SpeakingState } from "@/components/Speaking";
 import { SourceTag } from "@/components/ui";
 import { ApiError, callApi } from "@/lib/api";
-import { millis, useDoc, useMessages, type Coverage, type Insight, type Member, type Room } from "@/lib/room";
+import { millis, useDoc, useGroups, useMessages, type Coverage, type Insight, type Member, type Room } from "@/lib/room";
 import { useRoomFeed } from "@/lib/room-stream";
 
 /** API は分析中の記録を60秒で期限切れにする。画面も同じ期限でボタンを戻す */
@@ -23,6 +23,7 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
   const coverage = useDoc<Coverage>(`sessions/${roomId}/results/coverage`).data;
   const messages = useMessages(roomId, true);
   const speaking = (useRoomFeed(roomId).collections[`sessions/${roomId}/speaking`] ?? []) as unknown as SpeakingState[];
+  const groupConfigs = useGroups(roomId);
   const pending = insights.filter((i) => i.status === "pending");
   const approved = insights.filter((i) => i.status === "approved");
 
@@ -141,12 +142,13 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
               </ul>
             </section>
           )}
+          {room.joinCode && <p className="live-side__code">途中から参加するときの参加コード<strong aria-label={room.joinCode.split("").join(" ")}>{room.joinCode.slice(0, 3)} {room.joinCode.slice(3)}</strong></p>}
           <section aria-labelledby="groups-title">
             <h2 id="groups-title" className="live-side__title">グループ</h2>
             <ul className="group-list">
               {Array.from({ length: room.groups ?? 1 }, (_, i) => i + 1).map((g) => {
-                const st = room.groupState?.[String(g)];
-                return <li key={g}><span>グループ{g}</span><span className="t-note">{st?.total ?? 0}人{st?.recording?.status ? `・録音の分析：${{ analyzing: "分析中", done: "完了", failed: "失敗" }[st.recording.status]}` : ""}</span></li>;
+                const st = room.groupState?.[String(g)], recorder = groupConfigs.find((c) => c.number === g)?.recorderName;
+                return <li key={g}><span>グループ{g}</span><span className="t-note">{st?.total ?? 0}人{recorder && room.recording !== false ? `・録音：${recorder}さん` : ""}{st?.recording?.status ? `・録音の分析：${{ analyzing: "分析中", done: "完了", failed: "失敗" }[st.recording.status]}` : ""}</span></li>;
               })}
             </ul>
           </section>

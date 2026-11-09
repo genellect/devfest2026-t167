@@ -29,6 +29,9 @@ export function PresentView({ roomId, room }: { roomId: string; room: Room }) {
       <header className="present__bar">
         <p className="present__brand">Topos</p>
         <h1 className="present__theme">{room.theme || room.title}</h1>
+        {!ended && room.phase !== "collecting" && code.length === 6 && (
+          <p className="present__late">途中参加<span className="present__late-code" aria-label={code.split("").join(" ")}>{code.slice(0, 3)} {code.slice(3)}</span></p>
+        )}
         <div className="present__tools">
           <button type="button" className="present__tool" onClick={() => void document.documentElement.requestFullscreen?.().catch(() => {})} aria-label="全画面にする" title="全画面にする"><Maximize aria-hidden="true" strokeWidth={1.75} /></button>
           <Link className="present__tool" href={`/rooms/${roomId}`} aria-label="操作画面に戻る" title="操作画面に戻る"><X aria-hidden="true" strokeWidth={1.75} /></Link>
