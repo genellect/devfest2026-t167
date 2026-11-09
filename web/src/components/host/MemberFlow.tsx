@@ -138,12 +138,15 @@ function Chart({ state, flow }: { state: SpeakingState; flow: Flow | null }) {
   );
 }
 
-/** グループメンバー（Figma T2 の下）。名前と、議論全体での発言率（推定）を並べる */
+/**
+ * グループメンバー（Figma T2 の下）。名前と、グラフの線と同じ色だけを並べる。
+ * 名前の横に発言率の数字を並べると、個人の点数のように見えるので出さない（Docs「アプリの構想」⑦ 個人を安易にスコア化しない）。
+ * 発言率の推移は、上のグラフと「表で見る」にある。
+ */
 export function MemberList({ roomId, group }: { roomId: string; group: number }) {
   const docs = useRoomFeed(roomId).collections[`sessions/${roomId}/speaking`] ?? [];
   const state = docs.find((d) => d.id === String(group)) as unknown as SpeakingState | undefined;
   if (!state?.members?.length) return null;
-  const total = Object.values(state.talkMs ?? {}).reduce((a, b) => a + b, 0) + (state.unknownMs ?? 0);
   return (
     <section className="panel member-list" aria-labelledby="member-list-title">
       <h2 id="member-list-title" className="member-flow__title">グループメンバー</h2>
@@ -152,7 +155,6 @@ export function MemberList({ roomId, group }: { roomId: string; group: number })
           <li key={m.uid} className="member-list__row">
             <span className="member-list__avatar" style={{ background: COLORS[k] ?? "#8f8e89" }} aria-hidden="true">{m.label.slice(0, 1)}</span>
             <span className="member-list__name">{m.label}</span>
-            <span className="member-list__rate">発言率 {total ? Math.round(((state.talkMs?.[m.uid] ?? 0) / total) * 100) : 0}%（推定）</span>
           </li>
         ))}
       </ul>

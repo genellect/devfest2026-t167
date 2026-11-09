@@ -36,7 +36,8 @@ export function registerDiscussionRoutes(app: Express, deps: Dependencies, guard
       return [{ sessionId: d.id, title: participantTitle({ title: d.get('title'), theme: d.get('theme'), themeHidden }), theme: themeHidden ? '' : d.get('theme') ?? '', phase: d.get('phase'), ended: !!d.get('endedAt') || d.get('phase') === 'closed', role: entries[i].get('role'), groupId: entries[i].get('groupId') ?? null }];
     }) });
   }));
-  const settings = z.object({ title: z.string().trim().min(1).max(100).optional(), theme: z.string().trim().max(1000).optional(), minutes: z.number().int().min(1).max(180).optional(), groupSelection: z.enum(['host', 'participant']).optional(), publishOnEnd: z.boolean().optional(), participantView: z.object({ theme: z.boolean(), timer: z.boolean(), members: z.boolean(), speaking: z.boolean().optional() }).strict().optional(), resultsPublished: z.boolean().optional() }).strict().refine((v) => Object.keys(v).length > 0);
+  // participantView.timer は以前の画面のために受け付けるが、使わない（経過時間・残り時間は参加者につねに出す）
+  const settings = z.object({ title: z.string().trim().min(1).max(100).optional(), theme: z.string().trim().max(1000).optional(), minutes: z.number().int().min(1).max(180).optional(), groupSelection: z.enum(['host', 'participant']).optional(), publishOnEnd: z.boolean().optional(), participantView: z.object({ theme: z.boolean(), timer: z.boolean().optional(), members: z.boolean(), speaking: z.boolean().optional() }).strict().optional(), resultsPublished: z.boolean().optional() }).strict().refine((v) => Object.keys(v).length > 0);
   app.post('/rooms/:roomId/settings', authenticate, member, host, wrap(async (req, res) => {
     const patch = parse(settings, req.body);
     await db.runTransaction(async (tx) => {
@@ -76,9 +77,11 @@ export function registerDiscussionRoutes(app: Express, deps: Dependencies, guard
     }); res.json({ ok: true });
   }));
   // 録音の担当を引き受ける／やめる（参加者）。教員が担当を決めていないグループでは、最初に録音を始めた端末が担当になり、
-  // ほかの人の画面に「〇〇さんの端末が録音を担当しています」と出す（Docs「アプリフィードバック」）
+  // ほかの人の画面に「〇〇さんの端末が録音を担当しています」と出す（Docs「アプリフィードバック」）。
+  // active は担当の端末がいま録音しているか。録音中は端末が20秒ごとに送り、ほかの人の画面は最後の送信から60秒以内だけ「録音中です」と出す
+  // （担当が決まっただけ・停止した・マイクを拒否した・画面を閉じたときに、録音中と出さないため）
   app.post('/rooms/:roomId/groups/recorder', authenticate, member, wrap(async (req, res) => {
-    const { take } = parse(z.object({ take: z.boolean() }).strict(), req.body);
+    const { take, active } = parse(z.object({ take: z.boolean(), active: z.boolean().optional() }).strict(), req.body);
     const result = await db.runTransaction(async (tx) => {
       const ref = db.doc(`sessions/${req.params.roomId}`), room = await tx.get(ref); requireOpenRoom(room);
       const own = await tx.get(ref.collection('members').doc(req.ctx.uid));
@@ -89,10 +92,13 @@ export function registerDiscussionRoutes(app: Express, deps: Dependencies, guard
       const current = config.get('recorderUid') as string | null | undefined;
       if (take) {
         if (current && current !== req.ctx.uid) throw new HttpError(409, 'recorder_taken', `${config.get('recorderName') ?? '別の参加者'}さんの端末が録音を担当しています`);
-        tx.set(groupRef, { groupId: String(group), number: group, name: config.get('name') ?? `グループ${group}`, recorderUid: req.ctx.uid, recorderName: recorderName(own) }, { merge: true });
-        return { recorderUid: req.ctx.uid };
+        tx.set(groupRef, {
+          groupId: String(group), number: group, name: config.get('name') ?? `グループ${group}`, recorderUid: req.ctx.uid, recorderName: recorderName(own),
+          recordingActive: active === true, recordingSeenAt: Timestamp.fromMillis(deps.now()),
+        }, { merge: true });
+        return { recorderUid: req.ctx.uid, recordingActive: active === true };
       }
-      if (current === req.ctx.uid) tx.set(groupRef, { recorderUid: null, recorderName: null }, { merge: true });
+      if (current === req.ctx.uid) tx.set(groupRef, { recorderUid: null, recorderName: null, recordingActive: false }, { merge: true });
       return { recorderUid: current === req.ctx.uid ? null : current ?? null };
     });
     res.json(result);

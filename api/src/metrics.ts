@@ -31,11 +31,14 @@ export function interventionEffectiveness(approved: number, addressed: number): 
   return Math.min(1, addressed / approved);
 }
 
-/** 納得度を出すのに必要な回答数。2人では自分の値から相手の値が分かるので、分布と平均を出さない */
-export const AGREEMENT_MIN_RESPONDENTS = 3;
+/**
+ * 納得度を出すのに必要な回答数。2人では自分の値から相手の値が、3人では残り2人の値の組み合わせが分かるので、
+ * 4人未満では分布と平均を出さない
+ */
+export const AGREEMENT_MIN_RESPONDENTS = 4;
 /**
  * 納得度（結論の一文と一緒に答える1〜5）の分布と平均。匿名で集めた値なので、回答が少ないと個人が分かる。
- * 3人未満のときは counts・average を null にし、画面では本人の値だけを出す。範囲外の値は数えない。
+ * 4人未満のときは counts・average を null にし、画面では本人の値だけを出す。範囲外の値は数えない。
  */
 export function agreementSummary(values: unknown[]): { respondents: number; counts: number[] | null; average: number | null } {
   const valid = values.filter((v): v is number => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 5);

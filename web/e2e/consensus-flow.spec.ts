@@ -43,6 +43,10 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     // 教員が開始すると、全員が議論の画面に変わる（時間は設定しない）
     await page.getByRole("button", { name: "議論を開始", exact: true }).click();
     for (const g of [a, b]) await expect(g.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
+    // ダッシュボードのグループのカード：1本化した流れでは、議論中は「話し合い中」（結論・結果の段階は終了後の画面に出る）
+    const liveCard = page.getByRole("region", { name: "グループ", exact: true }).getByRole("listitem").filter({ hasText: "グループ1" });
+    await expect(liveCard).toContainText("話し合い中");
+    await expect(liveCard.getByRole("button")).toHaveCount(0);
     // 時間を設定しないので残り時間は出さない（議論の経過時間は出る）
     await expect(a.getByRole("timer", { name: /残り時間/ })).toHaveCount(0);
 
@@ -55,6 +59,13 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     await page.getByRole("button", { name: "未検討の論点を探す", exact: true }).click();
     const proposal = page.locator(".box--yellow").filter({ hasText: "まだ議論されていない論点" }).first();
     await expect(proposal).toBeVisible();
+    // 未検討の論点が届くと、論点の欄をグループのカードより上に出す。帯の数字は論点の欄へのリンク
+    const insightsFirst = await page.evaluate(() => {
+      const next = document.getElementById("next-title"), cards = document.querySelector('[aria-label="グループ"]');
+      return !!next && !!cards && (next.compareDocumentPosition(cards) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    });
+    expect(insightsFirst).toBe(true);
+    await expect(page.getByRole("link", { name: /未検討の論点 \d+件/ })).toHaveAttribute("href", "#next-title");
     // AI が読み取った論点の一覧（話された／まだ）が右の列に出る。本文は出さない
     await expect(page.getByRole("heading", { name: /AI が読み取った論点（話された \d+\/\d+）/ })).toBeVisible();
     for (const o of opinions) await expect(page.locator("main")).not.toContainText(o);
@@ -99,7 +110,12 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     }
 
     // 全員がそろうとグループの結果が出る。教員が結果をまとめると、理解のずれと指標が出る
-    await expect(page.getByText("グループ1：結果あり")).toBeVisible({ timeout: 20_000 });
+    // 終了後は、グループのカードで段階を出す（ダッシュボードと同じ部品）。結果が出たグループは「グループを見る」で開ける
+    const endedCard = page.getByRole("region", { name: "グループごとの提出" }).getByRole("listitem").filter({ hasText: "グループ1" });
+    await expect(endedCard).toContainText("結果あり", { timeout: 20_000 });
+    await endedCard.getByRole("button", { name: "グループを見る", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "同じ結論でも、理解が2通りに分かれました" })).toBeVisible();
+    await page.getByRole("button", { name: "クラス全体に戻る", exact: true }).click();
     await page.getByRole("button", { name: "結果をまとめる", exact: true }).click();
     await expect(page.getByRole("button", { name: "結果をまとめ直す", exact: true })).toBeVisible();
     // グループが1つなので比べる表は出さず、合意の中身にグループの理解の分かれ方を出す
@@ -108,6 +124,11 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     for (const o of [...opinions, ...statements]) await expect(page.locator("main")).not.toContainText(o);
     await expect(a.getByRole("heading", { name: "議論の分析", exact: true })).toBeVisible();
     await expect(a.getByRole("heading", { name: "あなたの考えの変化" })).toBeVisible();
+    // 納得度：回答が4人未満なので、グループの分布と平均は出さず、本人の値だけを出す
+    const agreement = a.getByRole("region", { name: "納得度" });
+    await expect(agreement).toContainText("あなた 4");
+    await expect(agreement).not.toContainText("平均");
+    await expect(agreement).toContainText("回答が4人未満のため、グループの分布と平均は表示しません。");
     // 振り返りは、自分の言葉で2つとも書くまで保存できない
     const save = a.getByRole("button", { name: "振り返りを保存", exact: true });
     await expect(save).toBeDisabled();

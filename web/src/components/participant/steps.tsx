@@ -237,7 +237,7 @@ export function ResultStep({ roomId, uid, group, source, title, result, showSpea
 
 /**
  * 納得度（Figma 335:44）。1〜5の棒で、グループの人数の分布を出し、本人の値を濃い青にする。
- * 回答が3人未満のとき、サーバーは分布と平均を送らない（自分の値から相手の値が分かるため）。そのときは本人の値だけを出す。
+ * 回答が4人未満のとき、サーバーは分布と平均を送らない（自分の値から、ほかの人の値が分かるため）。そのときは本人の値だけを出す。
  */
 function AgreementCard({ mine, summary }: { mine?: number; summary: GroupResult["agreement"] | null }) {
   const counts = summary?.counts ?? null;
@@ -262,7 +262,7 @@ function AgreementCard({ mine, summary }: { mine?: number; summary: GroupResult[
         })}
       </div>
       <div className="agree-bars__ends" aria-hidden="true"><span>納得していない</span><span>とても納得</span></div>
-      {!counts && mine && <p className="t-note">回答が3人未満のため、グループの分布と平均は表示しません。</p>}
+      {!counts && mine && <p className="t-note">回答が4人未満のため、グループの分布と平均は表示しません。</p>}
     </section>
   );
 }

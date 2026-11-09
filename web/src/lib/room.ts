@@ -41,7 +41,7 @@ export const groupStatus = (room: Room, g: number): GroupStatus => room.groupSta
 /** グループの結果（rooms/{部屋}/results/group-{番号}） */
 export interface GroupResult {
   group: number; respondents: number; clusters: { label: string; count: number }[]; alignmentRate: number | null; source?: string;
-  /** 納得度（1〜5）の人数と平均。回答が3人未満のときは counts・average が null（個人が分かるため） */
+  /** 納得度（1〜5）の人数と平均。回答が4人未満のときは counts・average が null（個人の値が分かるため） */
   agreement?: { respondents: number; counts: number[] | null; average: number | null };
 }
 /** 部屋内の認可済み結果を同じ1接続から受け取る。 */
@@ -114,5 +114,14 @@ export function useCountdown(startMs: number | undefined, minutes: number) {
   return { text: `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`, over: left === 0 };
 }
 
-export interface GroupConfig { id: string; groupId: string; name: string; number: number; recorderUid?: string | null; recorderName?: string | null }
+export interface GroupConfig {
+  id: string; groupId: string; name: string; number: number; recorderUid?: string | null; recorderName?: string | null;
+  /** 担当の端末がいま録音しているか。端末が録音中に20秒ごとに送る（POST /rooms/{部屋}/groups/recorder） */
+  recordingActive?: boolean; recordingSeenAt?: Timestamp;
+}
+/** 担当の端末の最後の送信から、録音中とみなす時間。送信は20秒ごとなので、2回届かなければ録音中と出さない */
+export const RECORDING_FRESH_MS = 60_000;
+/** いま録音中か（担当が決まっただけ・停止した・画面を閉じたときは false） */
+export const isRecordingLive = (config: Pick<GroupConfig, "recordingActive" | "recordingSeenAt"> | null | undefined, now: number) =>
+  !!config?.recordingActive && now - (millis(config.recordingSeenAt) ?? 0) < RECORDING_FRESH_MS;
 export const useGroups = (roomId: string) => (useRoomFeed(roomId).collections[`sessions/${roomId}/groups`] ?? []) as unknown as GroupConfig[];

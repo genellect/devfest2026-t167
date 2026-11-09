@@ -34,9 +34,11 @@ function Card({ self, flow }: { self: SelfSpeaking; flow: Flow | null }) {
   }, []);
 
   const own = useMemo(() => new Set(self.members.map((m) => m.uid)), [self.members]);
-  // ほかのメンバーは名前を出さず、1人1本のグレーの線にする（サーバーは名前とIDを外した時間だけを送る）。古いデータでは平均の1本
-  const perPerson = self.timeline.some((m) => Array.isArray(m.othersMs));
-  const others = perPerson ? Math.max(0, ...self.timeline.map((m) => m.othersMs?.length ?? 0)) : Math.max(0, self.memberCount - self.members.length);
+  // ほかのメンバーは名前を出さず、1人1本のグレーの線にする（サーバーは、ほかのメンバーが2人以上いるときだけ、名前とIDを外した時間を多い順に送る）。
+  // 古いデータでは平均の1本。ほかのメンバーが1人だけのときは、線がそのまま相手の推移になるので、どちらも描かない
+  const perPerson = self.timeline.some((m) => Array.isArray(m.othersMs) && m.othersMs.length >= 2);
+  const others = perPerson ? Math.max(0, ...self.timeline.map((m) => m.othersMs?.length ?? 0))
+    : self.memberCount - self.members.length >= 2 ? self.memberCount - self.members.length : 0;
   const { points, overall } = useMemo(() => {
     const per = self.timeline.map((m) => ({ own: Object.entries(m.talkMs).reduce((a, [id, ms]) => a + (own.has(id) ? ms : 0), 0), total: m.totalMs ?? 0 }));
     const points = per.map((p, i) => {
@@ -157,12 +159,12 @@ function Card({ self, flow }: { self: SelfSpeaking; flow: Flow | null }) {
         <summary>表で見る</summary>
         <div className="speak-chart__scroll">
           <table>
-            <thead><tr><th scope="col">時点</th><th scope="col">あなた（直前2分）</th>{Array.from({ length: lines }, (_, k) => <th key={k} scope="col">{perPerson ? `ほかの人${k + 1}` : "ほかのメンバー（平均）"}</th>)}<th scope="col">話題</th></tr></thead>
+            <thead><tr><th scope="col">時点</th><th scope="col">あなた（直前2分）</th>{Array.from({ length: lines }, (_, k) => <th key={k} scope="col">{perPerson ? `ほかの人${k + 1}（多い順）` : "ほかのメンバー（平均）"}</th>)}<th scope="col">話題</th></tr></thead>
             <tbody>{points.map((p, i) => <tr key={i}><th scope="row">{fmt(p.x)}</th><td>{Math.round(p.v)}%</td>{Array.from({ length: lines }, (_, k) => <td key={k}>{Math.round(p.os[k] ?? 0)}%</td>)}<td>{topicAt(p.x - 0.5) ?? "—"}</td></tr>)}</tbody>
           </table>
         </div>
       </details>
-      <p className="t-note">発言量の多さを評価する指標ではありません。ほかのメンバーは名前を出さず、グレーの線で表示します。</p>
+      <p className="t-note">発言量の多さを評価する指標ではありません。ほかのメンバーは名前を出さず、3人以上のグループだけグレーの線で表示します。</p>
     </section>
   );
 }
