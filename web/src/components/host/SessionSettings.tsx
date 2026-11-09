@@ -8,6 +8,8 @@ export function SessionSettings({ roomId, room, embedded = false }: { roomId: st
   useEffect(() => setView(room.participantView ?? { theme: true, timer: true, members: true, speaking: false }), [room.participantView]);
   const [published, setPublished] = useState(room.resultsPublished ?? false);
   useEffect(() => setPublished(room.resultsPublished ?? false), [room.resultsPublished]);
+  const [publishOnEnd, setPublishOnEnd] = useState(room.publishOnEnd ?? true);
+  useEffect(() => setPublishOnEnd(room.publishOnEnd ?? true), [room.publishOnEnd]);
   const configurations = useGroups(roomId);
   const members = useMembers(roomId, true).filter((m) => m.role === "participant" && m.status !== "inactive");
   const [message, setMessage] = useState(""), [busy, setBusy] = useState(false);
@@ -23,6 +25,14 @@ export function SessionSettings({ roomId, room, embedded = false }: { roomId: st
   async function changeView(key: "theme" | "timer" | "members" | "speaking", checked: boolean) {
     const before = view, next = { ...view, [key]: checked }; setView(next);
     if (!await act("settings", { participantView: next })) setView(before);
+  }
+  async function changePublished(checked: boolean) {
+    const before = published; setPublished(checked);
+    if (!await act("settings", { resultsPublished: checked })) setPublished(before);
+  }
+  async function changePublishOnEnd(checked: boolean) {
+    const before = publishOnEnd; setPublishOnEnd(checked);
+    if (!await act("settings", { publishOnEnd: checked })) setPublishOnEnd(before);
   }
   const who = (m: (typeof members)[number], i: number) => m.attendees?.map((a) => a.displayName).join("、") || m.displayName || `参加者${i + 1}`;
   const voice = (m: (typeof members)[number]) => (m.ready ? "声：登録済み" : "声：未登録");
@@ -40,8 +50,8 @@ export function SessionSettings({ roomId, room, embedded = false }: { roomId: st
     </section>
     <section className="settings__group" aria-labelledby="set-publish">
       <h3 id="set-publish" className="t-sm">結果の公開</h3>
-      <label className="check"><input type="checkbox" checked={published} disabled={busy} onChange={(e) => { setPublished(e.target.checked); void act("settings", { resultsPublished: e.target.checked }); }} /><span>所属グループの分析結果を参加者に公開する</span></label>
-      <label className="check"><input type="checkbox" checked={room.publishOnEnd ?? true} onChange={(e) => void act("settings", { publishOnEnd: e.target.checked })} /><span>終了時に所属グループの結果を自動公開する</span></label>
+      <label className="check"><input type="checkbox" checked={published} disabled={busy} onChange={(e) => void changePublished(e.target.checked)} /><span>所属グループの分析結果を参加者に公開する</span></label>
+      <label className="check"><input type="checkbox" checked={publishOnEnd} disabled={busy} onChange={(e) => void changePublishOnEnd(e.target.checked)} /><span>終了時に所属グループの結果を自動公開する</span></label>
     </section>
     <section className="settings__group" aria-labelledby="set-view">
       <h3 id="set-view" className="t-sm">参加者の画面に出すもの</h3>

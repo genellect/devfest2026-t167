@@ -1,5 +1,9 @@
 "use client";
-import { AppShell, Stepper } from "@/components/shell";
+import { Stepper } from "@/components/shell";
+import { SessionShell as AppShell } from "@/components/SessionShell";
+import { SessionStage } from "@/components/SessionStage";
+import { mmss } from "@/lib/recorder";
+import { Check, Mic } from "lucide-react";
 import { SpeakerCapture } from "@/lib/speaker-capture";
 import { GuestSpeaking } from "@/components/Speaking";
 import { useEffect, useRef, useState } from "react";
@@ -79,7 +83,7 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
     } catch (e) { setError((e as Error).message); }
     finally { stream.current?.getTracks().forEach((t) => t.stop()); stream.current = undefined; setRegistering(undefined); }
   }
-  useEffect(() => { if (clock.over && room.phase === "discussing" && !room.endedAt) void callApi(`/rooms/${roomId}/check-time`).catch(() => {}); }, [clock.over, room.phase, room.endedAt, roomId]);
+  useEffect(() => { if (room.endsAt && clock.over && room.phase === "discussing" && !room.endedAt) void callApi(`/rooms/${roomId}/check-time`).catch(() => {}); }, [clock.over, room.endsAt, room.phase, room.endedAt, roomId]);
   const ended = !!room.endedAt || room.phase === "closed";
   const waiting = room.phase === "collecting";
   const named = !!own?.attendees?.length;
@@ -128,6 +132,9 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
       {error && <p className="notice notice--error" role="alert">{error}</p>}
 
       {ended ? <>
+        <SessionStage stage={room.resultsPublished && (result || status === "done") ? "result" : "ended"} title={room.resultsPublished && (result || status === "done") ? "議論を振り返りましょう" : "セッションが終了しました"}>
+          {result || status === "done" ? "自分の考えと、グループの結論を確かめましょう。" : "グループの結論を、自分の言葉で一文にまとめましょう。"}
+        </SessionStage>
         <p className="notice" role="status">{room.endReason === "timeout" ? "設定した時間になりました。" : "教員が議論を終了しました。"}</p>
         {["uploading", "waiting", "done"].includes(uploadState) && <p className="notice" role="status">{uploadState === "done" ? "録音の送信・分析が完了しました。" : uploadState === "waiting" ? "グループの分析結果を待っています。録音は端末に保持しています。" : "録音を送信して分析しています。画面を閉じずにお待ちください。"}</p>}
         {uploadState === "failed" && <div className="notice notice--error stack"><p role="alert">{recording.upload.message}</p><button className="btn" onClick={() => void recording.retry()}>録音を再送する</button></div>}
@@ -154,17 +161,22 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
       </form>
 
       : !voiced ? <section className="flow-card" aria-labelledby="voice-title">
+        <div className="session-voice">
         <h2 id="voice-title" className="flow-card__title">声の登録</h2>
+        <p className="session-voice__count">{own!.attendees!.filter((a) => a.voiceRegistered).length}/{own!.attendees!.length}人 登録済み · 約9秒</p>
         <p className="flow-card__lead">{shared ? "1人ずつ、次の文を9秒で読み上げてください。" : "次の文を9秒で読み上げてください。"}</p>
         <p className="read-aloud">私たちは、お互いの意見を聞き、理由を考えながら、よりよいアイデアを見つけます。</p>
+        </div>
         <label className="check"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /><span>声の特徴の登録と、上記の利用方法に同意します</span></label>
         <details><summary className="t-small">声の使い方</summary><p className="t-small">{shared ? "話し合いの発言時間の推定に使い、セッションの終了時に削除します。" : "話し合いの発言時間の推定に使います。声の特徴だけをこのアカウントに保存し、次回も使います。音声そのものは保存しません。"}</p></details>
         {own!.attendees!.map((a) => <div className="stack stack--tight" key={a.id}>
           {own!.attendees!.length > 1 && <p className="t-label">{a.displayName}</p>}
-          <button className="mic" data-done={a.voiceRegistered || undefined} disabled={!consent || !!registering || a.voiceRegistered} onClick={() => void enroll(a.id)}>
-            {a.voiceRegistered ? "登録済み" : registering === a.id ? (registrationMode === "mic" ? "読み上げてください" : "音声を登録しています…") : "声を登録する"}
+          <button className="mic session-mic" aria-label={a.voiceRegistered ? `${a.displayName} 登録済み` : "声を登録する"} data-active={registering === a.id || undefined} data-done={a.voiceRegistered || undefined} disabled={!consent || !!registering || a.voiceRegistered} onClick={() => void enroll(a.id)}>
+            {a.voiceRegistered ? <Check aria-hidden="true" size={32} /> : <Mic aria-hidden="true" size={32} strokeWidth={1.5} />}
             {registering === a.id && registrationMode === "mic" && <span className="mic__meter" role="progressbar" aria-label={`${a.displayName}の音声登録の進捗`} aria-valuemin={0} aria-valuemax={9} aria-valuenow={registrationSeconds}><span style={{ width: `${(registrationSeconds / 9) * 100}%` }} /></span>}
           </button>
+          <p className="session-mic__label">{a.voiceRegistered ? "登録済み" : registering === a.id ? (registrationMode === "mic" ? "読み上げてください" : "音声を登録しています…") : "マイクを押して登録"}</p>
+          {registering === a.id && registrationMode === "mic" && <p className="session-voice__progress" role="status">{registrationSeconds >= 9 ? "声を確認しています…" : `あと${9 - registrationSeconds}秒、そのまま読み上げてください`}</p>}
           <details><summary className="t-small">録音済みの音声から登録する</summary><p className="t-small">本人だけが話す8〜12秒、1MB以内の音声を選んでください。</p><input type="file" accept="audio/*" aria-label={`${a.displayName}の登録用音声ファイル`} disabled={!consent || !!registering || a.voiceRegistered} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void enroll(a.id, file); }} /></details>
         </div>)}
         {own!.voiceSource === "mock" && <p className="t-small">ローカルでは音声登録のモックを使います。実際の声の識別精度を表すものではありません。</p>}
@@ -172,12 +184,15 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
       </section>
 
       : waiting ? (!group
-        ? <p className="notice" role="status">グループの割り当てを待っています。</p>
+        ? <SessionStage stage="waiting" title="グループの割り当てを待っています">教員が割り当てると、自動で画面が切り替わります。</SessionStage>
         : <OpinionStep bare roomId={roomId} uid={uid} total={gs?.total} opinions={gs?.opinions} canChange={false} onChangeGroup={() => {}} />)
 
-      : <>
+      : <div className="session-discussion">
         <section className="talk-hero" aria-labelledby="talk-title">
+          <p className="pill pill--live">セッション中</p>
           <h2 id="talk-title" className="talk-hero__title">グループで話し合いましょう</h2>
+          <div className="session-live-mic" data-recording={recorderState === "recording" || undefined} aria-hidden="true"><Mic size={36} strokeWidth={1.5} /></div>
+          <p className="t-note">{recorderState === "recording" ? "この端末で録音中" : recorder?.name ? `${recorder.name}さんが録音担当` : room.recording === false ? "このセッションでは録音しません" : "録音はグループで1台"}</p>
           {room.participantView?.theme !== false && room.theme && <p className="talk-hero__theme">テーマ：{room.theme}</p>}
           {room.participantView?.timer !== false && room.endsAt && <p className="talk-hero__timer" role="timer">残り時間 {clock.text}</p>}
         </section>
@@ -187,6 +202,7 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
         {canRecord && room.recording !== false && (
           <section className="flow-card record-card" aria-labelledby="record-title">
             <h2 id="record-title" className="t-sm">{recorder?.mine ? "録音（この端末が担当）" : "録音"}</h2>
+            <div className="session-record-status" role="status"><span>{recorderState === "recording" ? "この端末で録音中" : recorderState === "asking" ? "マイクの許可を待っています" : recorderState === "stopped" ? "録音を端末に保管しました" : "録音を始められます"}</span>{recorderState === "recording" && <strong>{mmss(recording.rec.elapsedMs)}</strong>}</div>
             {!recorder?.mine && <p className="t-small">録音はグループで1台です。この端末で録音すると、ほかの人の画面に、この端末が担当だと出ます。</p>}
             <label className="check"><input type="checkbox" checked={recordingConsent} onChange={(e) => { setRecordingConsent(e.target.checked); if (!e.target.checked) void recording.discard(); }} /><span>グループ全員が録音・声の照合・発言時間の集計に同意しました</span></label>
             <p className="t-small">録音はグループで1台です。同意を取り消すと、ここまでの録音は送らずに削除します。</p>
@@ -196,12 +212,13 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
               {recorder?.mine && ["idle", "denied", "unsupported"].includes(recorderState) && <button className="btn" onClick={() => void releaseRecorder()}>録音の担当をやめる</button>}
             </div>
             {speakerStatus && <p className="t-small" role="status">{speakerStatus}</p>}
+            {["denied", "unsupported"].includes(recorderState) && <p className="notice notice--error" role="alert">{recorderState === "denied" ? "マイクを使えません。ブラウザのマイク設定を確認し、もう一度試してください。" : "このブラウザでは録音できません。別の端末を録音担当にしてください。"}</p>}
             {recording.rec.saveError && <p className="notice notice--error" role="alert">{recording.rec.saveError}</p>}
           </section>
         )}
         {!canRecord && room.recording !== false && <p className="notice" role="status">{recorder?.name ? `${recorder.name}さんの端末が録音を担当しています。` : "録音は、グループの別の端末が担当しています。"}</p>}
         {insights.length === 0 && question}
-      </>}
+      </div>}
 
       {group && room.participantView?.speaking === true && !ended && <GuestSpeaking roomId={roomId} group={group} />}
     </div>

@@ -1,4 +1,5 @@
 "use client";
+import "./session.css";
 import Link from "next/link";
 import { use, useEffect } from "react";
 import { ErrorScreen, Loading } from "@/components/ui";

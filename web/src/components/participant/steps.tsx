@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { SessionStage } from "@/components/SessionStage";
 import { useEffect, useRef, useState } from "react";
 import { FlowTimeline, GoodReview, useFlow } from "@/components/flow";
 import { FlowSpeaking } from "@/components/FlowSpeaking";
@@ -27,6 +28,7 @@ export function OpinionStep({ roomId, uid, total, opinions, canChange, onChangeG
   const [goal, setGoal] = useState("");
   const [opinion, setOpinion] = useState("");
   const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [prev, setPrev] = useState<string>();
   const loaded = useRef(false);
@@ -38,17 +40,18 @@ export function OpinionStep({ roomId, uid, total, opinions, canChange, onChangeG
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setError("");
+    if (busy) return;
+    setBusy(true); setError("");
     try {
       saveReflection(roomId, { goal: goal.trim() || undefined });
       // API 経由で出す。グループ全員がそろうと、API がそのグループの議論を始める
       await callApi(`/rooms/${roomId}/opinion`, { text: opinion.trim() });
       setSent(true);
     } catch (err) { setError(`提出できませんでした：${(err as Error).message}`); }
+    finally { setBusy(false); }
   }
 
-  return (
-    <Wrap bare={bare}>
+  const form = (
       <form className={bare ? "flow-card" : "box box--lg card"} onSubmit={submit}>
         <div className="heading-row">
           <h2 className="card__title">議論の前に書く</h2>
@@ -71,15 +74,25 @@ export function OpinionStep({ roomId, uid, total, opinions, canChange, onChangeG
           <p className="field__hint">教員にもほかの参加者にも本文は見えません。AI が、まだ話されていない論点を見つけるためだけに使います。</p>
         </div>
         {error && <p className="notice notice--error" role="alert">{error}</p>}
-        <button className="btn btn--blue btn--block" type="submit" disabled={!opinion.trim()}>{mine ? "書き直して提出する" : "提出する"}</button>
-        {sent && <p className="notice" role="status">提出しました</p>}
-        {mine && (
+        <button className="btn btn--blue btn--block" type="submit" disabled={busy || !opinion.trim()}>{busy ? "提出しています…" : mine ? "書き直して提出する" : "提出する"}</button>
+        {sent && !bare && <p className="notice" role="status">提出しました</p>}
+        {mine && !bare && (
           <div className="notice notice--warn stack stack--tight">
             <p className="t-label">{bare ? "教員が議論を始めるまで待っています" : `グループのみんなの意見を待っています${total ? `（${opinions ?? 0}/${total}人）` : ""}`}</p>
             <p className="t-note">議論が始まると、この画面が変わります。それまでは書き直せます。</p>
           </div>
         )}
       </form>
+  );
+  return (
+    <Wrap bare={bare}>
+      {bare && (mine || sent) ? <div className="session-wait">
+        <SessionStage stage="waiting" title="開始を待っています">
+          <p role="status">提出しました。教員が開始すると、自動で議論の画面に切り替わります。</p>
+          {total != null && <p>グループの事前意見 {opinions ?? 0}/{total}人</p>}
+        </SessionStage>
+        <details className="session-wait__edit"><summary>提出した意見を確認・編集</summary>{form}</details>
+      </div> : form}
     </Wrap>
   );
 }
@@ -124,17 +137,19 @@ export function ConsensusStep({ roomId, uid, submitted, total, bare = false }: {
   const [agreement, setAgreement] = useState(0);
   const [concern, setConcern] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const loaded = useRef(false);
   useEffect(() => {
     if (mine && !loaded.current) { loaded.current = true; setText(mine.text); setAgreement(mine.agreement); setConcern(mine.concern ?? ""); }
   }, [mine]);
 
   async function submit(e: React.FormEvent) {
-    e.preventDefault(); setError("");
+    e.preventDefault(); if (busy) return; setBusy(true); setError("");
     try {
       // API 経由で出す。グループ全員がそろうと、API がそのグループの結果を出す
       await callApi(`/rooms/${roomId}/statement`, { text: text.trim(), agreement, ...(concern.trim() ? { concern: concern.trim() } : {}) });
     } catch (err) { setError(`提出できませんでした：${(err as Error).message}`); }
+    finally { setBusy(false); }
   }
 
   return (
@@ -164,7 +179,7 @@ export function ConsensusStep({ roomId, uid, submitted, total, bare = false }: {
           <input id="concern" className="input" maxLength={300} value={concern} onChange={(e) => setConcern(e.target.value)} />
         </div>
         {error && <p className="notice notice--error" role="alert">{error}</p>}
-        <button className="btn btn--blue btn--block" type="submit" disabled={!text.trim() || !agreement}>{mine ? "書き直して提出する" : "提出する"}</button>
+        <button className="btn btn--blue btn--block" type="submit" disabled={busy || !text.trim() || !agreement}>{busy ? "提出しています…" : mine ? "書き直して提出する" : "提出する"}</button>
         {mine && (
           <div className="notice notice--warn stack stack--tight" role="status">
             <p className="t-label">提出しました。グループのみんなを待っています{total ? `（${submitted ?? 0}/${total}人）` : ""}</p>
@@ -197,6 +212,15 @@ export function ResultStep({ roomId, uid, group, source, title, result, showSpea
         <p className="t-lg">{title}</p>
       </section>
 
+      <section className="stack" aria-labelledby="change-title">
+        <h2 id="change-title" className="t-md">議論の前と後を比べる</h2>
+        <div className="session-comparison">
+          <section><h3 className="t-label">事前の意見</h3><p>{opinion?.text ?? "事前の意見は提出していません。"}</p></section>
+          <section><h3 className="t-label">議論後の理解</h3><p>{mine?.text ?? "結論の一文は提出していません。"}</p></section>
+        </div>
+        <p className="t-note">この2つの本文は、本人だけに表示されます。</p>
+      </section>
+
       <h2 className="t-md">同じ結論を、どう理解した？</h2>
       {!result ? (
         <p className="box box--sm pad t-label">グループの結果はまだありません。グループ全員が結論の一文を書くと、ここに理解の分かれ方が出ます。</p>
@@ -226,12 +250,6 @@ export function ResultStep({ roomId, uid, group, source, title, result, showSpea
                 <p className="t-small" style={{ fontWeight: 700 }}>今日の目標</p>
                 <p className="t-md">{r.goal}</p>
               </>}
-              {opinion && (
-                <div className="box box--tint" style={{ padding: "8px 12px" }}>
-                  <p className="t-small" style={{ fontWeight: 700 }}>事前の意見</p>
-                  <p>{opinion.text}</p>
-                </div>
-              )}
               {r.goal && <>
                 <p className="t-label">目標は達成できた？</p>
                 <div className="choices">
@@ -264,7 +282,7 @@ export function ResultStep({ roomId, uid, group, source, title, result, showSpea
             <h2 className="t-md">次はどうするか</h2>
             <GoodReview flow={flow} />
           </> : <p className="t-note">録音した議論では、分析が届くと、議論の流れと振り返りがここに出ます。</p>}
-          <Link className="btn" href="/student" style={{ alignSelf: "flex-start" }}>ホームに戻る</Link>
+          <Link className="btn" href="/home" style={{ alignSelf: "flex-start" }}>ホームに戻る</Link>
         </>
       )}
     </div>

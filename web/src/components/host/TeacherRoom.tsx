@@ -1,12 +1,13 @@
 "use client";
-import { AppShell } from "@/components/shell";
+import { SessionShell as AppShell } from "@/components/SessionShell";
+import { SessionStage } from "@/components/SessionStage";
 import Link from "next/link";
 import { Presentation, Settings } from "lucide-react";
 import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
 import { useGeminiSource } from "@/components/ui";
 import { ApiError, callApi } from "@/lib/api";
-import { millis, useDoc, useGroupResults, useInsights, useMembers, type Flow, type GroupPoints, type GroupResult, type Room, type Summary } from "@/lib/room";
+import { millis, useDoc, useGroupResults, useInsights, useMembers, type Flow, type GroupPoints, type GroupResult, type Member, type Room, type Summary } from "@/lib/room";
 import { ClassResult, GroupResultView } from "./HostRoom";
 import { LiveBoard } from "./LiveBoard";
 import { HostSpeaking } from "@/components/Speaking";
@@ -48,11 +49,13 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
           <Settings size={20} strokeWidth={1.75} aria-hidden="true" />
         </button></>}>
 
-      {room.phase === "collecting" && <Lobby roomId={roomId} room={room} seats={seats} opinions={opinions} />}
+      {!ended && room.phase === "collecting" && <Lobby roomId={roomId} room={room} seats={seats} opinions={opinions} members={members} />}
       {!ended && room.phase !== "collecting" && <LiveBoard roomId={roomId} room={room} members={members} insights={insights} />}
       {ended && (openGroup
         ? <div className="teacher__body"><button className="text-btn" onClick={() => setOpenGroup(undefined)}>セッション全体に戻る</button><GroupResultView result={results.find((r) => r.group === openGroup) ?? null} group={openGroup} roomId={roomId} source={source} /></div>
         : <div className="teacher__body">
+          <SessionStage stage="result" title="セッションの結果">グループごとの結論と、議論の過程を確認できます。</SessionStage>
+          <ResultPublication roomId={roomId} published={room.resultsPublished === true} />
           {/* いまやることを1つだけ大きく：結論の提出待ち → 結果をまとめる。データのない欄は出さない */}
           <EndedFocus roomId={roomId} room={room} results={results} summary={summary ?? null} />
           {results.length > 0 && <ClassResult roomId={roomId} room={room} results={results} summary={summary ?? null} onOpen={setOpenGroup} />}
@@ -70,7 +73,7 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
 }
 
 /** 準備中：教室に映す参加コードとQR、集まり具合、開始 */
-function Lobby({ roomId, room, seats, opinions }: { roomId: string; room: Room; seats: number; opinions: number }) {
+function Lobby({ roomId, room, seats, opinions, members }: { roomId: string; room: Room; seats: number; opinions: number; members: Member[] }) {
   const [qr, setQr] = useState<string>();
   const code = room.joinCode ?? "";
   useEffect(() => {
@@ -78,6 +81,12 @@ function Lobby({ roomId, room, seats, opinions }: { roomId: string; room: Room; 
     QRCode.toDataURL(`${window.location.origin}/join?code=${code}`, { margin: 1, width: 520 }).then(setQr).catch(() => setQr(undefined));
   }, [code]);
   const [busy, setBusy] = useState(false), [message, setMessage] = useState(""), [notReady, setNotReady] = useState("");
+  const [copied, setCopied] = useState("");
+  async function copy(link = false) {
+    setCopied("");
+    try { await navigator.clipboard.writeText(link ? `${window.location.origin}/join?code=${code}` : code); setCopied(link ? "参加リンクをコピーしました" : "参加コードをコピーしました"); }
+    catch { setCopied("コピーできませんでした。参加コードを直接入力してください。"); }
+  }
   async function start(excludeNotReady = false) {
     setBusy(true); setMessage(""); setNotReady("");
     try { await callApi(`/rooms/${roomId}/phase`, { to: "discussing", ...(excludeNotReady ? { excludeNotReady } : {}) }); }
@@ -89,13 +98,17 @@ function Lobby({ roomId, room, seats, opinions }: { roomId: string; room: Room; 
       <section className="lobby__code" aria-label="参加コード">
         <p className="lobby__label">参加コード</p>
         <p data-testid="join-code" className="lobby__digits" aria-label={code.split("").join(" ")}>{code.length === 6 ? <>{code.slice(0, 3)}<span aria-hidden="true"> </span>{code.slice(3)}</> : code}</p>
-        {qr
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img className="lobby__qr" src={qr} alt={`参加用のQRコード（参加コード ${code}）`} />
-          : <div className="lobby__qr" aria-hidden="true" />}
         <p className="t-note">スマホで QR を読み取るか、6桁の数字を入力します。</p>
+        <div className="session-lobby-actions"><button className="btn btn--small" onClick={() => void copy()}>コードをコピー</button><button className="btn btn--small" onClick={() => void copy(true)}>参加リンクをコピー</button></div>
+        {copied && <p className="t-note" role="status">{copied}</p>}
       </section>
       <section className="lobby__side" aria-label="集まり具合">
+        <div className="session-qr">
+          {qr
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img className="lobby__qr" src={qr} alt={`参加用のQRコード（参加コード ${code}）`} />
+            : <div className="lobby__qr" aria-hidden="true" />}
+        </div>
         <dl className="stats">
           <div><dt>参加</dt><dd>{seats}人</dd></div>
           <div><dt>事前意見</dt><dd>{opinions}/{seats}人</dd></div>
@@ -105,9 +118,32 @@ function Lobby({ roomId, room, seats, opinions }: { roomId: string; room: Room; 
         {message && <p className="notice notice--error" role="alert">{message}</p>}
         <button className="btn btn--blue btn--block start-btn" disabled={busy} onClick={() => void start()}>{busy ? "開始しています…" : "議論を開始"}</button>
         <p className="t-note">開始したあとも、同じ参加コードで途中から参加できます。</p>
+        <section className="session-roster" aria-labelledby="lobby-members-title">
+          <h2 id="lobby-members-title" className="t-sm">参加者</h2>
+          {!members.length ? <p className="t-note">まだ参加者がいません。</p> : <ul>{members.map((m, i) => <li key={m.id}>
+            <span>{m.attendees?.map((a) => a.displayName).join("、") || m.displayName || `参加者${i + 1}`}</span>
+            <span className="t-note">{m.group ? `グループ${m.group}` : "所属待ち"}<br />{m.ready ? "声：登録済み" : "声：未登録"}</span>
+          </li>)}</ul>}
+        </section>
       </section>
     </div>
   );
+}
+
+/** 結果の配信状態は、設定を開かずに確認・変更できる。 */
+function ResultPublication({ roomId, published }: { roomId: string; published: boolean }) {
+  const [busy, setBusy] = useState(false), [error, setError] = useState("");
+  async function change() {
+    setBusy(true); setError("");
+    try { await callApi(`/rooms/${roomId}/settings`, { resultsPublished: !published }); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  }
+  return <section className="session-publish" aria-label="結果の公開状態">
+    <div><h2 className="t-sm">{published ? "参加者に公開中" : "結果は非公開です"}</h2><p className="t-note">参加者は、自分のグループの結果だけを閲覧できます。</p></div>
+    <button className={`btn${published ? "" : " btn--blue"}`} disabled={busy} onClick={() => void change()}>{busy ? "変更しています…" : published ? "結果を非公開にする" : "結果を参加者に公開する"}</button>
+    {error && <p className="notice notice--error" role="alert">{error}</p>}
+  </section>;
 }
 
 /**

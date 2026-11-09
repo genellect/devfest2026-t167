@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { SessionStage } from "@/components/SessionStage";
 import { HostSpeaking, type SpeakingState } from "@/components/Speaking";
 import { SourceTag } from "@/components/ui";
 import { ApiError, callApi } from "@/lib/api";
@@ -65,6 +66,7 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
 
   return (
     <div className="teacher__body live">
+      <SessionStage stage="live" title="セッション中">参加状況を確認しながら、必要な問いかけを共有できます。</SessionStage>
       <section className="tally" aria-label="議論の進み具合">
         <p className="tally__time" role="timer" aria-label="経過時間">{String(Math.floor(elapsed / 60)).padStart(2, "0")}:{String(elapsed % 60).padStart(2, "0")}</p>
         <dl className="tally__list">
@@ -148,7 +150,7 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
             <ul className="group-list">
               {Array.from({ length: room.groups ?? 1 }, (_, i) => i + 1).map((g) => {
                 const st = room.groupState?.[String(g)], recorder = groupConfigs.find((c) => c.number === g)?.recorderName;
-                return <li key={g}><span>グループ{g}</span><span className="t-note">{st?.total ?? 0}人{recorder && room.recording !== false ? `・録音：${recorder}さん` : ""}{st?.recording?.status ? `・録音の分析：${{ analyzing: "分析中", done: "完了", failed: "失敗" }[st.recording.status]}` : ""}</span></li>;
+                return <li key={g}><span>{groupConfigs.find((c) => c.number === g)?.name || `グループ${g}`}</span><span className="t-note">{st?.total ?? 0}人{room.recording !== false ? `・録音担当：${recorder ? `${recorder}さん` : "未指定"}` : "・録音なし"}{st?.recording?.status ? `・録音の分析：${{ analyzing: "分析中", done: "完了", failed: "失敗" }[st.recording.status]}` : ""}</span></li>;
               })}
             </ul>
           </section>
