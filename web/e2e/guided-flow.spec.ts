@@ -22,8 +22,9 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     expect((await host.post(`/api/rooms/${r.roomId}/phase`, { headers, data: { to: "discussing" } })).status()).toBe(200);
     await expect(page.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
     await expect(page.getByText("テーマ：秘密のテーマ")).toBeVisible();
-    // 開始後にホームへ戻っても、同じコードで議論の画面に戻れる
-    await page.getByRole("link", { name: "ホーム", exact: true }).click();
+    // 議論中は戻る操作を出さない。別URLを開いた後も、同じコードで議論を復元できる。
+    await expect(page.getByRole("link", { name: "ホーム", exact: true })).toHaveCount(0);
+    await page.goto("/home");
     await page.goto(`/join?code=${r.joinCode}`);
     await expect(page).toHaveURL(/\/rooms\//);
     await expect(page.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();

@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { authorizeDrive, materialRequest, pickDriveFile, SCOPES, type MaterialFile } from "@/lib/drive";
 import { useRoomFeed } from "@/lib/room-stream";
@@ -36,7 +37,7 @@ export function SessionMaterials({ roomId, editable = false, ended = false }: { 
   }
   if (!editable && !files.length) return null;
   return <section className="session-materials" aria-label="共有資料">
-    <div className="heading-row"><h2 className="t-sm">資料</h2>{editable && !ended && <button className="btn btn--small" disabled={busy || files.length >= 5} onClick={() => void choose()}>{busy ? "処理しています…" : "Driveから追加"}</button>}</div>
+    <div className="heading-row"><h2 className="t-sm">資料</h2>{editable && !ended && <button className="btn btn--small session-drive-button" title="Google Driveのファイル一覧から資料を追加" disabled={busy || files.length >= 5} onClick={() => void choose()}><Image src="/brand/google-drive.png" alt="" width={24} height={24} />{busy ? "処理しています…" : "Google Driveから追加"}</button>}</div>
     {files.length ? <ul>{files.map(file => <li key={file.id}><button className="text-btn" disabled={busy} onClick={() => void open(file)}>{file.name}</button>{editable && <button className="text-btn" disabled={busy} aria-label={`${file.name}の共有を解除`} onClick={() => void remove(file)}>解除</button>}</li>)}</ul> : <p className="t-note">議論に使う資料をDriveから選べます。</p>}
     {error && !pending && <p className="notice notice--error" role="alert">{error}</p>}
     <dialog ref={confirm} className="dialog" aria-labelledby="material-confirm-title" onCancel={e => { if (busy) e.preventDefault(); else setPending(undefined); }}>

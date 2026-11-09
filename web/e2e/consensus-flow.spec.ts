@@ -38,7 +38,8 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     const opinions = ["架空の授業では、AIを使った箇所を申告する決まりを作り、透明性を確保するべきだと考える。", "架空の授業では、端末を持たない学生に貸出をして、費用で参加の機会が変わらないようにしたい。"];
     await joinAndWriteOpinion(a, code, "架空の学生A", opinions[0]);
     await joinAndWriteOpinion(b, code, "架空の学生B", opinions[1]);
-    await expect(page.getByRole("region", { name: "集まり具合" })).toContainText(/事前意見\s*2\/2人/);
+    await expect(page.getByRole("region", { name: "集まり具合" })).toContainText(/事前意見の提出\s*2\/2/);
+    for (const name of ["架空の学生A", "架空の学生B"]) await expect(page.getByRole("region", { name: "集まり具合" })).toContainText(name);
 
     // 教員が開始すると、全員が議論の画面に変わる（時間は設定しない）
     await page.getByRole("button", { name: "議論を開始", exact: true }).click();
@@ -66,10 +67,10 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     const rest = page.locator(".box--yellow").filter({ hasText: "まだ議論されていない論点" });
     await expect(rest).toHaveCount(1);
     const dismissed = (await rest.locator(".t-md").innerText()).trim();
-    await expect(page.getByRole("region", { name: "議論の進み具合" })).toContainText(/未検討の論点\s*1/);
+    await expect(page.getByRole("region", { name: "ダッシュボード", exact: true })).toContainText(/未検討の論点\s*1/);
     await rest.getByRole("button", { name: "見送る", exact: true }).click();
     await expect(rest).toHaveCount(0);
-    await expect(page.getByRole("region", { name: "議論の進み具合" })).toContainText(/未検討の論点\s*0/);
+    await expect(page.getByRole("region", { name: "ダッシュボード", exact: true })).toContainText(/未検討の論点\s*0/);
     await expect(page.getByRole("heading", { name: "いまは新しい提案はありません" })).toBeVisible();
     for (const g of [a, b]) await expect(g.getByRole("region", { name: "教員からの問いかけ" })).not.toContainText(dismissed);
 

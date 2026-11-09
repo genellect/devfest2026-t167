@@ -127,7 +127,7 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
   const uploadState = recording.upload.state;
   const who = [own?.displayName, group && (room.groups ?? 1) > 1 ? `グループ${group}` : ""].filter(Boolean).join("・");
   return <AppShell eyebrow={who || undefined} title={room.participantView?.theme === false ? room.title : room.theme || room.title}
-    steps={<Stepper steps={STEPS} current={step} />} back="/home" onLeave={leave}>
+    steps={<Stepper steps={STEPS} current={step} />} back="/home" onLeave={leave} hideBack={!ended && room.phase !== "collecting"}>
     <div className="flow">
       {error && <p className="notice notice--error" role="alert">{error}</p>}
       <SessionMaterials roomId={roomId} />

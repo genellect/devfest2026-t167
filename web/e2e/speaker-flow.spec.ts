@@ -37,10 +37,12 @@ test('録音と同じマイクで登録済みの声を照合し、Hostが表示�
     await expect(peer.getByRole('button', { name: '録音を始める', exact: true })).toHaveCount(0);
     await expect(page.getByRole('region', { name: 'グループの状況' }).getByText(/録音担当：架空の参加者さん/)).toBeVisible();
     await peerContext.close();
+    await page.getByRole('button', { name: 'グループ1の詳細', exact: true }).click();
     const hostState = page.getByRole('region', { name: 'グループ1の発言時間', exact: true });
     await expect(hostState.getByText('直近の発言者：架空の参加者')).toBeVisible({ timeout: 15_000 });
     await expect(guest.getByRole('region', { name: 'グループ1の発言時間' })).toHaveCount(0);
-    // 設定は歯車のボタンから開くダイアログにある
+    await page.getByRole('dialog', { name: 'グループ1', exact: true }).getByRole('button', { name: '閉じる', exact: true }).click();
+    // 設定はボタンから開くダイアログにある
     await page.getByRole('button', { name: '設定', exact: true }).click();
     await page.getByLabel('参加者に所属グループの発言時間の推定を表示').check();
     await expect(guest.getByRole('region', { name: 'グループ1の発言時間' })).toBeVisible();

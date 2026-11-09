@@ -1,10 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
-import { SessionStage } from "@/components/SessionStage";
+import { useEffect, useRef, useState } from "react";
 import { SessionGroups } from "./SessionGroups";
 import { SessionMaterials } from "@/components/SessionMaterials";
 import { SessionJoinCode } from "@/components/SessionJoinCode";
-import { HostSpeaking, type SpeakingState } from "@/components/Speaking";
+import type { SpeakingState } from "@/components/Speaking";
+import { ProgressRing } from "./SessionCharts";
 import { SourceTag } from "@/components/ui";
 import { ApiError, callApi } from "@/lib/api";
 import { millis, useDoc, useMessages, type Coverage, type Insight, type Member, type Room } from "@/lib/room";
@@ -17,7 +17,7 @@ const AUTO_GAP_MS = 60_000;
 
 /**
  * 議論中の教員の画面（教室に投影する黒板）。司会者が「次に何をすべきか」を一目で決められるように、
- * 上の帯に経過時間と3つの数字（意見の検討率・未検討の論点・発言した人）、
+ * 経過時間と終了操作、円グラフとグループカードで全体を把握し、
  * 主役に AI が見つけた「まだ話されていない論点」の付箋（全員に表示する／見送る）を置く（Docs「アプリの構想」§3）。
  * 事前意見の本文は出さない（提案は Gemini が言い換えた論点だけ）。
  */
@@ -68,26 +68,18 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
 
   return (
     <div className="teacher__body live">
-      <SessionStage stage="live" title="セッション中">参加状況を確認しながら、必要な問いかけを共有できます。</SessionStage>
-      <section className="tally" aria-label="議論の進み具合">
-        <p className="tally__time" role="timer" aria-label="経過時間">{String(Math.floor(elapsed / 60)).padStart(2, "0")}:{String(elapsed % 60).padStart(2, "0")}</p>
-        <dl className="tally__list">
-          <div>
-            <dt>意見の検討率</dt>
-            <dd className="tally__num">{coverage?.reflectionRate == null ? "—" : `${Math.round(coverage.reflectionRate * 100)}%`}</dd>
-            {coverage && <dd className="tally__sub">話された論点 {coverage.discussed}/{coverage.total}</dd>}
-          </div>
-          <div data-alert={pending.length > 0 || undefined}>
-            <dt>未検討の論点</dt>
-            <dd className="tally__num">{pending.length}</dd>
-          </div>
-          <div>
-            <dt>{spoke.label}</dt>
-            <dd className="tally__num">{spoke.count}<small>/{spoke.total}人</small></dd>
-          </div>
-        </dl>
+      <section className="dashboard-session" aria-label="議論の進み具合">
+        <div className="dashboard-session__heading"><div><p className="dashboard-live-label"><span aria-hidden="true" />LIVE</p><h2 className="t-md">セッション中</h2></div>
+          <div className="dashboard-session__clock"><span className="t-note">経過時間</span><p role="timer" aria-label="経過時間">{String(Math.floor(elapsed / 60)).padStart(2, "0")}:{String(elapsed % 60).padStart(2, "0")}</p></div>
+        </div>
         <FinishButton roomId={roomId} />
       </section>
+      <section className="dashboard-metrics" aria-label="ダッシュボード">
+        <article className="dashboard-metric"><ProgressRing label="意見の検討率" value={coverage?.reflectionRate ?? null} note={coverage ? `話された論点 ${coverage.discussed}/${coverage.total}` : "分析後に表示"} /></article>
+        <article className="dashboard-metric"><ProgressRing label={spoke.label} value={spoke.total ? spoke.count / spoke.total : null} note={`${spoke.count}/${spoke.total}人${voice.length ? " · 発言時間から集計" : " · 共有メモから集計"}`} /></article>
+        <article className="dashboard-metric dashboard-metric--pending"><div><p className="t-note">未検討の論点</p><strong>{pending.length}<small>件</small></strong></div><p className="t-note">{pending.length ? "下の提案を確認" : "新しい論点を分析できます"}</p></article>
+      </section>
+      <SessionGroups roomId={roomId} room={room} members={members} dashboard />
 
       <div className="live-grid">
         <section className="next" aria-labelledby="next-title">
@@ -147,10 +139,8 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
             </section>
           )}
           {room.joinCode && <SessionJoinCode code={room.joinCode} />}
-          <HostSpeaking roomId={roomId} card />
         </aside>
       </div>
-      <SessionGroups roomId={roomId} room={room} members={members} />
       <SessionMaterials roomId={roomId} editable />
     </div>
   );
@@ -195,17 +185,21 @@ function useScan(roomId: string, room: Room, messageTimes: number[], now: number
 }
 
 function FinishButton({ roomId }: { roomId: string }) {
-  const [confirm, setConfirm] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const confirm = useRef<HTMLDialogElement>(null);
+  const cancel = useRef<HTMLButtonElement>(null);
+  const [busy, setBusy] = useState(false), [error, setError] = useState("");
   async function finish() {
     setBusy(true); setError("");
-    try { await callApi(`/rooms/${roomId}/finish`); }
+    try { await callApi(`/rooms/${roomId}/finish`); confirm.current?.close(); }
     catch (e) { setError((e as Error).message); setBusy(false); }
   }
-  return (
-    <div className="tally__end">
-      {!confirm ? <button className="btn" onClick={() => setConfirm(true)}>議論を終える</button>
-        : <><button className="btn btn--blue" disabled={busy} onClick={() => void finish()}>{busy ? "終えています…" : "終えて結果を見る"}</button><button className="btn" disabled={busy} onClick={() => setConfirm(false)}>まだ続ける</button></>}
-      {error && <p className="notice notice--error" role="alert">{error}</p>}
-    </div>
-  );
+  return <div className="dashboard-finish">
+    <button className="btn session-finish-button" onClick={() => { setError(""); confirm.current?.showModal(); cancel.current?.focus(); }}>議論を終える</button>
+    <dialog ref={confirm} className="dialog session-finish-dialog" aria-labelledby="finish-dialog-title" aria-describedby="finish-dialog-description" onCancel={e => { if (busy) e.preventDefault(); }}>
+      <div className="session-finish-dialog__body"><p className="session-finish-dialog__label">セッションの終了</p><h2 id="finish-dialog-title" className="t-md">セッションを終了しますか？</h2><p id="finish-dialog-description" className="t-note">全グループの議論を終了し、参加者は結論の入力へ進みます。</p>
+        {error && <p className="notice notice--error" role="alert">{error}</p>}
+        <div className="session-finish-dialog__actions"><button ref={cancel} className="btn" disabled={busy} onClick={() => confirm.current?.close()}>まだ続ける</button><button className="btn session-finish-button" disabled={busy} onClick={() => void finish()}>{busy ? "終えています…" : "終えて結果を見る"}</button></div>
+      </div>
+    </dialog>
+  </div>;
 }

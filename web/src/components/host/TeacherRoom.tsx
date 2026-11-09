@@ -42,7 +42,7 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
 
   return (
     <AppShell wide back="/teacher"
-      hero={!ended && room.phase === "collecting"}
+      hero={!ended && room.phase === "collecting"} hideBack={!ended && room.phase !== "collecting"}
       eyebrow={<>{room.className && <span>{room.className}</span>}<span className={`pill pill--${state === "議論中" ? "live" : state === "終了" ? "done" : "ready"}`}>{state}</span></>}
       title={room.theme || room.title}
       actions={<>
@@ -96,10 +96,10 @@ function Lobby({ roomId, room, seats, opinions, members }: { roomId: string; roo
       </div>
       <section className="session-invite" aria-label="集まり具合">
         <SessionJoinCode code={code} />
-        <dl className="stats">
-          <div><dt>参加</dt><dd>{seats}人</dd></div>
-          <div><dt>事前意見</dt><dd>{opinions}/{seats}人</dd></div>
-        </dl>
+        <div className="session-invite__participants"><h2 className="t-label">参加者</h2>
+          <div className="session-group-card__people">{members.length ? members.flatMap(m => m.attendees?.length ? m.attendees.map(a => <span key={`${m.id}/${a.id}`}>{a.displayName}</span>) : [<span key={m.id}>{m.displayName || "表示名の入力待ち"}</span>]) : <p className="t-note">参加を待っています</p>}</div>
+        </div>
+        <p className="t-note">事前意見の提出 {opinions}/{seats}</p>
         {notReady && <div className="notice notice--warn stack" role="alert"><p>{notReady}。外した参加者は、このセッションに参加できなくなります。</p>
           <button className="btn btn--blue" disabled={busy} onClick={() => void start(true)}>未準備の参加者を外して開始</button></div>}
         {message && <p className="notice notice--error" role="alert">{message}</p>}

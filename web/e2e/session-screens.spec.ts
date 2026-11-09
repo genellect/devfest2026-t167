@@ -5,17 +5,22 @@ async function capture(page: Page, name: string) {
   if (!name.startsWith("shared-")) {
     await expect(page.getByRole("navigation")).toHaveCount(0);
     await expect(page.getByRole("banner")).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "ホーム", exact: true })).toBeVisible();
+    const active = await page.locator(".session-workspace").getAttribute("data-active") === "true";
+    await expect(page.getByRole("link", { name: "ホーム", exact: true })).toHaveCount(active ? 0 : 1);
   }
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({ path: `../docs/screenshots/session-${name}-mobile.png`, fullPage: true, scale: "css" });
+  await page.screenshot({ path: `../docs/screenshots/session-${name}-mobile.png`, fullPage: name !== "host-group-detail", scale: "css", animations: "disabled" });
   const previous = page.viewportSize();
   await page.setViewportSize({ width: 820, height: 1180 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({ path: `../docs/screenshots/session-${name}-tablet.png`, fullPage: true, scale: "css" });
+  await page.screenshot({ path: `../docs/screenshots/session-${name}-tablet.png`, fullPage: name !== "host-group-detail", scale: "css", animations: "disabled" });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({ path: `../docs/screenshots/session-${name}-desktop.png`, fullPage: true, scale: "css" });
+  if (name === "host-waiting") {
+    const card = await page.locator(".session-group-card").first().boundingBox();
+    expect(card!.width).toBeLessThanOrEqual(320);
+  }
+  await page.screenshot({ path: `../docs/screenshots/session-${name}-desktop.png`, fullPage: name !== "host-group-detail", scale: "css", animations: "disabled" });
   if (previous) await page.setViewportSize(previous);
 }
 
@@ -64,6 +69,20 @@ test("7画面を通り、待機中の編集とホストの結果公開・公開�
     await expect(guest.getByRole("timer")).toHaveCount(0);
     await capture(guest, "guest-live");
     await capture(host, "host-live");
+    await expect(host.getByRole("region", { name: "ダッシュボード", exact: true }).getByRole("img")).toHaveCount(2);
+    await host.getByRole("button", { name: "グループ1の詳細", exact: true }).click();
+    const detail = host.getByRole("dialog", { name: "グループ1", exact: true });
+    await expect(detail).toContainText("テスト参加者");
+    await expect(detail).toContainText("発言の集計待ち");
+    await expect(detail).not.toContainText("本人だけの事前意見");
+    await capture(host, "host-group-detail");
+    await detail.getByRole("button", { name: "閉じる", exact: true }).click();
+    await expect(host.getByRole("button", { name: "グループ1の詳細", exact: true })).toBeFocused();
+    await host.getByRole("button", { name: "議論を終える", exact: true }).click();
+    const confirmation = host.getByRole("dialog", { name: "セッションを終了しますか？", exact: true });
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole("button", { name: "まだ続ける", exact: true }).click();
+    await expect(host.getByRole("heading", { name: "セッション中", exact: true })).toBeVisible();
     await host.getByRole("button", { name: "議論を終える", exact: true }).click();
     await host.getByRole("button", { name: "終えて結果を見る", exact: true }).click();
     await guest.getByLabel("グループの結論を、あなたはどう理解した？").fill("本人だけの結論：利用箇所を申告して使う");
