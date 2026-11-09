@@ -4,6 +4,11 @@ import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { emulatorGoogleUser } from './emulator-auth.mjs';
 
 export const DASHBOARD_DEMO_ID = 'dashboard-demo';
+export const DEMO_GROUP_FOCUS = [
+  { group: 1, focus: '学習効果と利用範囲', points: ['自分で考える時間を残す', '利用箇所の申告'] },
+  { group: 2, focus: '情報の信頼性と責任', points: ['出典・事実の確認', '誤情報を使ったときの対応'] },
+  { group: 3, focus: '誰もが参加できる環境', points: ['端末や費用の違いへの配慮', 'AIを使わない選択肢'] },
+];
 export async function seedDashboardDemo() {
   for (const key of ['FIRESTORE_EMULATOR_HOST', 'FIREBASE_AUTH_EMULATOR_HOST']) {
     if (!/^(127\.0\.0\.1|localhost):\d+$/.test(process.env[key] ?? '')) throw new Error(`${key}に専用エミュレータを指定してください`);
@@ -36,12 +41,16 @@ export async function seedDashboardDemo() {
     batch.set(ref.collection('results').doc(`group-${g}`), { group: g, respondents: 4, source: 'mock', alignmentRate: g === 2 ? .5 : .75, clusters: [{ label: '利用箇所を申告してAIを使う', count: g === 2 ? 2 : 3 }, { label: '教員の許可がある場合にAIを使う', count: g === 2 ? 2 : 1 }] });
     groupState[g] = { status: 'discussing', total: 4, opinions: 4, submitted: 0, startedAt };
   }
-  batch.set(ref, { title: '3グループのダッシュボード（デモ）', theme: '学校でAIを使うとき、どんなルールが必要だろう？', className: 'UI確認用・架空のクラス', demoFixture: 'dashboard-v1', flowVersion: 1, schemaVersion: 3, phase: 'discussing', groups: 3, groupState, groupSelection: 'host', joinCode: '100002', createdBy: teacher.localId, createdAt: startedAt, startedAt, expiresAt: Timestamp.fromMillis(now + 3 * 60 * 60_000), recording: true, publishOnEnd: false, resultsPublished: false, participantView: { theme: true, timer: false, members: true, speaking: false }, analysis: { status: 'idle' } });
+  batch.set(ref, { title: '3グループのダッシュボード（デモ）', theme: '学校でAIを使うとき、どんなルールが必要だろう？', className: 'UI確認用・架空のクラス', demoFixture: 'dashboard-v1', flowVersion: 1, schemaVersion: 3, phase: 'discussing', groups: 3, groupState, groupSelection: 'host', joinCode: '100002', createdBy: teacher.localId, createdAt: startedAt, startedAt, expiresAt: Timestamp.fromMillis(now + 3 * 60 * 60_000), recording: true, publishOnEnd: false, resultsPublished: false, participantView: { theme: true, timer: false, members: true, speaking: false }, analysis: { status: 'done', startedAt } });
   batch.set(ref.collection('members').doc(teacher.localId), { uid: teacher.localId, role: 'host', status: 'active', groupId: null, joinedAt: startedAt });
   batch.set(db.doc(`users/${teacher.localId}/discussions/${DASHBOARD_DEMO_ID}`), { role: 'host', groupId: null, joinedAt: FieldValue.serverTimestamp() });
   batch.set(db.doc('joinCodes/100002'), { roomId: DASHBOARD_DEMO_ID });
+  batch.set(ref.collection('results').doc('live-groups'), { source: 'mock', groups: DEMO_GROUP_FOCUS, updatedAt: Timestamp.fromMillis(now) });
+  const memos = ['利用箇所の申告と、自分で考える学習目的を整理しました。', '出典情報を検証し、誤情報を使ったときの責任を話しました。', '端末や費用の違いがあっても公平に参加できる方法を考えました。'];
+  memos.forEach((text, i) => batch.set(ref.collection('messages').doc(`demo-memo-${i}`), { uid: `demo-g${i + 1}-p1`, text, createdAt: startedAt }));
+  ['利用箇所を申告する', '学習目的を確かめる', '出典情報を検証する', '個人負担をどう減らすか', '非利用者の選択肢を尊重する'].forEach((text, i) => batch.set(ref.collection('privateOpinions').doc(`demo-g${Math.floor(i / 4) + 1}-p${i % 4 + 1}`), { text, createdAt: startedAt }));
   batch.set(ref.collection('results').doc('coverage'), { source: 'mock', total: 5, discussed: 3, reflectionRate: .6, points: [ { summary: '利用箇所を申告する方法', discussed: true }, { summary: '学習の目的とAIの役割', discussed: true }, { summary: '生成された情報の確かめ方', discussed: true }, { summary: '端末や利用環境の違いへの配慮', discussed: false }, { summary: 'AIを使わない場合の選択肢', discussed: false } ] });
-  for (const [i, summary] of ['端末を持たない人も参加するには、どんな工夫ができるでしょうか？', 'AIを使わない選択をした人の学習機会も考えてみましょう。'].entries()) batch.set(ref.collection('insights').doc(`demo-pending-${i}`), { summary, status: 'pending', source: 'mock', createdAt: startedAt });
+  for (const [i, summary] of ['端末を持たない人も参加するには、どんな工夫ができるでしょうか？', 'AIを使わない選択をした人の学習機会も考えてみましょう。'].entries()) batch.set(ref.collection('insights').doc(`demo-pending-${i}`), { summary, kind: i === 0 ? 'missing' : 'new_angle', status: 'pending', source: 'mock', createdAt: startedAt });
   batch.set(ref.collection('insights').doc('demo-approved'), { summary: 'AIを使った箇所を、相手にどう伝えますか？', status: 'approved', source: 'mock', createdAt: startedAt });
   await batch.commit();
   return DASHBOARD_DEMO_ID;

@@ -2,11 +2,13 @@
 import { useEffect, useRef, useState } from "react";
 import { SpeakingRates, type SpeakingState } from "@/components/Speaking";
 import { useRoomFeed } from "@/lib/room-stream";
-import { useGroups, type Member, type Room } from "@/lib/room";
+import { useDoc, useGroups, type LiveGroupOverview, type Member, type Room } from "@/lib/room";
+import { GeminiLabel } from "@/components/GeminiLabel";
 import { SpeechBars } from "./SessionCharts";
 
 export function SessionGroups({ roomId, room, members, dashboard = false }: { roomId: string; room: Room; members: Member[]; dashboard?: boolean }) {
   const configs = useGroups(roomId);
+  const overview = useDoc<LiveGroupOverview>(dashboard ? `sessions/${roomId}/results/live-groups` : undefined).data;
   const speaking = (useRoomFeed(roomId).collections[`sessions/${roomId}/speaking`] ?? []) as unknown as SpeakingState[];
   const [selected, setSelected] = useState<number>();
   const detail = useRef<HTMLDialogElement>(null);
@@ -28,6 +30,7 @@ export function SessionGroups({ roomId, room, members, dashboard = false }: { ro
         const content = <>
           <div className="heading-row"><h3 className="t-sm">{name}</h3><span className="pill">{label}</span></div>
           {names(people)}
+          {dashboard && <div className="session-group-focus"><GeminiLabel source={overview?.source} label="議論の軸" />{overview?.groups.find(g => g.group === group) ? <><p className="session-group-focus__title">{overview.groups.find(g => g.group === group)!.focus}</p><ul>{overview.groups.find(g => g.group === group)!.points.map(point => <li key={point}>{point}</li>)}</ul></> : <p className="t-note">共有メモの分析待ち</p>}</div>}
           {dashboard ? room.recording === false && !voice ? <p className="t-note">共有メモで議論を記録しています。</p> : <SpeechBars state={voice} names={people.map(p => p.displayName)} /> : <dl className="session-group-card__stats">
             <div><dt>声の登録</dt><dd>{people.filter(p => p.voiceRegistered).length}<small>/{people.length}</small></dd></div>
             <div><dt>事前意見</dt><dd>{state?.opinions ?? 0}<small>/{state?.total ?? members.filter(m => m.group === group).length}</small></dd></div>

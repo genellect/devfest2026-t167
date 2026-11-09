@@ -52,11 +52,12 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     await expect(b.getByRole("region", { name: "議論の発言メモ" })).toContainText("貸出の費用の話をした");
 
     // 教員には提案だけが出て、事前意見の本文は出ない。承認すると全員に届く
-    await page.getByRole("button", { name: "未検討の論点を探す", exact: true }).click();
+    await page.getByRole("button", { name: "分析を更新", exact: true }).click();
     const proposal = page.locator(".box--yellow").filter({ hasText: "まだ議論されていない論点" }).first();
     await expect(proposal).toBeVisible();
     // AI が読み取った論点の一覧（話された／まだ）が右の列に出る。本文は出さない
-    await expect(page.getByRole("heading", { name: /AI が読み取った論点（話された \d+\/\d+）/ })).toBeVisible();
+    await page.getByText(/分析の根拠/).click();
+    await expect(page.locator(".points__list")).toBeVisible();
     for (const o of opinions) await expect(page.locator("main")).not.toContainText(o);
     const summary = (await proposal.locator(".t-md").innerText()).trim();
     await expect(a.getByRole("region", { name: "教員からの問いかけ" })).not.toContainText(summary);
@@ -71,7 +72,7 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     await rest.getByRole("button", { name: "見送る", exact: true }).click();
     await expect(rest).toHaveCount(0);
     await expect(page.getByRole("region", { name: "ダッシュボード", exact: true })).toContainText(/未検討の論点\s*0/);
-    await expect(page.getByRole("heading", { name: "いまは新しい提案はありません" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "不足している観点", exact: true })).toContainText("現在はありません。");
     for (const g of [a, b]) await expect(g.getByRole("region", { name: "教員からの問いかけ" })).not.toContainText(dismissed);
 
     // 投影画面：教員だけが開け、全員に表示した問いかけだけを映す（見送った提案・事前意見の本文は映さない）

@@ -27,6 +27,12 @@ test("3グループのデモで発言割合・推移・詳細を確認し、続�
   await expect(page.getByRole("region", { name: "グループの状況" }).getByRole("button", { name: /グループ\dの詳細/ })).toHaveCount(3);
   await expect(page.getByRole("img", { name: "意見の検討率：60%", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "グループ2の詳細", exact: true })).toContainText("ひなた（デモ）");
+  await expect(page.getByRole("button", { name: "グループ1の詳細", exact: true })).toContainText("学習効果と利用範囲");
+  await expect(page.getByRole("button", { name: "グループ2の詳細", exact: true })).toContainText("情報の信頼性と責任");
+  await expect(page.getByRole("button", { name: "グループ3の詳細", exact: true })).toContainText("誰もが参加できる環境");
+  await expect(page.getByRole("region", { name: "ダッシュボード", exact: true })).not.toContainText("話した人");
+  await expect(page.getByRole("region", { name: "新しい切り口", exact: true })).toContainText("AIを使わない選択");
+  await expect(page.getByRole("region", { name: "Geminiの分析結果", exact: true })).not.toContainText("この論点を投げかけましょう");
   await capture(page, "dashboard");
   await page.getByRole("button", { name: "グループ2の詳細", exact: true }).click();
   const detail = page.getByRole("dialog", { name: "グループ2", exact: true });

@@ -5,7 +5,8 @@ import { SessionMaterials } from "@/components/SessionMaterials";
 import { SessionJoinCode } from "@/components/SessionJoinCode";
 import type { SpeakingState } from "@/components/Speaking";
 import { ProgressRing } from "./SessionCharts";
-import { SourceTag } from "@/components/ui";
+import { GeminiLabel } from "@/components/GeminiLabel";
+import { groupSpeakingBalance } from "@/lib/group-balance";
 import { ApiError, callApi } from "@/lib/api";
 import { millis, useDoc, useMessages, type Coverage, type Insight, type Member, type Room } from "@/lib/room";
 import { useRoomFeed } from "@/lib/room-stream";
@@ -33,10 +34,9 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
   const started = millis(room.startedAt);
   const elapsed = started ? Math.max(0, Math.floor((now - started) / 1000)) : 0;
   const scan = useScan(roomId, room, messages.map((m) => millis(m.createdAt) ?? 0), now);
-  const voice = speaking.flatMap((s) => s.members ?? []);
-  const spoke = voice.length
-    ? { label: "話した人", count: speaking.reduce((n, s) => n + (s.members ?? []).filter((m) => (s.talkMs?.[m.uid] ?? 0) > 0).length, 0), total: voice.length }
-    : { label: "メモを書いた人", count: new Set(messages.map((m) => m.uid).filter((uid) => members.some((p) => p.id === uid))).size, total: members.length };
+  const balance = groupSpeakingBalance(speaking, room.groups ?? 1);
+  const missing = pending.filter(i => i.kind !== "new_angle");
+  const ideas = pending.filter(i => i.kind === "new_angle");
 
   const [busyId, setBusyId] = useState<string>(), [error, setError] = useState("");
   async function decide(id: string, action: "approve" | "dismiss") {
@@ -46,19 +46,8 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
     finally { setBusyId(undefined); }
   }
 
-  // 段階ごとに「今やること」を1つだけ大きく見せる。提案があれば、次に投げかける1つを主役に、残りは下に小さく並べる
-  const [focus, ...rest] = pending;
-  const headline = focus ? "この論点を投げかけましょう"
-    : scan.running ? "AI が議論を読み取っています"
-      : coverage && coverage.total > 0 && coverage.discussed === coverage.total ? "事前の意見の論点は、すべて話されています"
-        : coverage ? "いまは新しい提案はありません"
-          : "議論を見守りましょう";
-  const lead = focus ? "事前の意見にあったのに、まだ話されていない論点です。投げかけると、学生のスマホと投影画面に問いかけとして出ます。"
-    : coverage ? "新しいメモが届くと、また探します。話が尽きたら、議論を終えて結論を書いてもらいましょう。"
-      : "学生がメモを共有すると、AI が事前の意見と照らし合わせて、まだ話されていない論点を探します。";
-  const scanLabel = scan.running ? "分析中…" : scan.wait > 0 ? `あと ${scan.wait} 秒で探せます` : "未検討の論点を探す";
-  const scanNote = scan.paused ? "AI の分析は一時停止中です。議論はそのまま続けられます。" : scan.message || "新しいメモが届くと、60秒ごとに自動でも探します。提案は教員の画面だけに出ます。";
-  // 主役の付箋だけ濃いボタンにする（ほかの候補は控えめにして、視線を1つに集める）
+  const scanLabel = scan.running ? "分析中…" : scan.wait > 0 ? `あと${scan.wait}秒` : "分析を更新";
+  const scanNote = scan.paused ? "分析を一時停止しています。" : scan.message;
   const actions = (i: Insight, primary = true) => (
     <div className="proposal__actions">
       <button className={`btn${primary ? " btn--ink" : ""}`} disabled={busyId === i.id} onClick={() => void decide(i.id, "approve")}>全員に表示する</button>
@@ -76,48 +65,24 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
       </section>
       <section className="dashboard-metrics" aria-label="ダッシュボード">
         <article className="dashboard-metric"><ProgressRing label="意見の検討率" value={coverage?.reflectionRate ?? null} note={coverage ? `話された論点 ${coverage.discussed}/${coverage.total}` : "分析後に表示"} /></article>
-        <article className="dashboard-metric"><ProgressRing label={spoke.label} value={spoke.total ? spoke.count / spoke.total : null} note={`${spoke.count}/${spoke.total}人${voice.length ? " · 発言時間から集計" : " · 共有メモから集計"}`} /></article>
-        <article className="dashboard-metric dashboard-metric--pending"><div><p className="t-note">未検討の論点</p><strong>{pending.length}<small>件</small></strong></div><p className="t-note">{pending.length ? "下の提案を確認" : "新しい論点を分析できます"}</p></article>
+        <article className="dashboard-metric"><ProgressRing label="発言バランス（平均）" value={balance.value} note={`${balance.groups}/${room.groups ?? 1}グループ · 発言時間から推定`} /></article>
+        <article className="dashboard-metric dashboard-metric--pending"><div><p className="t-note">未検討の論点</p><strong>{missing.length}<small>件</small></strong></div><p className="t-note">{missing.length ? "不足している観点を確認" : "分析結果を右側に表示"}</p></article>
       </section>
       <SessionGroups roomId={roomId} room={room} members={members} dashboard />
 
       <div className="live-grid">
-        <section className="next" aria-labelledby="next-title">
-          <h2 id="next-title" className="next__title">{headline}</h2>
-          <p className="next__lead">{lead}</p>
+        <section className="next gemini-analysis" aria-label="Geminiの分析結果">
+          <div className="gemini-analysis__header"><h2 className="t-sm"><GeminiLabel source={coverage?.source} /></h2><button className="btn btn--small" onClick={() => void scan.run()} disabled={scan.running || scan.wait > 0}>{scanLabel}</button></div>
           {error && <p className="notice notice--error" role="alert">{error}</p>}
-          {focus ? (
-            <article className="box--yellow proposal proposal--focus" aria-label="次に投げかける論点">
-              <div className="proposal__head"><p className="t-label">まだ議論されていない論点</p><SourceTag source={focus.source} /></div>
-              <p className="t-md proposal__text">{focus.summary}</p>
-              {actions(focus)}
-            </article>
-          ) : (
-            <div className="next__idle">
-              <button className="btn btn--blue" onClick={() => void scan.run()} disabled={scan.running || scan.wait > 0}>{scanLabel}</button>
-              <p className="t-note" role="status">{scanNote}</p>
-            </div>
-          )}
-          {rest.length > 0 && (
-            <section className="queue" aria-labelledby="queue-title">
-              <h3 id="queue-title" className="queue__title">ほかの候補 {rest.length}件</h3>
-              <ul className="queue__list">
-                {rest.map((i) => (
-                  <li key={i.id} className="box--yellow proposal proposal--queued">
-                    <p className="t-label sr-only">まだ議論されていない論点</p>
-                    <p className="t-md proposal__text">{i.summary}</p>
-                    {actions(i, false)}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-          {focus && (
-            <div className="next__scan">
-              <button className="btn btn--small" onClick={() => void scan.run()} disabled={scan.running || scan.wait > 0}>{scanLabel}</button>
-              <p className="t-note" role="status">{scanNote}</p>
-            </div>
-          )}
+          {scanNote && <p className="t-note" role="status">{scanNote}</p>}
+          <section className="gemini-analysis__section" aria-label="不足している観点">
+            <h3 className="t-label">不足している観点</h3>
+            {missing.length ? missing.map(i => <article className="box--yellow proposal" key={i.id}><p className="sr-only">まだ議論されていない論点</p><p className="t-md proposal__text">{i.summary}</p>{actions(i)}</article>) : <p className="t-note">{coverage ? "現在はありません。" : "共有メモが届くと分析できます。"}</p>}
+          </section>
+          <section className="gemini-analysis__section" aria-label="新しい切り口">
+            <h3 className="t-label">新しい切り口</h3>
+            {ideas.length ? ideas.map(i => <article className="proposal proposal--idea" key={i.id}><p className="t-md proposal__text">{i.summary}</p>{actions(i, false)}</article>) : <p className="t-note">{coverage ? "現在はありません。" : "分析結果を待っています。"}</p>}
+          </section>
         </section>
 
         <aside className="live-side" aria-label="グループと発言">
@@ -128,16 +93,7 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
               : <p className="t-note">まだありません。論点を「全員に表示する」と、ここと学生の画面に出ます。</p>}
           </section>
           {/* AI が読み取った論点のうち、どれが話されて、どれがまだかを一覧で見る（言い換えた論点だけ。事前意見の本文は出さない） */}
-          {!!coverage?.points?.length && (
-            <section className="points" aria-labelledby="points-title">
-              <h2 id="points-title" className="live-side__title">AI が読み取った論点（話された {coverage.discussed}/{coverage.total}）</h2>
-              <ul className="points__list">
-                {[...coverage.points].sort((a, b) => Number(a.discussed) - Number(b.discussed)).map((p, i) => (
-                  <li key={i} data-discussed={p.discussed || undefined}><span className="points__mark" aria-hidden="true" />{p.summary}<span className="sr-only">{p.discussed ? "（話された）" : "（まだ）"}</span></li>
-                ))}
-              </ul>
-            </section>
-          )}
+          {!!coverage?.points?.length && <details className="analysis-evidence"><summary>分析の根拠（{coverage.discussed}/{coverage.total}）</summary><h2 className="sr-only">AI が読み取った論点（話された {coverage.discussed}/{coverage.total}）</h2><ul className="points__list">{coverage.points.map((point, i) => <li key={i} data-discussed={point.discussed || undefined}><span className="points__mark" aria-hidden="true" />{point.summary}<span className="sr-only">{point.discussed ? "（話された）" : "（まだ）"}</span></li>)}</ul></details>}
           {room.joinCode && <SessionJoinCode code={room.joinCode} />}
         </aside>
       </div>

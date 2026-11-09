@@ -773,3 +773,33 @@ describe('Zod・Admin SDK更新後のAPI互換性', () => {
     expect(result.body.error.code).toBe('bad_request');
   });
 });
+
+describe('グループごとの議論の軸', () => {
+  it('公開メモだけを所属別に分析し、結果と提案の種別をHostだけに返す', async () => {
+    const { roomId, mod, p1, p2 } = await setupRoom();
+    await db.doc(`sessions/${roomId}`).update({ groups: 2 });
+    await db.doc(`sessions/${roomId}/members/${uidOf(p1)}`).update({ group: 1, groupId: '1' });
+    await db.doc(`sessions/${roomId}/members/${uidOf(p2)}`).update({ group: 2, groupId: '2' });
+    await toDiscussing(mod, roomId, ['本人だけの意見マーカー'], [[uidOf(p1), '公開メモ1'], [uidOf(p2), '公開メモ2']]);
+    const summarizeGroups = vi.fn(async () => ({ groups: [{ group: 1, focus: '学習への影響', points: ['考える時間'] }, { group: 2, focus: '利用環境', points: ['参加する方法'] }], suggestions: [{ kind: 'new_angle' as const, summary: '運用後の検証を考える' }] }));
+    const target = createApp({ db, auth: getAuth(), gemini: { ...mockGemini(), summarizeGroups }, now: () => clock });
+    await request(target).post(`/rooms/${roomId}/analyze`).set('authorization', `Bearer ${mod}`).set('cookie', cookies.get(mod)!).send({}).expect(200);
+    const input = summarizeGroups.mock.calls[0];
+    expect(JSON.stringify(input)).not.toContain('本人だけの意見マーカー');
+    expect(summarizeGroups).toHaveBeenCalledWith(expect.objectContaining({ groups: [{ group: 1, messages: ['公開メモ1'] }, { group: 2, messages: ['公開メモ2'] }] }));
+    const result = (await db.doc(`sessions/${roomId}/results/live-groups`).get()).data()!;
+    expect(result.groups.map((g: { focus: string }) => g.focus)).toEqual(['学習への影響', '利用環境']);
+    const suggestions = await db.collection(`sessions/${roomId}/insights`).where('kind', '==', 'new_angle').get(); expect(suggestions.size).toBe(1);
+    await db.doc(`sessions/${roomId}`).update({ resultsPublished: true });
+    await request(app).get(`/rooms/${roomId}/results/live-groups`).set('authorization', `Bearer ${p1}`).set('cookie', cookies.get(p1)!).expect(403);
+    await request(app).get(`/rooms/${roomId}/results/live-groups`).set('authorization', `Bearer ${mod}`).set('cookie', cookies.get(mod)!).expect(200);
+  });
+  it('グループ分析の失敗は内部エラーを返さず、最後に成功した結果を保つ', async () => {
+    const { roomId, mod, p1 } = await setupRoom();
+    await toDiscussing(mod, roomId, [], [[uidOf(p1), '公開メモ']]);
+    const ref = db.doc(`sessions/${roomId}/results/live-groups`); await ref.set({ groups: [{ group: 1, focus: '前回の軸', points: [] }], source: 'mock' });
+    const target = createApp({ db, auth: getAuth(), gemini: { ...mockGemini(), summarizeGroups: async () => { throw new Error('provider-internal-marker'); } }, now: () => clock });
+    const response = await request(target).post(`/rooms/${roomId}/analyze`).set('authorization', `Bearer ${mod}`).set('cookie', cookies.get(mod)!).send({}).expect(503);
+    expect(JSON.stringify(response.body)).not.toContain('provider-internal-marker'); expect((await ref.get()).get('groups')[0].focus).toBe('前回の軸');
+  });
+});

@@ -6,3 +6,5 @@
 - 使用ガイド：https://developers.google.com/workspace/drive/api/guides/branding
 
 Google Drive is a trademark of Google LLC.
+
+`gemini.svg` はGoogle配信のGeminiアイコンを変更せずに収録し、Geminiの分析結果を識別する表示に使用する。配布元：https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg

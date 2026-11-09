@@ -243,3 +243,31 @@
   .dialog.session-group-sheet { width: 100%; }
   .session-groups[data-dashboard] .session-group-card__open { min-height: 320px; }
 }
+
+.gemini-label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #48546b; }
+.gemini-label img { flex-shrink: 0; }
+.gemini-label__demo { font-size: 10px; padding: 2px 5px; background: #fff2d7; border-radius: 4px; color: #7c6025; }
+.session-group-focus { width: 100%; display: grid; gap: 9px; padding: 14px; background: #f1f5ff; border-radius: 9px; }
+.session-group-focus__title { font-size: 17px; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }
+.session-group-focus ul { display: grid; gap: 5px; padding-left: 16px; margin: 0; font-size: 12px; color: var(--ink-2); }
+.session-workspace .gemini-analysis { display: grid; gap: 20px; }
+.gemini-analysis__header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.gemini-analysis__header .gemini-label { font-size: 17px; }
+.gemini-analysis__section { display: grid; gap: 12px; }
+.gemini-analysis__section .proposal { padding: 16px; display: grid; gap: 14px; border-radius: 9px; border: 1px solid #f0dca7; }
+.gemini-analysis__section .proposal__text { font-size: 16px; font-weight: 550; line-height: 1.65; }
+.gemini-analysis__section .proposal--idea { background: #eef3ff; border-color: #dce6fc; }
+.gemini-analysis__section .proposal__actions { gap: 8px; }
+.gemini-analysis__section .proposal__actions .btn { min-height: 36px; padding: 8px 12px; font-size: 12px; }
+.analysis-evidence { border-top: 1px solid var(--line); padding-top: 14px; }
+.analysis-evidence summary { cursor: pointer; font-size: 13px; color: var(--ink-2); min-height: 36px; }
+.analysis-evidence .points__list { margin-top: 12px; }
+.session-workspace .session-materials { min-height: 190px; padding: 28px; align-content: start; gap: 24px; }
+.session-materials > .heading-row h2 { font-size: 20px; }
+.session-materials .session-drive-button { min-height: 52px; padding: 12px 18px; font-size: 15px; }
+.session-materials .session-drive-button img { width: 30px; height: 30px; }
+@media (max-width: 600px) {
+  .session-workspace .session-materials { padding: 20px; }
+  .session-materials > .heading-row { flex-wrap: wrap; }
+  .session-materials .session-drive-button { font-size: 13px; padding-inline: 12px; }
+}
