@@ -19,6 +19,9 @@ test("スクロールすると、未検討の論点・理解のちがい・先�
   // 演出の最後まで進めると、まだ話されていない意見だけが残り、議論中に先生へ届くことが示される
   await page.evaluate(() => { const e = document.querySelector("#lost") as HTMLElement; window.scrollTo(0, e.offsetTop + e.offsetHeight - window.innerHeight); });
   await expect(lost.locator("#lostc")).toHaveClass(/lo/);
+  // 場面は画面に貼り付いたまま（position: sticky が効く）。LP の外枠をスクロール領域にすると止まるため確かめる
+  await page.evaluate(() => { const e = document.querySelector("#lost") as HTMLElement; window.scrollTo(0, e.offsetTop + (e.offsetHeight - window.innerHeight) / 2); });
+  expect(Math.abs((await lost.locator(".pin").boundingBox())?.y ?? 999)).toBeLessThan(2);
   await expect(lost.getByText("議論の途中で先生に届きます。")).toBeVisible();
   await expect(page.getByRole("heading", { name: /捉え方はちがっていた/ })).toBeAttached();
   await expect(page.getByRole("heading", { name: /教室全体の見取り図を/ })).toBeAttached();
