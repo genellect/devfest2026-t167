@@ -198,7 +198,7 @@ function FinishButton({ roomId }: { roomId: string }) {
     <dialog ref={confirm} className="dialog session-finish-dialog" aria-labelledby="finish-dialog-title" aria-describedby="finish-dialog-description" onCancel={e => { if (busy) e.preventDefault(); }}>
       <div className="session-finish-dialog__body"><p className="session-finish-dialog__label">セッションの終了</p><h2 id="finish-dialog-title" className="t-md">セッションを終了しますか？</h2><p id="finish-dialog-description" className="t-note">全グループの議論を終了し、参加者は結論の入力へ進みます。</p>
         {error && <p className="notice notice--error" role="alert">{error}</p>}
-        <div className="session-finish-dialog__actions"><button ref={cancel} className="btn" disabled={busy} onClick={() => confirm.current?.close()}>まだ続ける</button><button className="btn session-finish-button" disabled={busy} onClick={() => void finish()}>{busy ? "終えています…" : "終えて結果を見る"}</button></div>
+        <div className="session-finish-dialog__actions"><button ref={cancel} className="btn" disabled={busy} onClick={() => confirm.current?.close()}>続行する</button><button className="btn session-finish-button" disabled={busy} onClick={() => void finish()}>{busy ? "終えています…" : "終了する"}</button></div>
       </div>
     </dialog>
   </div>;

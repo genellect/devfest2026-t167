@@ -50,7 +50,7 @@ test("未準備のGuestを外して開始でき、同意を取り消した録音
     await expect(ready.getByRole("button", { name: "録音を始める", exact: true })).toBeDisabled();
 
     await page.getByRole("button", { name: "議論を終える", exact: true }).click();
-    await page.getByRole("button", { name: "終えて結果を見る", exact: true }).click();
+    await page.getByRole("button", { name: "終了する", exact: true }).click();
     await expect(ready.getByRole("heading", { name: "結論を自分の言葉で書く" })).toBeVisible();
     await ready.waitForTimeout(1_500);
     expect(uploads).toEqual([]);

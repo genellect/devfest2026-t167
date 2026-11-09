@@ -11,7 +11,8 @@ export function LoginGate({ children }: { children: React.ReactNode }) {
   const session = useAppSession(), { user, status } = session;
   const pathname = usePathname(), router = useRouter();
   // ログインなしで開ける画面：ログイン、使い方とプライバシー、紹介ページ（LP）
-  const publicPage = pathname === "/" || pathname === "/about" || pathname === "/lp";
+  const demoEntry = process.env.NEXT_PUBLIC_USE_EMULATORS === "1" && pathname === "/demo/session";
+  const publicPage = pathname === "/" || pathname === "/about" || pathname === "/lp" || demoEntry;
   const lastInput = useRef(Date.now()), sentAt = useRef(0), mountedPrivate = useRef(false);
   const [error, setError] = useState(""), [busy, setBusy] = useState(false);
   if (status === "active" && !publicPage) mountedPrivate.current = true;

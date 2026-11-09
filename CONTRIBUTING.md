@@ -31,6 +31,12 @@ http://localhost:3000 を開き、参加コード `100001` で参加する。Aut
 
 先生の導線は、トップの「テスト用の先生でログイン（エミュレータ）」で確かめる。このテストアカウントには teacher claim が付いている。学生の導線は「テスト用の生徒でログイン（エミュレータ）」で確かめる。「Googleでログイン」で開く認証のエミュレータの「Add new account」で作った架空のアカウントにも claim はないので、学生として参加コードの入力へ進み、議論は作れない。本物の Google アカウントやパスワードは使わない。部屋を作ったら、表示された参加コードを別のブラウザーのプロファイルかプライベートウィンドウで入力し、架空の意見を出す。先生のダッシュボードで「未検討の論点を探す」を押すと提案が出る（通常の起動は「デモデータ」、`GEMINI_MOCK=0` では「Gemini による推定」）。
 
+ダッシュボードの確認用には `http://localhost:3000/demo/session` を開く。「デモを開く」で模擬Google教師の認証を通し、3グループ・12人・10分間の架空の発言データを表示する。グループごとの発言割合、推移、下から開く詳細と終了確認を操作できる。本番ではこの入口は404になる。終了後のデモを初期状態に戻すときは、起動中の専用エミュレータに対して次を実行する（ポートを変更した場合はその番号に合わせる）。デモ専用の部屋だけを作り直す。
+
+```bash
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GOOGLE_CLOUD_PROJECT=demo-t167 node firebase/seed-dashboard.mjs
+```
+
 終了するときは、起動したターミナルで `Ctrl+C` を押す。Auth・Firestore のエミュレータ、API、画面をまとめて停止する。
 
 本物の Gemini で試すときは、Google Cloud CLI（gcloud。`.devcontainer` と Codespaces には入っていない）を入れ、プロジェクトの編集者の権限で `gcloud auth application-default login` をしてから `GEMINI_MOCK=0 bash scripts/dev.sh serve` で起動する。Firestore と Auth はエミュレータのままで、Vertex AI だけ本番のプロジェクトを使う（`infra/env.sh` の PROJECT_ID・VERTEX_LOCATION・GEMINI_MODEL）。Gemini の接続先は global、Cloud Run と Firestore は東京に分けている。

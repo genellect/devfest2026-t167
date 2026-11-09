@@ -16,7 +16,7 @@ test("教員のホームから作成し、開始・強制終了・結果・教�
   await expect(page.getByRole("timer", { name: "経過時間" })).toBeVisible();
   await expect(page.getByRole("timer", { name: "残り時間" })).toHaveCount(0);
   await page.getByRole("button", { name: "議論を終える", exact: true }).click();
-  await page.getByRole("button", { name: "終えて結果を見る", exact: true }).click();
+  await page.getByRole("button", { name: "終了する", exact: true }).click();
   // 参加者がいない議論は、結果がないことだけを出す（空の指標や録音の欄は出さない）
   await expect(page.getByRole("heading", { name: "この議論には参加者がいませんでした", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "録音の振り返り", exact: true })).toHaveCount(0);
@@ -100,7 +100,7 @@ test("録音と事前の意見を照らし合わせた論点のうち、話さ�
   const roomId = new URL(page.url()).pathname.split("/")[2];
   await page.getByRole("button", { name: "議論を開始", exact: true }).click();
   await page.getByRole("button", { name: "議論を終える", exact: true }).click();
-  await page.getByRole("button", { name: "終えて結果を見る", exact: true }).click();
+  await page.getByRole("button", { name: "終了する", exact: true }).click();
   await expect(page.getByText("この議論には参加者がいませんでした")).toBeVisible();
 
   // 録音を送ったグループがあるときだけ「録音の振り返り」が出る

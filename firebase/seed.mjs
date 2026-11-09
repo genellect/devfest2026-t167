@@ -4,6 +4,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 import { emulatorGoogleUser } from './emulator-auth.mjs';
+import { seedDashboardDemo } from './dashboard-demo.mjs';
 for (const key of ['FIRESTORE_EMULATOR_HOST', 'FIREBASE_AUTH_EMULATOR_HOST']) {
   if (!/^(127\.0\.0\.1|localhost):\d+$/.test(process.env[key] ?? '')) throw new Error(`${key}に専用エミュレータを指定してください`);
 }
@@ -17,3 +18,6 @@ for (const [uid, role] of [[teacher.localId, 'host'], [student.localId, 'partici
   await db.doc(`sessions/demo/members/${uid}`).set({ uid, status: 'active', groupId: role === 'host' ? null : '1', role, ...(role === 'participant' ? { group: 1 } : {}), joinedAt: FieldValue.serverTimestamp() });
 }
 console.log('seeded: demo/100001（模擬Google教師・生徒、教師権限は管理側で付与）');
+
+await seedDashboardDemo();
+console.log('dashboard-demo/100002（3グループのUI確認用デモ）');

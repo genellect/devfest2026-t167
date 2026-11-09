@@ -81,10 +81,10 @@ test("7画面を通り、待機中の編集とホストの結果公開・公開�
     await host.getByRole("button", { name: "議論を終える", exact: true }).click();
     const confirmation = host.getByRole("dialog", { name: "セッションを終了しますか？", exact: true });
     await expect(confirmation).toBeVisible();
-    await confirmation.getByRole("button", { name: "まだ続ける", exact: true }).click();
+    await confirmation.getByRole("button", { name: "続行する", exact: true }).click();
     await expect(host.getByRole("heading", { name: "セッション中", exact: true })).toBeVisible();
     await host.getByRole("button", { name: "議論を終える", exact: true }).click();
-    await host.getByRole("button", { name: "終えて結果を見る", exact: true }).click();
+    await host.getByRole("button", { name: "終了する", exact: true }).click();
     await guest.getByLabel("グループの結論を、あなたはどう理解した？").fill("本人だけの結論：利用箇所を申告して使う");
     await guest.getByRole("button", { name: "4 おおむね納得", exact: true }).click();
     await guest.getByRole("button", { name: "提出する", exact: true }).click();

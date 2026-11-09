@@ -52,7 +52,7 @@ test('録音と同じマイクで登録済みの声を照合し、Hostが表示�
     await guest.screenshot({ path: '../docs/screenshots/mvp-speaker-guest-mobile.png', fullPage: true });
     await page.screenshot({ path: '../docs/screenshots/mvp-speaker-host-mobile.png', fullPage: true });
     await page.getByRole('button', { name: '議論を終える', exact: true }).click();
-    await page.getByRole('button', { name: '終えて結果を見る', exact: true }).click();
+    await page.getByRole('button', { name: '終了する', exact: true }).click();
     await expect(guest.getByRole('heading', { name: '結論を自分の言葉で書く' })).toBeVisible();
     await expect(guest.getByRole('button', { name: '録音中', exact: true })).toHaveCount(0);
     await expect(guest.getByText('録音の送信・分析が完了しました。', { exact: true })).toBeVisible({ timeout: 20_000 });

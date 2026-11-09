@@ -175,6 +175,8 @@ http://localhost:3000 を開き、参加コード `100001` で参加する。PR 
 
 ローカル画面を同じWi-Fiのスマホ・タブレットで確認する方法と、LANのHTTPでの録音・カメラの制約は [開発への参加](CONTRIBUTING.md#起動する) を参照。
 
+起動後の http://localhost:3000/demo/session から、3グループ・12人の架空データでダッシュボードとグラフを操作できる。
+
 | 環境 | 必要なもの | セットアップ |
 |---|---|---|
 | ローカル | Node.js 22、Java 21（Firestore エミュレータ用）。Windows は WSL | `bash scripts/dev.sh setup` |

@@ -116,6 +116,7 @@ serve() {
   npm --prefix web run dev -- -p "$T167_WEB_PORT" &
   wait_port "$T167_WEB_PORT"
   echo "== http://localhost:$T167_WEB_PORT を開き、参加コード 100001 で参加できます（エミュレータの画面は http://localhost:$((4000 + OFFSET))）=="
+  echo "== 3グループのダッシュボードを試す: http://localhost:$T167_WEB_PORT/demo/session =="
   wait
 }
 

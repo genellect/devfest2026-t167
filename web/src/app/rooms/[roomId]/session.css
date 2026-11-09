@@ -206,3 +206,6 @@
   .session-group-sheet[open] { animation: none; }
   .session-group-card__open, .dashboard-speech__track > span { transition: none; }
 }
+
+.session-workspace[data-active] .session-page__title { width: 100%; display: flex; align-items: center; min-height: 220px; padding: clamp(28px, 4vw, 48px); background: #bfe6fb; border-radius: 12px; font-size: clamp(28px, 3.5vw, 46px); font-weight: 600; line-height: 1.55; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .session-workspace[data-active] .session-page__title { min-height: 180px; padding: 28px; } }

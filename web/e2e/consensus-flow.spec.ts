@@ -89,7 +89,7 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
 
     // 教員が終了すると、全員が結論の一文を書く
     await page.getByRole("button", { name: "議論を終える", exact: true }).click();
-    await page.getByRole("button", { name: "終えて結果を見る", exact: true }).click();
+    await page.getByRole("button", { name: "終了する", exact: true }).click();
     const statements = ["申告すればAIを使ってよい", "教員の許可がある場合だけAIを使ってよい"];
     for (const [i, g] of [a, b].entries()) {
       await expect(g.getByRole("heading", { name: "結論を自分の言葉で書く" })).toBeVisible();
