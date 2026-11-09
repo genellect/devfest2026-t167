@@ -9,7 +9,7 @@
 # google-github-actions/auth が生成する一時認証ファイル
 gha-creds-*.json
 # 依存関係・生成物
-node_modules/
+node_modules
 dist/
 .next/
 web/test-results/

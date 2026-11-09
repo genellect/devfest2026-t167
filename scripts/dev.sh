@@ -220,5 +220,5 @@ case "${1:-}" in
   speaker-setup) bash scripts/speaker.sh setup ;;
   speaker-check) speaker_check ;;
   pr) shift; pr "$@" ;;
-  *) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  *) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac
