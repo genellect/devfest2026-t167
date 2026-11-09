@@ -48,3 +48,55 @@ test("議論が始まったあとも、参加コードで途中から参加し�
   await expect(student.getByRole("heading", { name: "声の登録", exact: true })).toHaveCount(0);
   await student.context().close();
 });
+
+/** Firestore エミュレータに、録音の分析が書いたのと同じ形の結果を置く（API の保存と認可は api の結合テストで確かめる） */
+async function putResult(roomId: string, id: string, fields: Record<string, unknown>) {
+  const host = process.env.FIRESTORE_EMULATOR_HOST ?? "127.0.0.1:8080";
+  const project = process.env.GOOGLE_CLOUD_PROJECT ?? "demo-t167";
+  const value = (v: unknown): unknown => typeof v === "string" ? { stringValue: v }
+    : typeof v === "boolean" ? { booleanValue: v }
+    : typeof v === "number" ? (Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v })
+    : Array.isArray(v) ? { arrayValue: { values: v.map(value) } }
+    : { mapValue: { fields: Object.fromEntries(Object.entries(v as object).map(([k, x]) => [k, value(x)])) } };
+  const res = await fetch(`http://${host}/v1/projects/${project}/databases/(default)/documents/sessions/${roomId}/results/${id}`, {
+    method: "PATCH", headers: { authorization: "Bearer owner", "content-type": "application/json" },
+    body: JSON.stringify({ fields: (value(fields) as { mapValue: { fields: object } }).mapValue.fields }),
+  });
+  expect(res.ok).toBe(true);
+}
+
+test("録音と事前の意見を照らし合わせた論点のうち、話されなかったものを終了後の先生の画面に出す", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
+  await expect(page).toHaveURL(/\/teacher$/);
+  await page.getByRole("link", { name: "議論を作る", exact: true }).click();
+  await page.getByLabel("テーマ", { exact: true }).fill("大学の課題提出で AI の利用を認めるべきか");
+  await page.getByRole("button", { name: "作成する", exact: true }).click();
+  await expect(page).toHaveURL(/\/rooms\//);
+  const roomId = new URL(page.url()).pathname.split("/")[2];
+  await page.getByRole("button", { name: "議論を開始", exact: true }).click();
+  await page.getByRole("button", { name: "議論を終える", exact: true }).click();
+  await page.getByRole("button", { name: "終えて結果を見る", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "録音の振り返り", exact: true })).toBeVisible();
+
+  await putResult(roomId, "flow-g1", {
+    group: 1, speechDetected: true, totalMinutes: 20, source: "mock", flowNote: "テーマから脱線した場面で、別の見方が出ました。",
+    segments: [{ topic: "意見の出し合い", minutes: 6 }, { topic: "理由の深掘り", minutes: 7 }, { topic: "テーマから脱線", minutes: 3, highlight: true }, { topic: "まとめ", minutes: 4 }],
+    good: [{ at: "6:00", text: "別の見方を出して、話題を広げました。" }], review: [{ at: "12:00", text: "事前の意見を話す機会がありました。" }],
+    teacherSuggestions: [],
+  });
+  await putResult(roomId, "points-g1", {
+    group: 1, opinions: 3, source: "mock",
+    points: [
+      { summary: "利用したことを申告するかどうか", discussed: true, at: "4:10" },
+      { summary: "アイデア出しに限って使う", discussed: true, at: "9:30" },
+      { summary: "教員の許可を条件にする", discussed: false },
+    ],
+  });
+  const review = page.locator(".review-group").filter({ hasText: "グループ1" });
+  await expect(review.getByText("事前の意見の論点 3件のうち、議論で話されたのは 2件（録音から判定）")).toBeVisible({ timeout: 20_000 });
+  const missed = review.getByRole("list", { name: "話されなかった論点" });
+  await expect(missed.getByRole("listitem")).toHaveCount(1);
+  await expect(missed).toContainText("教員の許可を条件にする");
+  await review.screenshot({ path: "../docs/screenshots/recording-points-teacher-mobile.png" });
+});
