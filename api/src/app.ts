@@ -4,7 +4,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { randomInt, randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
-import { HttpError, wrap, run, parse, requireOpenRoom, requireModerator, requireTeacher } from './http.js';
+import { HttpError, wrap, run, parse, requireOpenRoom, requireModerator } from './http.js';
 import { participantGroup } from './membership.js';
 import { Timestamp } from 'firebase-admin/firestore';
 import { enforceDiscussionTime, requireDiscussionActive } from './discussion-lifecycle.js';
@@ -78,9 +78,8 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
   // /healthz は手元と古い手順のために残す
   app.get(['/health', '/healthz'], (_req, res) => { res.json({ ok: true, gemini: gemini.source }); });
 
-  // テーマ案（Gemini）。議論を作れる教員だけが使える。依頼の本文はログにも DB にも残さない
+  // テーマ案（Gemini）。Googleログイン済みの利用者が使える。依頼の本文はログにも DB にも残さない
   app.post('/themes/suggest', ...chain(authenticate, wrap(async (req, res) => {
-    requireTeacher(req.ctx);
     const { request, previous } = parse(z.object({
       request: z.string().trim().min(1).max(500),
       previous: z.array(z.string().trim().min(1).max(100)).max(3).default([]),
@@ -90,14 +89,12 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
     catch { throw new HttpError(503, 'theme_unavailable', 'テーマ案を出せませんでした。少し待って、もう一度試してください'); }
   })));
 
-  // 作成は招待された教員だけ（teacher claim）。セッションとHostの所属を同じトランザクションで保存する。
+  // Googleログイン済みの利用者が作成できる。作成者のHost所属を同じトランザクションで保存する。
   // 作成後の操作の権限は、これまでどおりセッションごとの members.role で決める
   app.post('/rooms', ...chain(authenticate, wrap(async (req, res) => {
-    requireTeacher(req.ctx);
     await limit(req.ctx.uid, 'create', 10, 60 * 60_000);
     const classroomCourseId = parse(z.string().regex(/^[A-Za-z0-9_-]{1,200}$/).optional(), req.body?.classroomCourseId);
     const linkedCourse = classroomCourseId ? await classroomCourse(req, workspace, classroomCourseId) : undefined;
-    if (linkedCourse && linkedCourse.course.role !== 'teacher') throw new HttpError(403, 'course_teacher_required', 'このクラスの教員だけが作成できます');
     // recording：グループの議論を録音して分析するか（録音の権限は先生が持つ。既定は録音する）
     const { title, theme, className, minutes, groups, recording, groupSelection, flowVersion, publishOnEnd, participantView } = parse(z.object({
       flowVersion: z.literal(1).optional(), publishOnEnd: z.boolean().default(true), participantView: z.object({ theme: z.boolean().default(true), timer: z.boolean().default(true), members: z.boolean().default(true), speaking: z.boolean().optional() }).default({ theme: true, timer: true, members: true }), title: z.string().trim().min(1).max(100), theme: z.string().trim().max(1000).default(''), minutes: z.number().int().min(1).max(180).optional(), className: z.string().trim().max(40).optional(), groupSelection: z.enum(['participant', 'host']).default('participant'), groups: z.number().int().min(1).max(MAX_GROUPS).default(1), recording: z.boolean().default(true),

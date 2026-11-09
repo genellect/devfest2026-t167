@@ -32,7 +32,7 @@ Firebase認証の読み取り権限は[公式の権限一覧](https://docs.cloud
 
 ## MVPのHost権限
 
-議論を作れるのは、teacher claimを持つ教員だけ。デモで議論を作るアカウントには、[MVPロール設計](mvp-roles.md)の「本番で教師権限を付ける手順」でclaimを付けておく。作成者をバックエンドでHostとして登録し、作成後のHost操作はmembers.roleで判定する（teacher claimでは判定しない）。学校管理者claimは学校ポリシー管理専用。
+2026-11-09の依頼者の明示指示により、教師・生徒に関係なくGoogleログイン済みの全員が議論を作成・参加できる。デモの作成者にteacher claimを付ける必要はない。作成者をバックエンドでHostとして登録し、作成後のHost操作はmembers.roleで判定する（teacher claimでは判定しない）。学校管理者claimは学校ポリシー管理専用。
 
 ## 承諾後の反映とデモ確認
 

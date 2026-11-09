@@ -20,9 +20,9 @@ async function client(kind: 'teacher' | 'student') {
   return (body: object) => request(app).post('/themes/suggest').set('authorization', `Bearer ${u.idToken}`).set('cookie', cookie).send(body);
 }
 
-it('テーマ案は教員だけが出せる。3つの案を返し、「別の案」では前の案を避ける。依頼の本文は保存しない', async () => {
+it('テーマ案はGoogleログイン済みの全員が出せる。3つの案を返し、「別の案」では前の案を避ける。依頼の本文は保存しない', async () => {
   const teacher = await client('teacher'), student = await client('student');
-  await student({ request: '高校2年の情報' }).expect(403);
+  await student({ request: '高校2年の情報' }).expect(200);
   await teacher({ request: '' }).expect(400);
   await teacher({ request: 'あ'.repeat(501) }).expect(400);
   const first = (await teacher({ request: '高校2年の情報。SNSの情報の見分け方' }).expect(200)).body;

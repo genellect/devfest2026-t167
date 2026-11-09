@@ -11,7 +11,7 @@ it('ローカルモックは架空クラスだけを返し、Driveや実デー�
   expect(await classroomMock.roster('mock','mock')).toHaveLength(2);
 });
 it('クラスIDと全名を維持し、従来のクラス名だけ40文字へ収める', () => {
-  expect(classroomFields({id:'c',name:'数学',role:'teacher'})).toEqual({classroomCourseId:'c',classroomCourseName:'数学',className:'数学'});
+  expect(classroomFields({id:'c',name:'数学',role:'teacher'})).toEqual({classroomHostRole:'teacher',classroomCourseId:'c',classroomCourseName:'数学',className:'数学'});
   const value=classroomFields({id:'c',name:'あ'.repeat(60),section:'1年',role:'teacher'});
   expect(value.className).toHaveLength(40);expect(value.classroomCourseName).toHaveLength(60);expect(value.classroomCourseSection).toBe('1年');
 });

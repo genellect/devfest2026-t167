@@ -6,8 +6,7 @@ import { createRequire } from 'node:module';
 test('公開人声を画面で登録し、別録音をマイク入力として実モデルへ送りHostとGuestへ表示する', async ({ page, browser }) => {
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
-  await page.goto('/');
-  await page.getByRole('button', { name: 'テスト用の先生でログイン（エミュレータ）', exact: true, includeHidden: true }).evaluate(element => (element as HTMLButtonElement).click());
+  await loginStudent(page, 'real-audio-host', { home: false });
   await page.waitForURL(/\/(?:teacher|home)$/);
   await page.goto('/host/new');
   await page.getByLabel('テーマ', { exact: true }).fill('公開人声・実モデル接続確認');

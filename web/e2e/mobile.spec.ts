@@ -7,8 +7,8 @@ for (const account of ["生徒", "先生"] as const) {
     await expect(page).toHaveURL(/\/home$/);
     await expect(page.getByRole("heading", { name: "ホーム", exact: true })).toBeVisible();
     const host = page.getByRole("button", { name: "ホストする", exact: true });
-    if (account === "生徒") await expect(host).toBeDisabled();
-    else await expect(host).toBeEnabled();
+    await expect(host).toBeEnabled();
+    await expect(page.getByRole("button", {name:"Geminiでテーマを考える", exact:true})).toBeEnabled();
     for (const path of ["/home", "/host/new", "/join", "/host/profile", "/about"]) {
       await page.goto(path);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path).toBe(true);

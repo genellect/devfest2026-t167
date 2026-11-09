@@ -70,7 +70,7 @@ test("全員の同意を確かめて録音し、議論を終えると録音が�
   await page.getByLabel("グループの結論を、あなたはどう理解した？").fill("練習の中身を見直して時間を短くする");
   await page.getByRole("button", { name: "おおむね納得" }).click();
   await page.getByRole("button", { name: "提出する" }).click();
-  await expect(page.getByText("分析結果は教員が公開すると表示されます。")).toBeVisible();
+  await expect(page.getByText("分析結果はホストが公開すると表示されます。")).toBeVisible();
   await request.post(`/api/rooms/${roomId}/settings`, { headers: { authorization: `Bearer ${hostToken}` }, data: { resultsPublished: true } });
   // モックの分析結果（録音から書かれた results/flow-g1）が、結果の画面に出る
   await expect(page.getByText("デモデータです。本物の Gemini では、録音から話題の流れを読み取ります。")).toBeVisible({ timeout: 30_000 });

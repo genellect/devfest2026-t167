@@ -3,7 +3,7 @@ import { useState } from "react";
 import { ApiError, callApi } from "@/lib/api";
 
 /**
- * 議論のテーマ案（Gemini）。教員が授業や話し合いたいことを書くと、考えが分かれそうな問いを3つ出す。
+ * 議論のテーマ案（Gemini）。ホストが授業や話し合いたいことを書くと、考えが分かれそうな問いを3つ出す。
  * 選んだ案はテーマの欄に入り、そのまま書き直せる。依頼の本文は保存しない。
  */
 export function ThemeIdeas({ chosen, onPick }: { chosen: string; onPick: (theme: string) => void }) {

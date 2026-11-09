@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { loginStudent } from "./student";
 
 // テーマを非公開にした議論で、テーマ本文が議論の名前（この検査ではテーマと同じ値を明示）を通って参加者の画面に出ないこと。
-// 画面・認証（エミュレータ）・API・SSE を通す。教員にはテーマが見えたまま。
+// 画面・認証（エミュレータ）・API・SSE を通す。ホストにはテーマが見えたまま。
 const SECRET = "架空の非公開テーマ：端末を持たない人の参加をどう保障するか";  // submit-allow: テスト用のダミー
 
 test("テーマを非公開にすると、参加者の画面・再読み込み・議論中にテーマ本文が出ない", async ({ page, browser }) => {
@@ -45,7 +45,7 @@ test("テーマを非公開にすると、参加者の画面・再読み込み�
     await expect(guest.getByRole("heading", { name: "ホーム", exact: true })).toBeVisible();
     await expect(guest.locator("body")).not.toContainText(SECRET.slice(0, 12));
 
-    // 教員にはテーマが見えたまま
+    // ホストにはテーマが見えたまま
     await expect(page.locator("body")).toContainText(SECRET);
   } finally { await context.close(); }
 });

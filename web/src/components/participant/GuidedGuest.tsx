@@ -17,7 +17,7 @@ import { registerRecordingGuard } from "@/lib/recording-recovery";
 interface Own { voiceSource?: "mock" | "model"; displayName?: string; deviceMode?: "personal" | "shared"; ready?: boolean; attendees?: { id: string; displayName: string; voiceRegistered: boolean }[] }
 export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, recorder }: { roomId: string; room: Room; uid: string; group?: number; recording: ReturnType<typeof useGroupRecording>; canRecord: boolean; recorder?: { mine: boolean; name?: string } }) {
   const own = useDoc<Own>(`sessions/${roomId}/members/${uid}`).data;
-  // 合意の一文から出るグループの結果（終了後）と、教員が承認した問いかけ（議論中）
+  // 合意の一文から出るグループの結果（終了後）と、ホストが承認した問いかけ（議論中）
   const result = useDoc<GroupResult>(group ? `sessions/${roomId}/results/group-${group}` : undefined).data;
   const insights = useInsights(roomId, true, true);
   const status = group ? room.groupState?.[String(group)]?.status : undefined;
@@ -95,15 +95,15 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
   const STEPS = ["事前意見", "議論", "結論", "結果"];
   const step = ended ? (result || status === "done" ? 3 : 2) : !named || !voiced || waiting ? 0 : 1;
   const shared = own?.deviceMode === "shared";
-  // 教員が「全員に表示する」を押した問いかけ。届くまでは黄色にせず、1行の案内だけを置く
+  // ホストが「全員に表示する」を押した問いかけ。届くまでは黄色にせず、1行の案内だけを置く
   const question = insights.length ? (
-    <section className="sticky" aria-label="教員からの問いかけ">
-      <p className="sticky__label">教員からの問いかけ</p>
+    <section className="sticky" aria-label="ホストからの問いかけ">
+      <p className="sticky__label">ホストからの問いかけ</p>
       {insights.map((i) => <p key={i.id} className="sticky__text">{i.summary}</p>)}
     </section>
   ) : (
-    <section className="prompt-empty" aria-label="教員からの問いかけ">
-      <p className="t-small">まだ話されていない論点があると、教員がここに問いかけを表示します。</p>
+    <section className="prompt-empty" aria-label="ホストからの問いかけ">
+      <p className="t-small">まだ話されていない論点があると、ホストがここに問いかけを表示します。</p>
     </section>
   );
   // 録音はグループで1台。担当が決まっていなければ、録音を始めた端末が担当になる（ほかの人には担当の名前が出る）
@@ -161,12 +161,12 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
         <SessionStage stage={room.resultsPublished && (result || status === "done") ? "result" : "ended"} title={room.resultsPublished && (result || status === "done") ? "議論を振り返りましょう" : "セッションが終了しました"}>
           {result || status === "done" ? "自分の考えと、グループの結論を確かめましょう。" : "グループの結論を、自分の言葉で一文にまとめましょう。"}
         </SessionStage>
-        <p className="notice" role="status">{room.endReason === "timeout" ? "設定した時間になりました。" : "教員が議論を終了しました。"}</p>
+        <p className="notice" role="status">{room.endReason === "timeout" ? "設定した時間になりました。" : "ホストが議論を終了しました。"}</p>
         {["uploading", "waiting", "done"].includes(uploadState) && <p className="notice" role="status">{uploadState === "done" ? "録音の送信・分析が完了しました。" : uploadState === "waiting" ? "グループの分析結果を待っています。録音は端末に保持しています。" : "録音を送信して分析しています。画面を閉じずにお待ちください。"}</p>}
         {uploadState === "failed" && <div className="notice notice--error stack"><p role="alert">{recording.upload.message}</p><button className="btn" onClick={() => void recording.retry()}>録音を再送する</button></div>}
         {!group ? <p className="notice">グループに入っていなかったため、結果はありません。</p>
           : !result && status !== "done" ? <ConsensusStep bare roomId={roomId} uid={uid} title={room.theme || room.title} submitted={gs?.submitted} total={gs?.total} />
-          : !room.resultsPublished ? <p className="notice">結果は教員が公開すると表示されます。</p>
+          : !room.resultsPublished ? <p className="notice">結果はホストが公開すると表示されます。</p>
           : <ResultStep roomId={roomId} uid={uid} group={group} title={room.theme || room.title} result={result ?? null}
             showSpeaking={room.participantView?.speaking === true} />}
       </>
@@ -209,7 +209,7 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
       </section>
 
       : waiting ? (!group
-        ? <SessionStage stage="waiting" title="グループの割り当てを待っています">教員が割り当てると、自動で画面が切り替わります。</SessionStage>
+        ? <SessionStage stage="waiting" title="グループの割り当てを待っています">ホストが割り当てると、自動で画面が切り替わります。</SessionStage>
         : <OpinionStep bare roomId={roomId} uid={uid} total={gs?.total} opinions={gs?.opinions} canChange={false} onChangeGroup={() => {}} />)
 
       : null}

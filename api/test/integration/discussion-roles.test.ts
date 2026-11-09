@@ -22,9 +22,10 @@ async function room(c: Awaited<ReturnType<typeof client>>, patch = {}) {
   return (await c.post('/rooms', { title: '架空のセッション', theme: 'テーマ', minutes: 20, groups: 2, ...patch }).expect(201)).body as { roomId: string; joinCode: string };
 }
 describe('MVPのセッション単位Host/Participant', () => {
-  it('招待された教員はClassroomなしで作成でき、作成とHost付与・グループを一括保存する。教師claimのない利用者は作成できない', async () => {
+  it('招待された教員はClassroomなしで作成でき、作成とHost付与・グループを一括保存する。教師claimのない利用者も作成できる', async () => {
     const student = await client();
-    expect((await student.post('/rooms', { title: '作れないセッション' }).expect(403)).body.error.code).toBe('teacher_required');
+    const own = await room(student);
+    expect((await db.doc(`sessions/${own.roomId}/members/${student.uid}`).get()).get('role')).toBe('host');
     const c = await client('teacher'), r = await room(c);
     const snap = await db.doc(`sessions/${r.roomId}`).get();
     expect(snap.data()).toMatchObject({ title: '架空のセッション', theme: 'テーマ', minutes: 20, resultsPublished: false });
@@ -35,7 +36,7 @@ describe('MVPのセッション単位Host/Participant', () => {
     expect((await c.get('/discussions').expect(200)).body.sessions).toContainEqual(expect.objectContaining({ sessionId: r.roomId, role: 'host' }));
   });
   it('同じ利用者がAでHost、BでParticipantとなり、ログインセッションを変更しない', async () => {
-    const a = await client('teacher'), b = await client('teacher'), ra = await room(a), rb = await room(b);
+    const a = await client(), b = await client('teacher'), ra = await room(a), rb = await room(b);
     await a.post('/rooms/join', { code: rb.joinCode }).expect(200);
     await a.post(`/rooms/${ra.roomId}/settings`, { theme: '変更したテーマ' }).expect(200);
     await a.post(`/rooms/${rb.roomId}/settings`, { title: '不正' }).expect(403);

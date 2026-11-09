@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowDownLeft, ArrowRight, ArrowUp, ChevronRight, Clock3, History, Home, LogOut, Menu, MessageCircle, Plus, Settings, ShieldCheck, Target, X } from "lucide-react";
-import { signOutHost, useHostUser, useIsTeacher } from "@/lib/hostAuth";
+import { signOutHost, useHostUser } from "@/lib/hostAuth";
 import { sessionRequest } from "@/lib/session";
 import { callApi } from "@/lib/api";
 import { getReflection } from "@/lib/local";
@@ -23,7 +23,7 @@ function GeminiIcon({ size = 22 }: { size?: number }) {
 const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export function MobileWorkspace({ view = "home" }: { view?: View }) {
-  const user = useHostUser(), teacher = useIsTeacher(), router = useRouter();
+  const user = useHostUser(), router = useRouter();
   const workspace = useRef<HTMLDivElement>(null);
   const drawer = useRef<HTMLDialogElement>(null), assistant = useRef<HTMLDialogElement>(null);
   const [rooms, setRooms] = useState<Discussion[]>(), [error, setError] = useState("");
@@ -186,7 +186,6 @@ export function MobileWorkspace({ view = "home" }: { view?: View }) {
   async function host(theme = "") {
     setBusy(true); setError("");
     try {
-      if (!teacher) return;
       await closePanel(assistant.current);
       router.push(`/host/new${theme ? `?theme=${encodeURIComponent(theme)}` : ""}`);
     } catch { setError("作成画面を開けませんでした。接続を確認してください。"); }
@@ -198,7 +197,6 @@ export function MobileWorkspace({ view = "home" }: { view?: View }) {
     if (!request.trim() || thinking) return;
     setThinking(true); setThemeError(""); setLastRequest(request.trim());
     try {
-      if (!teacher) return;
       const result = await callApi<{ themes: string[] }>("/themes/suggest", { request: request.trim(), previous: themes });
       setThemes(result.themes);
     } catch (err) { setThemeError((err as Error).message || "テーマ案を取得できませんでした。"); }
@@ -227,7 +225,7 @@ export function MobileWorkspace({ view = "home" }: { view?: View }) {
     <header className={`${styles.header} ${view === "settings" ? styles.minimalHeader : ""}`}>
       <button className={styles.iconButton} aria-label="メニューを開く" aria-haspopup="dialog" onClick={openDrawer}><Menu size={23} /></button>
       {view === "home" && <>
-        <button className={styles.assistantTrigger} disabled={teacher !== true} title={teacher === false ? "テーマの提案は招待された教員が利用できます" : undefined} aria-haspopup="dialog" onClick={openAssistant}><GeminiIcon /><span>Geminiでテーマを考える</span></button>
+        <button className={styles.assistantTrigger} aria-haspopup="dialog" onClick={openAssistant}><GeminiIcon /><span>Geminiでテーマを考える</span></button>
         <Link className={styles.avatar} href="/settings" aria-label="アカウント・設定">{initial}</Link>
       </>}
       {view === "history" && <label className={styles.headerSearch}>
@@ -242,7 +240,7 @@ export function MobileWorkspace({ view = "home" }: { view?: View }) {
       {view === "home" && <>
         <div className={styles.actions}>
           <Link href="/join" className={styles.join} aria-label="参加する"><ArrowDownLeft className={styles.actionMark} aria-hidden="true" strokeWidth={1} /><strong aria-hidden="true">参加<br />する</strong></Link>
-          <button className={styles.host} onClick={() => void host()} disabled={busy || teacher !== true} title={teacher === false ? "ホストは招待された教員が利用できます" : undefined} aria-label={busy ? "開いています…" : "ホストする"}><Plus className={styles.actionMark} aria-hidden="true" strokeWidth={1.3} /><strong aria-hidden="true">{busy ? <>準備<br />中</> : <>ホスト<br />する</>}</strong></button>
+          <button className={styles.host} onClick={() => void host()} disabled={busy} aria-label={busy ? "開いています…" : "ホストする"}><Plus className={styles.actionMark} aria-hidden="true" strokeWidth={1.3} /><strong aria-hidden="true">{busy ? <>準備<br />中</> : <>ホスト<br />する</>}</strong></button>
         </div>
         <section className={styles.dashboard} aria-labelledby="dashboard-title">
           <h2 id="dashboard-title">マイダッシュボード</h2>

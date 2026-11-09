@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 
 /** テスト間のログイン回数制限を分離し、同じテストの別端末では同じ本人を使う。 */
 export async function loginStudent(page: Page, person = "", { home = true }: { home?: boolean } = {}) {
-  const subject = `e2e-student-${createHash("sha256").update(`${test.info().testId}:${test.info().retry}${person ? `:${person}` : ""}`).digest("hex").slice(0, 24)}`;
+  const subject = `e2e-student-${createHash("sha256").update(`${test.info().testId}:${test.info().retry}:${test.info().repeatEachIndex}${person ? `:${person}` : ""}`).digest("hex").slice(0, 24)}`;
   await page.route(/identitytoolkit.*accounts:signInWithIdp/, async route => {
     const data = route.request().postDataJSON();
     const body = new URLSearchParams(data.postBody);
@@ -15,7 +15,7 @@ export async function loginStudent(page: Page, person = "", { home = true }: { h
   });
   await page.goto("/");
   await page.getByRole("button", { name: "テスト用の生徒でログイン（エミュレータ）", includeHidden: true }).evaluate(element => (element as HTMLButtonElement).click());
-  // QR・リンク参加以外は、教員と同じ共通ホームへ進む。
+  // QR・リンク参加以外は、ホストと同じ共通ホームへ進む。
   if (home) {
     await expect(page).toHaveURL(/\/home$/);
     await expect(page.getByRole("heading", { name: "ホーム", exact: true })).toBeVisible();

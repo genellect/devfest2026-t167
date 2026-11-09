@@ -24,8 +24,8 @@ health以外は有効なGoogle IDトークンとアプリセッションCookie�
 | `POST /rooms/{部屋}/speaker/start` / `{runId}/chunk` / `{runId}/stop` | Google＋独自セッション | 必要 | Participantの録音担当のみ | Host開始後・同意・登録済みの所属グループ。背景送信は利用期限を延長しない |
 | `GET/PUT /schools/{学校}/security-policy` | Google＋独自セッション | 同校管理者claim | 必要 | policy値域を検査 |
 | `POST /schools/{学校}/users/{利用者}/sessions/revoke` | Google＋独自セッション | 同校管理者claim | 必要 | 対象者も同校であることをサーバーで検査 |
-| `POST /themes/suggest` | Google（教員の teacher claim。ない場合は `403 teacher_required`） | — | — | 議論のテーマ案を Gemini で3つ返す。`request`（500文字まで）と、「別の案」のときは前の案 `previous`（3つまで）。1人1分に6回まで（`429`）。Gemini の失敗は `503 theme_unavailable`。依頼の本文は保存しない |
-| `POST /rooms` | Google（招待された教員の teacher claim。ない場合は `403 teacher_required`） | —（作成者が司会者になる） | — | テーマと任意のクラス名（`className`）。時間（`minutes`）は任意。作成から3時間後の `expiresAt` を書き、過ぎたセッションは書き込みを `409 room_expired` で断る |
+| `POST /themes/suggest` | Google＋有効なアプリセッション | — | — | 議論のテーマ案を Gemini で3つ返す。`request`（500文字まで）と、「別の案」のときは前の案 `previous`（3つまで）。1人1分に6回まで（`429`）。Gemini の失敗は `503 theme_unavailable`。依頼の本文は保存しない |
+| `POST /rooms` | Google＋有効なアプリセッション | —（作成者が司会者になる） | — | テーマと任意のクラス名（`className`）。時間（`minutes`）は任意。作成から3時間後の `expiresAt` を書き、過ぎたセッションは書き込みを `409 room_expired` で断る |
 | `POST /rooms/join` | Google | —（参加コードで部屋を特定） | — | 新しい参加は `closed`・失効以外で、議論の開始前と議論中（1本化した流れで、グループをサーバーが決める部屋）。議論を終えたあとは受け付けない。1本化した流れでは、グループをサーバーが決める（1グループ100人まで。超えたら次のグループを作る）。参加済みの人は開始後・終了後も同じコードで戻れる（外された参加者は `403`） |
 | `POST /rooms/{部屋}/phase` | 必要 | 必要 | 必要 | 1つずつ順に進める。1本化した流れの開始には、全参加者の表示名の登録と所属が必要（音声登録は任意）。未準備がいれば`409 guests_not_ready`（人数 `notReady`）。`excludeNotReady: true`で未準備の参加者を外して開始し、外した参加者は以後この部屋に入れない。時間が設定されていなければ終了時刻を付けない |
 | `POST /rooms/{部屋}/analyze` | 必要 | 必要 | 必要 | `collecting`・`discussing`（授業中）。まだ話されていない論点を提案（`insights`）にし、読み取った論点の一覧（言い換えた文と、話されたかどうか）を `results/coverage` の `points` に残す。教員だけが読める |
@@ -52,7 +52,7 @@ health以外は有効なGoogle IDトークンとアプリセッションCookie�
 | `GET /integrations/classroom/courses/{クラス}/discussions` | 同上＋クラス所属 | 新規参加できる議論・参加済みの進行中の議論。コード・名簿・非公開意見を含まない |
 | `GET /integrations/classroom/courses/{クラス}/roster` | 同上＋Classroom教員 | 名簿の表示名とGoogleの識別子のみ。メールは取得しない |
 | `GET /rooms/{部屋}/classroom/roster` | 同上＋部屋Host＋Classroom教員 | 名簿とアプリの参加済み／未参加を照合。共有端末はログインアカウント単位 |
-| `POST /rooms` の `classroomCourseId` | 招待済み教員＋Classroom教員 | サーバーで確認したクラス名を保存し、ホーム・履歴に再利用 |
+| `POST /rooms` の `classroomCourseId` | Classroomのクラス所属者（教員・生徒とも） | サーバーで確認したクラス名を保存し、ホーム・履歴に再利用 |
 | `POST /rooms/join` の `classroomRoomId` | クラス所属 | コードなし参加。`code`との同時指定は拒否。コード・QR経由の新規参加でもクラス所属を検証 |
 
 Googleアクセストークンは`x-google-access-token`で送信し、署名済みFirebaseのGoogle識別子とUserInfoの`sub`を照合する。永続化・ログ出力しない。名簿照合用の`classroomUserId`はSSEから除外する。追加許可が失効したら明示的に再接続する。既存メンバーの再入室と、サーバーがグループを決める部屋の途中参加は通常のコード参加と同じ条件を維持する。Classroomの取得は1人1分60回まで。課題・成績の取得や結果の投稿は行わない。
@@ -103,3 +103,5 @@ Googleのアクセストークンはリクエストとブラウザのタブ内�
 Geminiによる提案には `kind: missing | new_angle` を付ける。未検討の事前意見由来の提案は `missing`。新しい切り口は確定した議論内容と区別し、既存の承認・見送り操作を使う。`live-groups` はHostだけが閲覧でき、結果公開後もParticipantには配信しない。失敗時は503の汎用エラーとし、最後に成功した結果を保つ。古いjobIdや段階変更後の結果は保存しない。追加の構造化Gemini呼び出しは1回にまとめ、モデル・生成設定は変更しない。
 
 履歴（`GET /discussions`）は、所属する議論を作成日時の新しい順に返し、保存されたクラス名も表示に利用する。部屋IDの辞書順を「最近の議論」として扱わない。
+
+2026-11-09の依頼者の最新指示で、teacher claimによる作成・テーマ提案の制限を廃止した。Google認証・有効な独自セッション・利用回数制限は維持し、Host権限は議論ごとのmembers.roleのみで判定する。Classroomの名簿は引き続き同クラスのGoogle教員だけが閲覧できる。

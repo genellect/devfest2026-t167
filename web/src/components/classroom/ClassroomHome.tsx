@@ -3,12 +3,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { authorizeWorkspace, SCOPES, workspaceRequest, workspaceToken } from "@/lib/workspace";
-import { useIsTeacher } from "@/lib/hostAuth";
 import { useClassroom, syncLabel, classroomMock } from "./use-classroom";
 import styles from "./classroom.module.css";
 interface Discussion { roomId: string; title: string; theme: string; phase: string; joined: boolean; host: boolean }
 export function ClassroomHome() {
-  const router = useRouter(), teacher = useIsTeacher();
+  const router = useRouter();
   const connection = useClassroom();
   const [selected, setSelected] = useState("");
   const course = connection.courses?.find(c => c.id === selected) ?? connection.courses?.[0];
@@ -53,7 +52,7 @@ export function ClassroomHome() {
       {!connection.courses.length ? <p role="status">所属している有効なクラスがありません。学校用のGoogleアカウントか確認してください。</p> : <>
         <label htmlFor="classroom-home-course">クラス</label>
         <select id="classroom-home-course" value={id ?? ""} disabled={joining} onChange={e => setSelected(e.target.value)}>{connection.courses.map(c => <option value={c.id} key={c.id}>{c.name}{c.section ? `・${c.section}` : ""}（{c.role === "teacher" ? "教員" : "生徒"}）</option>)}</select>
-        {course?.role === "teacher" && <div className={styles.actions}>{teacher && <Link className={styles.primary} href={`/host/new?course=${encodeURIComponent(course.id)}`}>このクラスでホストする</Link>}<button className={styles.secondary} disabled={rosterBusy} onClick={() => void showRoster()}>{rosterBusy ? "名簿を取得中…" : "名簿を確認"}</button></div>}
+        {course && <div className={styles.actions}><Link className={styles.primary} href={`/host/new?course=${encodeURIComponent(course.id)}`}>このクラスでホストする</Link>{course.role === "teacher" && <button className={styles.secondary} disabled={rosterBusy} onClick={() => void showRoster()}>{rosterBusy ? "名簿を取得中…" : "名簿を確認"}</button>}</div>}
         {roster && roster.id === id && <details open><summary>クラス名簿 {roster.students.length}人</summary><p className={styles.note}>参加状況は、作成した話し合いの待機画面で確認できます。</p><ul className={styles.list}>{roster.students.map(p => <li key={p.id}>{p.name}</li>)}</ul></details>}
         <div className={styles.actions}><button className={styles.secondary} disabled={joining} onClick={() => setReload(n => n + 1)}>話し合いを更新</button><span className={styles.note}>{syncLabel(data.syncedAt)}</span></div>
         {data.error && <p role="alert" className={styles.error}>{data.error}</p>}

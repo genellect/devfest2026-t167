@@ -39,14 +39,17 @@ async function setup() {
 it('追加同意の本人だけが所属クラスを取得でき、通常ログインのteacher claimを変更しない', async () => {
   const p = await client('student', 'teacher');
   expect((await p.get('/integrations/classroom/courses').expect(200)).body.courses[0].role).toBe('teacher');
-  await p.post('/rooms', { title: '作成不可', classroomCourseId: 'classroom-a' }).expect(403);
+  await p.post('/rooms', { title: '作成できる', classroomCourseId: 'classroom-a' }).expect(201);
   expect((await auth.getUser(p.uid)).customClaims?.teacher).not.toBe(true);
 });
-it('招待済み教員＋Classroom教師の両方を検証し、クラス名はGoogle側の値を使う', async () => {
+it('クラス所属者は教員・生徒とも作成でき、クラス名はGoogle側の値を使う', async () => {
   const {h,p,roomId} = await setup();
   const room = await db.doc(`sessions/${roomId}`).get();
   expect(room.get('className')).toBe('探究学習・1年1組'); expect(room.get('classroomCourseName')).toBe('探究学習');
-  roles.set(h.sub, 'student'); await h.post('/rooms', { title: '生徒クラス', classroomCourseId: 'classroom-a' }).expect(403);
+  roles.set(h.sub, 'student');
+  const own = (await h.post('/rooms', { title: '生徒クラス', classroomCourseId: 'classroom-a' }).expect(201)).body;
+  expect((await db.doc(`sessions/${own.roomId}`).get()).get('classroomHostRole')).toBe('student');
+  await h.get(`/rooms/${own.roomId}/classroom/roster`).expect(403);
   await p.get('/integrations/classroom/courses/classroom-a/roster').expect(403);
   await h.post('/rooms', { title: '未所属', classroomCourseId: 'unknown' }).expect(403);
   await h.post('/rooms', { title: '不正ID', classroomCourseId: '../x' }).expect(400);

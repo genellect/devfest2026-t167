@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 /**
  * LP の「デモを体験」。ログインなしで、1つの議論を「書く → 話す → まとめる」の順に体験する。
- * 学生として書き、教員の画面で何が見えるかを並べて見せる。入力はこの端末の中だけで使い、送信しない。
+ * 参加者として書き、ホストの画面で何が見えるかを並べて見せる。入力はこの端末の中だけで使い、送信しない。
  * 例はチームドキュメント「アプリの構想」の合意の実態検証（A〜D の4通りの理解）による。
  */
 
@@ -19,7 +19,7 @@ const TALK = [
 const READINGS = [
   { text: "申告すれば、レポートにも使える", color: "blue", base: 2 },
   { text: "アイデア出しにだけ使える", color: "pink", base: 2 },
-  { text: "教員が許可したときだけ", color: "mint", base: 1 },
+  { text: "ホストが許可したときだけ", color: "mint", base: 1 },
 ] as const;
 const STEPS = ["書く", "話す", "まとめる"] as const;
 
@@ -36,7 +36,7 @@ export function LpDemo() {
   const [question, setQuestion] = useState<"pending" | "shown" | "skipped">("pending");
   const [choice, setChoice] = useState<number | null>(null);
 
-  // ほかの学生の提出（書く）と、話し合いの発言（話す）は、時間をおいて順に届く
+  // ほかの参加者の提出（書く）と、話し合いの発言（話す）は、時間をおいて順に届く
   useEffect(() => {
     if (step !== 0 || others >= CLASSMATES) return;
     const t = setTimeout(() => setOthers((n) => n + 1), reduced() ? 0 : 700);
@@ -68,9 +68,9 @@ export function LpDemo() {
       <p className="demo__theme"><span>テーマ</span>{THEME}</p>
 
       <div className="demo__stage">
-        {/* 学生の画面 */}
-        <section className="demo__pane demo__pane--student" aria-label="学生の画面">
-          <p className="demo__who">学生の画面</p>
+        {/* 参加者の画面 */}
+        <section className="demo__pane demo__pane--student" aria-label="参加者の画面">
+          <p className="demo__who">参加者の画面</p>
 
           {step === 0 && !submitted && (
             <form className="demo__write" onSubmit={(e) => { e.preventDefault(); if (text.trim()) setSubmitted(true); }}>
@@ -92,7 +92,7 @@ export function LpDemo() {
 
           {step === 1 && (
             <div className="demo__talk">
-              {question === "shown" && <p className="demo__ask" role="status"><span>教員から</span>AI を使ったことを、どこまで申告する？</p>}
+              {question === "shown" && <p className="demo__ask" role="status"><span>ホストから</span>AI を使ったことを、どこまで申告する？</p>}
               <ul className="demo__lines" aria-live="polite">
                 {TALK.slice(0, lines).map((l) => <li key={l.who}><span className="demo__avatar">{l.who}</span><p>{l.text}</p></li>)}
               </ul>
@@ -113,9 +113,9 @@ export function LpDemo() {
           )}
         </section>
 
-        {/* 教員の画面 */}
-        <section className="demo__pane demo__pane--teacher" aria-label="教員の画面">
-          <p className="demo__who">教員の画面</p>
+        {/* ホストの画面 */}
+        <section className="demo__pane demo__pane--teacher" aria-label="ホストの画面">
+          <p className="demo__who">ホストの画面</p>
 
           {step === 0 && (
             <div>
@@ -123,7 +123,7 @@ export function LpDemo() {
               <ul className="demo__slots" aria-hidden="true">
                 {Array.from({ length: CLASSMATES + 1 }, (_, i) => <li key={i} className={i < total ? "is-in" : undefined} />)}
               </ul>
-              <p className="demo__hint">教員に見えるのは、集まった人数だけ。中身は見えない。</p>
+              <p className="demo__hint">ホストに見えるのは、集まった人数だけ。中身は見えない。</p>
             </div>
           )}
 
@@ -142,7 +142,7 @@ export function LpDemo() {
                 </div>
               )}
               {question === "shown" && <div className="board"><p className="board__label">教室に映す画面</p><p className="board__text">AI を使ったことを、どこまで申告する？</p></div>}
-              {question === "skipped" && <p className="demo__hint" role="status">見送った。学生に届けるかどうかは、いつも教員が決める。</p>}
+              {question === "skipped" && <p className="demo__hint" role="status">見送った。参加者に届けるかどうかは、いつもホストが決める。</p>}
             </div>
           )}
 

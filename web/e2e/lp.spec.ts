@@ -19,11 +19,11 @@ test("LP の中で、書く・話す・まとめるの順にデモを体験で�
   await demo.getByRole("button", { name: "書き終えた" }).click();
   await expect(demo.getByText("書けた。この考えは、あなたにしか見えない。")).toBeVisible();
   await demo.getByRole("button", { name: "議論を始める" }).click({ timeout: 10_000 });
-  // 未検討の論点は教員の画面に出て、教員が表示を選ぶまで学生には届かない
+  // 未検討の論点はホストの画面に出て、ホストが表示を選ぶまで参加者には届かない
   await expect(demo.getByText("まだ話されていない論点")).toBeVisible({ timeout: 10_000 });
-  await expect(demo.getByLabel("学生の画面").getByText("教員から")).toHaveCount(0);
+  await expect(demo.getByLabel("参加者の画面").getByText("ホストから")).toHaveCount(0);
   await demo.getByRole("button", { name: "全員に問いかける" }).click();
-  await expect(demo.getByLabel("学生の画面").getByText("教員から")).toBeVisible();
+  await expect(demo.getByLabel("参加者の画面").getByText("ホストから")).toBeVisible();
   await demo.getByRole("button", { name: "結論をまとめる" }).click();
   await demo.getByRole("radio", { name: "アイデア出しにだけ使える" }).click();
   await expect(demo.getByText("でも、同じことには賛成していなかった。")).toBeVisible();
@@ -31,7 +31,7 @@ test("LP の中で、書く・話す・まとめるの順にデモを体験で�
   await demo.screenshot({ path: "../docs/screenshots/lp-demo-mobile.png" });
 });
 
-test("ログインと、これから使う教員・学校の申し込みの入口がある", async ({ page }) => {
+test("ログインと、これから使うホスト・学校の申し込みの入口がある", async ({ page }) => {
   await page.goto("/lp");
   await expect(page.locator(".hero").getByRole("link", { name: "ログイン" })).toHaveAttribute("href", "/");
   const apply = page.getByRole("link", { name: "メールで申し込む" });

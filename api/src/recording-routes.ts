@@ -51,7 +51,7 @@ export function registerRecordingRoutes(app: Express, deps: Dependencies, guards
       const group = await participantGroup(tx, r, req.ctx.uid);
       const config = await tx.get(r.ref.collection('groups').doc(String(group)));
       if (config.get('recorderUid') && config.get('recorderUid') !== req.ctx.uid) throw new HttpError(403, 'recording_not_allowed', 'Hostが許可した参加者の端末で録音してください');
-      if (r.get('recording') === false) throw new HttpError(403, 'recording_disabled', 'この部屋では、先生が録音を使わない設定にしています');
+      if (r.get('recording') === false) throw new HttpError(403, 'recording_disabled', 'この部屋では、ホストが録音を使わない設定にしています');
       if (!['discussing', 'consensus', 'done'].includes(statusOf(r, group))) throw new HttpError(409, 'wrong_phase', 'グループの議論が始まってから送ってください');
       const rec = r.get('groupState')?.[group]?.recording ?? {};
       if (rec.status === 'done' && rec.fingerprint === fingerprint && rec.receipt) return { room: r, group, receipt: rec.receipt };

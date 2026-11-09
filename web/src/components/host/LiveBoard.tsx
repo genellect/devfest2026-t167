@@ -17,7 +17,7 @@ const ANALYSIS_LOCK_MS = 60_000;
 const AUTO_GAP_MS = 60_000;
 
 /**
- * 議論中の教員の画面（教室に投影する黒板）。司会者が「次に何をすべきか」を一目で決められるように、
+ * 議論中のホストの画面（教室に投影する黒板）。司会者が「次に何をすべきか」を一目で決められるように、
  * 経過時間と終了操作、円グラフとグループカードで全体を把握し、
  * 主役に AI が見つけた「まだ話されていない論点」の付箋（全員に表示する／見送る）を置く（Docs「アプリの構想」§3）。
  * 事前意見の本文は出さない（提案は Gemini が言い換えた論点だけ）。
@@ -87,10 +87,10 @@ export function LiveBoard({ roomId, room, members, insights }: { roomId: string;
 
         <aside className="live-side" aria-label="グループと発言">
           <section className="shown" aria-labelledby="shown-title">
-            <h2 id="shown-title" className="live-side__title">学生に表示中の問いかけ</h2>
+            <h2 id="shown-title" className="live-side__title">参加者に表示中の問いかけ</h2>
             {approved.length
               ? <ul className="shown__list">{approved.map((i) => <li key={i.id} className="note note--paper">{i.summary}</li>)}</ul>
-              : <p className="t-note">まだありません。論点を「全員に表示する」と、ここと学生の画面に出ます。</p>}
+              : <p className="t-note">まだありません。論点を「全員に表示する」と、ここと参加者の画面に出ます。</p>}
           </section>
           {/* AI が読み取った論点のうち、どれが話されて、どれがまだかを一覧で見る（言い換えた論点だけ。事前意見の本文は出さない） */}
           {!!coverage?.points?.length && <details className="analysis-evidence"><summary>分析の根拠（{coverage.discussed}/{coverage.total}）</summary><h2 className="sr-only">AI が読み取った論点（話された {coverage.discussed}/{coverage.total}）</h2><ul className="points__list">{coverage.points.map((point, i) => <li key={i} data-discussed={point.discussed || undefined}><span className="points__mark" aria-hidden="true" />{point.summary}<span className="sr-only">{point.discussed ? "（話された）" : "（まだ）"}</span></li>)}</ul></details>}

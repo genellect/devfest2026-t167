@@ -10,9 +10,9 @@ test("共通ホームから作成し、開始・強制終了・結果・共通�
   await page.getByRole("button", { name: "作成する", exact: true }).click();
   await expect(page).toHaveURL(/\/rooms\//);
   await page.getByRole("button", { name: "議論を開始", exact: true }).click();
-  // 時間は設定しない。教員が終えるまで議論が続く
+  // 時間は設定しない。ホストが終えるまで議論が続く
   await expect(page.getByRole("button", { name: "議論を終える", exact: true })).toBeVisible();
-  // 教員には経過時間だけを出す（残り時間のカウントダウンは出さない）
+  // ホストには経過時間だけを出す（残り時間のカウントダウンは出さない）
   await expect(page.getByRole("timer", { name: "経過時間" })).toBeVisible();
   await expect(page.getByRole("timer", { name: "残り時間" })).toHaveCount(0);
   await page.getByRole("button", { name: "議論を終える", exact: true }).click();
@@ -34,7 +34,7 @@ test("議論が始まったあとも、参加コードで途中から参加し�
   await expect(page).toHaveURL(/\/rooms\//);
   const code = (await page.getByTestId("join-code").innerText()).replace(/\D/g, "");
   await page.getByRole("button", { name: "議論を開始", exact: true }).click();
-  // 議論中も、教員の画面に参加コードを出す
+  // 議論中も、ホストの画面に参加コードを出す
   const invite = page.getByRole("region", { name: "参加コード", exact: true });
   await expect(invite.getByTestId("join-code")).toContainText(code.slice(0, 3));
   await expect(invite.getByRole("img", { name: /参加用のQRコード/ })).toBeVisible();
@@ -113,7 +113,7 @@ test("録音と事前の意見を照らし合わせた論点のうち、話さ�
     points: [
       { summary: "利用したことを申告するかどうか", discussed: true, at: "4:10" },
       { summary: "アイデア出しに限って使う", discussed: true, at: "9:30" },
-      { summary: "教員の許可を条件にする", discussed: false },
+      { summary: "ホストの許可を条件にする", discussed: false },
     ],
   });
   await expect(page.getByRole("heading", { name: "録音の振り返り", exact: true })).toBeVisible({ timeout: 20_000 });
@@ -121,6 +121,6 @@ test("録音と事前の意見を照らし合わせた論点のうち、話さ�
   await expect(review.getByText("事前の意見の論点 3件のうち、議論で話されたのは 2件（録音から判定）")).toBeVisible({ timeout: 20_000 });
   const missed = review.getByRole("list", { name: "話されなかった論点" });
   await expect(missed.getByRole("listitem")).toHaveCount(1);
-  await expect(missed).toContainText("教員の許可を条件にする");
+  await expect(missed).toContainText("ホストの許可を条件にする");
   await review.screenshot({ path: "../docs/screenshots/recording-points-teacher-mobile.png" });
 });

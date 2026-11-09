@@ -65,5 +65,5 @@ export function registerClassroomRoutes(app: Express, deps: Dependencies, guards
   }));
 }
 export function classroomFields(course: Course) {
-  return { classroomCourseId: course.id, classroomCourseName: course.name, ...(course.section ? { classroomCourseSection: course.section } : {}), className: [course.name, course.section].filter(Boolean).join('・').slice(0, 40) };
+  return { classroomHostRole: course.role, classroomCourseId: course.id, classroomCourseName: course.name, ...(course.section ? { classroomCourseSection: course.section } : {}), className: [course.name, course.section].filter(Boolean).join('・').slice(0, 40) };
 }

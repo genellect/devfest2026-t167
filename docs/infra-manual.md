@@ -30,7 +30,7 @@ Topos（チーム167）の Google Cloud・Firebase・GitHub を、作り直す�
                  └─ Firebase Authentication（ID トークンの失効確認）
 ```
 
-- **ログイン**：全員 Google でログインする。API は Google 以外（匿名など）のトークンを `403` で断る。議論の作成は teacher claim を持つ教員だけ。
+- **ログイン**：全員 Google でログインする。API は Google 以外（匿名など）のトークンを `403` で断る。議論の作成・参加は全Google利用者が行え、Host権限はセッションごとのmembers.roleで決まる。
 - **データの配信**：ブラウザは Firestore を直接読まない。Firestore と Storage の Rules はクライアントの読み書きをすべて拒否し、API が認可したうえで SSE で配信する。
 - **同じオリジン**：ブラウザは常に同じオリジンの `/api` を呼ぶので、CORS の設定は要らない。
 - **プレビュー**：App Hosting「web-preview」に、PR の `web/` だけを出す。API とデータは本番と共有する（[CONTRIBUTING の「画面のプレビュー」](../CONTRIBUTING.md#画面のプレビュー)）。
@@ -243,16 +243,9 @@ bash infra/setup-members.sh <GitHub のユーザー名> <メールアドレス>
 
 `infra/setup-preview.sh` が、App Hosting の `web-preview` を本番と同じ Web アプリで作り、その URL を承認済みドメインに加える。`.github/workflows/preview.yml` が毎回呼ぶので、人が実行する必要はない。
 
-## 手順11：教員の権限
+## 手順11：ホスト・ゲストの権限
 
-議論を作れるのは、teacher claim を持つ教員だけ。管理者が、相手が一度 Google でログインしたあとに付ける。
-
-```bash
-node scripts/teacher-access.mjs --project "$PROJECT_ID" --email <メールアドレス> --action inspect
-node scripts/teacher-access.mjs --project "$PROJECT_ID" --email <メールアドレス> --action grant
-```
-
-詳しい手順と、失敗したときの確かめ方は [MVPロール設計の「本番で教師権限を付ける手順」](mvp-roles.md#本番で教師権限を付ける手順)にある。
+2026-11-09の依頼者の最新指示により、Googleログイン済みの全員が作成・参加できる。teacher claimの付与は作成の前提ではなくなった。作成者はそのセッションのHostとなり、別のセッションではGuestになれる。既存claimやFirebaseユーザーの移行・再発行は不要。匿名認証の拒否、独自セッション、Hostごとの操作権限は維持する。Classroom名簿はGoogle側のクラス教員、学校ポリシー管理はschoolAdminの認可が必要。
 
 ## 手順12：セッションの保持期間（TTL）
 
@@ -317,7 +310,7 @@ gcloud run services update api --min-instances=1 --region "$REGION" --project "$
 | 予算アラート | 2本（手順2）。通知だけで、課金は止めない |
 | 支出上限（自動停止） | 付けていない |
 | Vertex AI のクォータ | 独自の上限（override）は0件 |
-| アプリの制限 | 利用者・部屋・グループごとの回数制限（[API と認可](api.md)）。作成とテーマ案は教員だけ。プロジェクト全体の1日の上限と、Gemini の出力トークンの上限（`maxOutputTokens`）はない |
+| アプリの制限 | 利用者・部屋・グループごとの回数制限（[API と認可](api.md)）。作成とテーマ案はGoogleログイン済みの全員が利用でき、利用者ごとの回数制限がある。プロジェクト全体の1日の上限と、Gemini の出力トークンの上限（`maxOutputTokens`）はない |
 | 計算資源 | Cloud Run の `api` は最大2台、App Hosting の `web` は最大4台。プレビューとデモは別に動く |
 
 **金額で止めたいとき**：予算に支出上限（spend cap）を付けると、対象サービスの新しい利用を止められる（[公式の説明](https://docs.cloud.google.com/billing/docs/how-to/budgets-spend-caps)）。
@@ -373,7 +366,7 @@ git -C submit commit -m "Submission $(git -C dev rev-parse --short main)" && git
 - [ ] `bash infra/setup-github.sh` を実行した（`main` のルールを設定できなかった場合は、その表示を確かめた）
 - [ ] App Hosting の `web` が asia-east1 にあり、`web/apphosting.yaml` の `API_ORIGIN` が本物の URL になっている
 - [ ] `main` への push で `deploy` が最後の確認まで成功する
-- [ ] 教員のアカウントに teacher claim を付け、教員のホームから議論を作れる
+- [ ] Googleログイン済みの生徒・教員とも、共通ホームから議論を作成・参加できる
 - [ ] [本番の URL で通しを確かめる手順](production-check.md)が通る
 - [ ] 提出スクリプトが OK を出し、提出用リポジトリに開発の履歴・最終版・作品の URL が入っている
 
@@ -393,7 +386,7 @@ git -C submit commit -m "Submission $(git -C dev rev-parse --short main)" && git
 | 画面から API を呼ぶと 404 | `web/apphosting.yaml` の `API_ORIGIN` が違う | 手順6の URL を書いて push する |
 | Gemini の呼び出しが PERMISSION_DENIED | `GEMINI_MODEL`・`VERTEX_LOCATION` が未設定か対応先と不一致、または `api-runtime` に Vertex AI の権限がない | Variables と手順3のロールを確かめる |
 | ログインで `auth/unauthorized-domain` | その URL のドメインが未承認 | 手順4の承認済みドメインに加える |
-| 教員なのに参加コードの入力が開く | teacher claim がない、または付けたあとログインし直していない | 手順11で確かめ、ログインし直してもらう |
+| ホストするボタンが無効になる | 古い教師限定版の画面が残っている | 確認中のコミットとキャッシュを確かめる。teacher claimの追加は不要 |
 | `setup-github.sh` で `main` のルールを設定できない | gh のアカウントがリポジトリの管理者ではない | オーナーが実行し直す |
 | ロールバックが「デプロイが成功していません」で止まる | 指定したコミットは過去にデプロイが成功していない | `deploy` の実行一覧で成功したコミットを確かめて指定し直す |
 | 提出スクリプトが NG で止まる | 最新版の秘密情報らしき値、または提出先の未追跡ファイル | 表示された行を直す。テスト用のダミーなら `submit-allow:` を付ける |

@@ -90,10 +90,11 @@ describe('認証と所属', () => {
   it('トークンなしは 401', async () => {
     await api().post('/rooms', { title: 'x' }).expect(401);
   });
-  it('匿名と、招待されていない（教師claimのない）Google利用者は作成できず、教員だけがHostになれる', async () => {
+  it('匿名は作成できず、教師claimのないGoogle利用者も作成者としてHostになれる', async () => {
     await api(await anonymous()).post('/rooms', { title: 'x' }).expect(403);
-    const denied = await api(await anon()).post('/rooms', { title: 'x' }).expect(403);
-    expect(denied.body.error.code).toBe('teacher_required');
+    const studentToken = await anon();
+    const created = await api(studentToken).post('/rooms', { title: 'x' }).expect(201);
+    expect((await db.doc(`sessions/${created.body.roomId}/members/${uidOf(studentToken)}`).get()).get('role')).toBe('host');
     const r = await api(await named()).post('/rooms', { title: 'x' }).expect(201);
     expect(r.body.joinCode).toMatch(/^\d{6}$/);
   });
@@ -690,8 +691,8 @@ describe('認証・入力攻撃・再送の境界', () => {
     await api(await anonymous()).post('/rooms/join', { code: joinCode }).expect(403);
     const password = await signUp({ email: `password-${Date.now()}@example.com`, password: 'password' }); // submit-allow: エミュレータ専用のダミー
     await api(password).post('/rooms/join', { code: joinCode }).expect(403);
-    // 本文で教員やHostを名乗っても、作成の権限にも既存の所属にも使わない
-    expect((await api(p1).post('/rooms', { title: '新しいセッション', teacher: true, role: 'host' }).expect(403)).body.error.code).toBe('teacher_required');
+    // 新規作成者はHostになれるが、その操作で別セッションの所属を昇格させない。
+    await api(p1).post('/rooms', { title: '新しいセッション', teacher: true, role: 'host' }).expect(201);
     expect((await db.doc(`sessions/${roomId}/members/${uidOf(p1)}`).get()).get('role')).toBe('participant');
     await api(p1).post(`/rooms/${roomId}/phase`, { to: 'discussing' }).expect(403);
     await api(p1).post(`/rooms/${roomId}/analyze`, { role: 'host' }).expect(403);

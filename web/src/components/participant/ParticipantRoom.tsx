@@ -43,7 +43,7 @@ export function ParticipantRoom({ roomId, room, uid, group }: Props) {
       status={PHASE_LABEL[phase]}>
       <div className="flow">
       {!showResult && room.groupSelection !== "host" && (!group || choosing) && <GroupSelect roomId={roomId} room={room} current={group} onDone={() => setChoosing(false)} />}
-      {!group && room.groupSelection === "host" && <p className="notice" role="status">教員によるグループの割り当てを待っています。</p>}
+      {!group && room.groupSelection === "host" && <p className="notice" role="status">ホストによるグループの割り当てを待っています。</p>}
       {groupConfig?.name && <p className="notice">所属：{groupConfig.name}</p>}
       {room.theme && <p className="notice">テーマ：{room.theme}・制限時間：{room.minutes ?? 15}分</p>}
       {!showResult && group && !choosing && status === "opinions" && room.phase !== "consensus" && (
@@ -53,7 +53,7 @@ export function ParticipantRoom({ roomId, room, uid, group }: Props) {
       {recording.rec.saveError && <p className="notice notice--error" role="alert">{recording.rec.saveError}</p>}
       <RecordingStatus upload={recording.upload} onRetry={recording.retry} />
       {writing && group && <ConsensusStep roomId={roomId} uid={uid} title={room.title} submitted={gs?.submitted} total={gs?.total} />}
-      {showResult && group && !room.resultsPublished && <p className="notice" role="status">分析結果は教員が公開すると表示されます。</p>}
+      {showResult && group && !room.resultsPublished && <p className="notice" role="status">分析結果はホストが公開すると表示されます。</p>}
       {showResult && group && room.resultsPublished && <ResultStep roomId={roomId} uid={uid} group={group} source={source} title={room.title} result={result ?? null} />}
       {showResult && !group && (
         <div className="body body--center">
@@ -80,7 +80,7 @@ function GroupSelect({ roomId, room, current, onDone }: { roomId: string; room: 
     <div className="body body--tablet">
       <div className="stack stack--tight">
         <h2 className="t-lg">あなたのグループを選んでください</h2>
-        <p className="t-label">教員に言われたグループを選びます。議論が始まる前なら、あとから変えられます。</p>
+        <p className="t-label">ホストに言われたグループを選びます。議論が始まる前なら、あとから変えられます。</p>
       </div>
       {error && <p className="notice notice--error" role="alert">{error}</p>}
       <div className="grid-auto">
@@ -182,9 +182,9 @@ function VoiceStep({ roomId, recording }: { roomId: string; recording: ReturnTyp
       </section>
       <aside className="stack" style={{ flex: "1 1 360px", maxWidth: "100%" }}>
         <section className="box box--md box--yellow pad stack">
-          <div className="heading-row"><h2 className="t-sm">教員からの問いかけ</h2><Tag>AI の提案</Tag></div>
+          <div className="heading-row"><h2 className="t-sm">ホストからの問いかけ</h2><Tag>AI の提案</Tag></div>
           {insights.length === 0
-            ? <p className="t-note">まだ話されていない論点があると、教員がここに表示します。</p>
+            ? <p className="t-note">まだ話されていない論点があると、ホストがここに表示します。</p>
             : insights.map((i) => <p key={i.id} className="t-sm" style={{ borderTop: "3px solid #000", paddingTop: 8 }}>{i.summary}</p>)}
         </section>
         <DiscussionNotes roomId={roomId} />

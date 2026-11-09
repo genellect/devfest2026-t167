@@ -98,7 +98,7 @@ test("7画面を通り、待機中の編集とホストの結果公開・公開�
     await guest.getByLabel("グループの結論を、あなたはどう理解した？").fill("本人だけの結論：利用箇所を申告して使う");
     await guest.getByRole("button", { name: "4 おおむね納得", exact: true }).click();
     await guest.getByRole("button", { name: "提出する", exact: true }).click();
-    await expect(guest.getByText("結果は教員が公開すると表示されます。", { exact: true })).toBeVisible();
+    await expect(guest.getByText("結果はホストが公開すると表示されます。", { exact: true })).toBeVisible();
     await expect(guest.getByRole("heading", { name: "議論の前と後を比べる" })).toHaveCount(0);
     await expect(host.getByRole("region", { name: "結果の公開状態" })).toContainText("結果は非公開です");
     await host.getByRole("button", { name: "結果を参加者に公開する", exact: true }).click();
@@ -110,7 +110,7 @@ test("7画面を通り、待機中の編集とホストの結果公開・公開�
     await capture(host, "host-result");
     await host.getByRole("button", { name: "結果を非公開にする", exact: true }).click();
     await expect(guest.getByRole("heading", { name: "議論の前と後を比べる" })).toHaveCount(0);
-    await expect(guest.getByText("結果は教員が公開すると表示されます。", { exact: true })).toBeVisible();
+    await expect(guest.getByText("結果はホストが公開すると表示されます。", { exact: true })).toBeVisible();
     expect(errors).toEqual([]);
   } finally { await context.close(); }
 });

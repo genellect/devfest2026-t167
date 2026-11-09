@@ -30,7 +30,7 @@ test('録音と同じマイクで登録済みの声を照合し、Hostが表示�
     await guest.getByRole('button', { name: '設定', exact: true }).click();
     await expect(guest.getByRole('button', { name: '録音を始める', exact: true })).toBeEnabled();
     await guest.getByRole('button', { name: '録音を始める', exact: true }).click();
-    // 録音を始めた端末が担当になり、ほかの人と教員の画面に担当の名前が出る
+    // 録音を始めた端末が担当になり、ほかの人とホストの画面に担当の名前が出る
     await expect(guest.getByRole('heading', { name: '録音（この端末が担当）', exact: true })).toBeVisible();
     await expect(peer.getByText('録音担当：架空の参加者さん', { exact: true })).toBeVisible();
     await peer.getByRole('button', { name: '設定', exact: true }).click();

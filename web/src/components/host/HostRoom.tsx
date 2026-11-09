@@ -259,7 +259,7 @@ export function AiPanel({ roomId, room, insights }: { roomId: string; room: Room
   return (
     <section className="stack" style={{ gap: 20 }}>
       <div className="box box--md pad stack">
-        <div className="heading-row"><h2 className="t-sm">AIからの介入提案</h2><Tag>教員だけに表示</Tag></div>
+        <div className="heading-row"><h2 className="t-sm">AIからの介入提案</h2><Tag>ホストだけに表示</Tag></div>
         <p className="t-note">事前の意見と今の議論を照らし合わせ、まだ話されていない論点を探します。</p>
         <button className="btn btn--blue btn--block" onClick={analyze} disabled={running || wait > 0}>
           {running ? "分析中…" : wait > 0 ? `あと ${wait} 秒で再分析できます` : "未検討の論点を探す"}
@@ -415,7 +415,7 @@ export function GroupResultView({ result, group, roomId, source }: { result: Gro
         <div className="heading-row"><p className="t-label">結論をどう理解したか</p>{result && <SourceTag source={result.source} />}</div>
         <h2 id="understand-title" className="t-md">{!result ? "このグループの結果はまだありません" : describeUnderstanding(clusters)}</h2>
         {result && <UnderstandingNotes clusters={clusters} />}
-        {result && clusters.length > 1 && <p className="t-note">付箋の言葉は、学生が書いた結論の一文を AI がまとめ直したものです。色はまとまりの区別だけで、よい・悪いを表しません。</p>}
+        {result && clusters.length > 1 && <p className="t-note">付箋の言葉は、参加者が書いた結論の一文を AI がまとめ直したものです。色はまとまりの区別だけで、よい・悪いを表しません。</p>}
       </section>
       <FlowTimeline flow={flow} />
       <GoodReview flow={flow} />

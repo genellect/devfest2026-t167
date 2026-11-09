@@ -2,7 +2,7 @@
 
 ## 認証と権限
 
-全員Google認証とHttpOnlyログインセッションが必須。議論の作成（`POST /rooms`）はteacher claimを持つ教員だけ（ない場合は `403 teacher_required`）。作成者をバックエンドでHostとして登録し、作成後のHost操作は対象セッションのmembers.roleで認可する（teacher claimでは判定しない）。詳細は[MVPロール設計](mvp-roles.md)。
+全員Google認証とHttpOnlyログインセッションが必須。Googleログイン済みなら教師・生徒に関係なく議論の作成（`POST /rooms`）・参加ができる（2026-11-09の依頼者の明示指示）。作成者をバックエンドでHostとして登録し、作成後のHost操作は対象セッションのmembers.roleで認可する（teacher claimでは判定しない）。詳細は[MVPロール設計](mvp-roles.md)。
 
 ## 進行と保存
 

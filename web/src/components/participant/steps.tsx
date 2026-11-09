@@ -71,14 +71,14 @@ export function OpinionStep({ roomId, uid, total, opinions, canChange, onChangeG
           <label className="field__label" htmlFor="opinion">あなたの意見（本人だけが見られます）</label>
           <textarea id="opinion" className="input" value={opinion} maxLength={1000} rows={3} placeholder="例：飲食のバイトで、人と話す力がつくと思う"
             onChange={(e) => { setOpinion(e.target.value); setSent(false); }} />
-          <p className="field__hint">教員にもほかの参加者にも本文は見えません。AI が、まだ話されていない論点を見つけるためだけに使います。</p>
+          <p className="field__hint">ホストにもほかの参加者にも本文は見えません。AI が、まだ話されていない論点を見つけるためだけに使います。</p>
         </div>
         {error && <p className="notice notice--error" role="alert">{error}</p>}
         <button className="btn btn--blue btn--block" type="submit" disabled={busy || !opinion.trim()}>{busy ? "提出しています…" : mine ? "書き直して提出する" : "提出する"}</button>
         {sent && !bare && <p className="notice" role="status">提出しました</p>}
         {mine && !bare && (
           <div className="notice notice--warn stack stack--tight">
-            <p className="t-label">{bare ? "教員が議論を始めるまで待っています" : `グループのみんなの意見を待っています${total ? `（${opinions ?? 0}/${total}人）` : ""}`}</p>
+            <p className="t-label">{bare ? "ホストが議論を始めるまで待っています" : `グループのみんなの意見を待っています${total ? `（${opinions ?? 0}/${total}人）` : ""}`}</p>
             <p className="t-note">議論が始まると、この画面が変わります。それまでは書き直せます。</p>
           </div>
         )}
@@ -88,7 +88,7 @@ export function OpinionStep({ roomId, uid, total, opinions, canChange, onChangeG
     <Wrap bare={bare}>
       {bare && (mine || sent) ? <div className="session-wait">
         <SessionStage stage="waiting" title="開始を待っています">
-          <p role="status">提出しました。教員が開始すると、自動で議論の画面に切り替わります。</p>
+          <p role="status">提出しました。ホストが開始すると、自動で議論の画面に切り替わります。</p>
           {total != null && <p>グループの事前意見 {opinions ?? 0}/{total}人</p>}
         </SessionStage>
         <details className="session-wait__edit"><summary>提出した意見を確認・編集</summary>{form}</details>
@@ -113,7 +113,7 @@ export function DiscussionNotes({ roomId, bare = false }: { roomId: string; bare
   }
   return (
     <section className={bare ? "flow-card memo" : "box box--md pad stack memo"} aria-label="議論の発言メモ">
-      <div className="heading-row"><h2 className="t-sm">発言メモ</h2><Tag>グループと教員に表示</Tag></div>
+      <div className="heading-row"><h2 className="t-sm">発言メモ</h2><Tag>グループとホストに表示</Tag></div>
       {messages.length === 0
         ? <p className="t-note">話し合いで出た意見を、短く書いて共有します。</p>
         : <ul className="feed memo__feed">{messages.slice(-8).map((m) => <li key={m.id} className="bubble">{m.text}</li>)}</ul>}
@@ -238,7 +238,7 @@ export function ResultStep({ roomId, uid, group, source, title, result, showSpea
 
       {(
         <>
-          {/* 録音の分析も、教員が許可した発言の集計もないときは、空の欄を出さない */}
+          {/* 録音の分析も、ホストが許可した発言の集計もないときは、空の欄を出さない */}
           {(flow || showSpeaking) && <>
             <h2 className="t-md">グループで何が起きたか</h2>
             {showSpeaking ? <FlowSpeaking roomId={roomId} group={group} flow={flow} /> : <FlowTimeline flow={flow} compact />}

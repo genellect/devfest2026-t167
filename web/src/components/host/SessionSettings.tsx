@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { ApiError, callApi } from "@/lib/api";
 import { useMembers, useGroups, type Room } from "@/lib/room";
-/** 教員のセッション設定。embedded は教員画面の設定ダイアログに入れるとき（開始ボタンと折りたたみを出さない） */
+/** ホストのセッション設定。embedded はホスト画面の設定ダイアログに入れるとき（開始ボタンと折りたたみを出さない） */
 export function SessionSettings({ roomId, room, embedded = false }: { roomId: string; room: Room; embedded?: boolean }) {
   const [view, setView] = useState(room.participantView ?? { theme: true, timer: true, members: true, speaking: false });
   useEffect(() => setView(room.participantView ?? { theme: true, timer: true, members: true, speaking: false }), [room.participantView]);

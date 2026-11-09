@@ -6,9 +6,9 @@ import { Maximize, X } from "lucide-react";
 import { millis, useCountdown, useInsights, useMembers, type Room } from "@/lib/room";
 
 /**
- * 教室に投影する画面（教員だけが開ける）。操作画面とは分け、映してよいものだけを出す（商用の投影モードと同じ考え方）。
+ * 教室に投影する画面（ホストだけが開ける）。操作画面とは分け、映してよいものだけを出す（商用の投影モードと同じ考え方）。
  * - 準備中：参加コードとQR、参加人数
- * - 議論中：テーマ、時間、教員が「全員に表示する」を押した問いかけ（未決定の AI の提案は出さない）
+ * - 議論中：テーマ、時間、ホストが「全員に表示する」を押した問いかけ（未決定の AI の提案は出さない）
  * - 終了：結論を自分の言葉で書くよう案内する
  * 事前意見・発言メモ・結論の一文の本文は出さない。
  */
@@ -78,7 +78,7 @@ function Live({ room, shown }: { room: Room; shown: string[] }) {
       </div>
       <div className="present__prompts">
         {shown.length ? <>
-          <p className="present__label">先生からの問いかけ</p>
+          <p className="present__label">ホストからの問いかけ</p>
           <ul className="present__notes">{shown.map((s, i) => <li key={i} className="present__note">{s}</li>)}</ul>
         </> : <>
           <h2 className="present__headline">グループで話し合いましょう</h2>

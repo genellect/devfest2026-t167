@@ -91,3 +91,18 @@ test('Classroom未連携でQRのURLを開いても、追加許可後にコード
     await expect(guest.getByLabel('参加者1の表示名')).toBeVisible();
   } finally { await context.close(); }
 });
+
+test('Classroomの生徒も同じクラスでホストになれ、教員用の名簿操作を表示しない', async ({ page }) => {
+  await loginStudent(page, 'classroom-student-host', { home: false });
+  await expect(page).toHaveURL(/\/home$/);
+  await page.getByRole('button', { name: 'Classroomと連携', exact: true }).click();
+  await page.getByRole('link', { name: 'このクラスでホストする', exact: true }).click();
+  const selector = page.getByRole('region', { name: 'Classroomのクラス選択' });
+  await expect(selector.getByLabel('クラス', { exact: true })).toHaveValue('mock-class-1');
+  await page.getByLabel('テーマ', { exact: true }).fill('生徒もクラスでホストできる');
+  await page.getByRole('button', { name: '作成する', exact: true }).click();
+  await expect(page).toHaveURL(/\/rooms\//);
+  await expect(page.getByRole('button', { name: '議論を開始', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'クラスの参加状況', exact: true })).toHaveCount(0);
+  await page.screenshot({ path: '../docs/screenshots/classroom-student-host-mobile.png', fullPage: true, scale: 'css' });
+});

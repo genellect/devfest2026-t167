@@ -16,7 +16,7 @@ export function GuestSessionLive({ roomId, room, level, recording, status, quest
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   const elapsed = Math.max(0, now - (millis(room.startedAt) ?? now));
   return <SessionShell title={room.participantView?.theme === false ? room.title : room.theme || room.title} back="/home" hero hideBack actions={
-    <button className="guest-session-settings" aria-label="設定" title={questions ? `設定・教員からの問いかけ${questions}件` : "設定"} aria-haspopup="dialog" onClick={() => settings.current?.showModal()}>
+    <button className="guest-session-settings" aria-label="設定" title={questions ? `設定・ホストからの問いかけ${questions}件` : "設定"} aria-haspopup="dialog" onClick={() => settings.current?.showModal()}>
       <Settings size={25} strokeWidth={1.7} aria-hidden="true" />{questions > 0 && <span className="guest-session-settings__badge" aria-hidden="true">{questions}</span>}
     </button>
   }>

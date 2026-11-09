@@ -16,7 +16,7 @@ import { HostSpeaking } from "@/components/Speaking";
 import { SessionSettings } from "./SessionSettings";
 
 /**
- * 教員の画面（1本化した流れ）。段階ごとに主役を1つにする（Docs「UIフィードバック」）。
+ * ホストの画面（1本化した流れ）。段階ごとに主役を1つにする（Docs「UIフィードバック」）。
  * 準備中：参加コードとQR・参加人数・事前意見の提出数・開始／議論中：次に話すとよい論点と3つの数字（LiveBoard）／
  * 終了後：結論の一文の回収・結果。設定は「設定」ボタンで開くダイアログに置く。
  */
@@ -33,7 +33,7 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
   const seats = members.reduce((n, m) => n + (m.attendees?.length || 1), 0);
   const opinions = Object.values(room.groupState ?? {}).reduce((n, g) => n + (g.opinions ?? 0), 0);
 
-  // 時間切れの終了は、時間を設定したセッションだけ（設定しない既定では教員が終える）
+  // 時間切れの終了は、時間を設定したセッションだけ（設定しない既定ではホストが終える）
   useEffect(() => {
     if (!room.endsAt || ended || room.phase !== "discussing") return;
     const left = millis(room.endsAt)! - Date.now();
@@ -53,7 +53,7 @@ export function TeacherRoom({ roomId, room }: { roomId: string; room: Room }) {
         </button></>}>
 
       {!ended && room.phase === "collecting" && <Lobby roomId={roomId} room={room} seats={seats} opinions={opinions} members={members} />}
-      {!ended && room.phase === "collecting" && room.classroomCourseId && <ClassroomRoster key={roomId} roomId={roomId} />}
+      {!ended && room.phase === "collecting" && room.classroomCourseId && room.classroomHostRole !== "student" && <ClassroomRoster key={roomId} roomId={roomId} />}
       {!ended && room.phase !== "collecting" && <LiveBoard roomId={roomId} room={room} members={members} insights={insights} />}
       {ended && (openGroup
         ? <div className="teacher__body"><button className="text-btn" onClick={() => setOpenGroup(undefined)}>セッション全体に戻る</button><GroupResultView result={results.find((r) => r.group === openGroup) ?? null} group={openGroup} roomId={roomId} source={source} /></div>
@@ -130,7 +130,7 @@ function ResultPublication({ roomId, published }: { roomId: string; published: b
 }
 
 /**
- * 終了後の主役。学生が結論を書いているあいだは提出の進み具合、全グループがそろったら「結果をまとめる」、
+ * 終了後の主役。参加者が結論を書いているあいだは提出の進み具合、全グループがそろったら「結果をまとめる」、
  * まとめたあとは目立たない帯（まとめ直す）にする。
  */
 function EndedFocus({ roomId, room, results, summary }: { roomId: string; room: Room; results: GroupResult[]; summary: Summary | null }) {
@@ -183,7 +183,7 @@ function EndedFocus({ roomId, room, results, summary }: { roomId: string; room: 
   );
   return (
     <section className="ended-hero" aria-labelledby="ended-title">
-      <h2 id="ended-title" className="ended-hero__title">学生が結論を書いています</h2>
+      <h2 id="ended-title" className="ended-hero__title">参加者が結論を書いています</h2>
       <p className="ended-hero__count" aria-label={`提出 ${submitted}/${total}人`}>{submitted}<small>/{total}人が提出</small></p>
       <div className="ended-hero__bar" aria-hidden="true"><span style={{ width: `${total ? Math.round(submitted / total * 100) : 0}%` }} /></div>
       <p className="ended-hero__lead">グループの全員が書くと、そのグループの結果が自動で出ます。来ていない人がいるときは、今の回答で結果を出せます。</p>

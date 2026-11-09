@@ -2,7 +2,7 @@
 
 ## 設計と既存構成
 
-Next.js → 同一オリジン `/api` の転送 → Express/TypeScript (Cloud Run) → Firebase Admin SDKを維持する。FastAPIは導入しない。FirebaseのGoogle本人認証を置換せず、全保護APIで失効確認付きIDトークンと独自Cookieの両方を検査する。学校ポリシー操作は管理者設定のschoolId/schoolAdminだけを信頼する。議論の権限は各セッションのmembers.roleを参照する。teacher claim はディスカッションの作成（`POST /rooms`）だけに使い、作成後の権限は members.role で決める。UIの役割選択は使わない。
+Next.js → 同一オリジン `/api` の転送 → Express/TypeScript (Cloud Run) → Firebase Admin SDKを維持する。FastAPIは導入しない。FirebaseのGoogle本人認証を置換せず、全保護APIで失効確認付きIDトークンと独自Cookieの両方を検査する。学校ポリシー操作は管理者設定のschoolId/schoolAdminだけを信頼する。議論の権限は各セッションのmembers.roleを参照する。教師・生徒の区別で作成・参加を制限せず、作成者をそのセッションのHostとして保存する。UIの役割選択は使わない。
 
 全員がGoogleでログインする（匿名ログインは使わず、APIは `sign_in_provider` が `google.com` でないトークンを403で断る）。ログイン後、教員は教員のホーム（`/teacher`）、学生は参加コードの入力（`/join`）へ進む。ログインの上限は全員1台。役割の詳細は[MVPロール設計](mvp-roles.md)。
 

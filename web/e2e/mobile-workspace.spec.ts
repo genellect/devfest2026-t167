@@ -149,13 +149,13 @@ test("項目選択で背景を切り替え、移動先を背面に描画して�
   expect(closed).toBeGreaterThan(destination);
 });
 
- test("旧教員ホームとホスト入口は共通ホームに統一される", async ({ page }) => {
+ test("旧ホストホームとホスト入口は共通ホームに統一される", async ({ page }) => {
   for (const path of ["/teacher", "/host"]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/home$/);
     await expect(page.getByRole("heading", { name: "ホーム", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "ホストする", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "教員のホーム", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "ホストのホーム", exact: true })).toHaveCount(0);
   }
 });
 
