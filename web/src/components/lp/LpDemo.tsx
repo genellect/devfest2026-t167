@@ -74,19 +74,19 @@ export function LpDemo() {
 
           {step === 0 && !submitted && (
             <form className="demo__write" onSubmit={(e) => { e.preventDefault(); if (text.trim()) setSubmitted(true); }}>
-              <label htmlFor="demo-opinion" className="demo__label">議論の前に、あなたの考えを</label>
-              <textarea id="demo-opinion" className="demo__input" rows={3} maxLength={60} value={text} onChange={(e) => setText(e.target.value)} placeholder="ここに書きます" />
+              <label htmlFor="demo-opinion" className="demo__label">議論の前に、あなたの考えを書いてみよう</label>
+              <textarea id="demo-opinion" className="demo__input" rows={3} maxLength={60} value={text} onChange={(e) => setText(e.target.value)} placeholder="たとえば：認めていい。でも、使ったことは書くべき" />
               <p className="demo__hint">書いた本文は、あなたにしか見えない。</p>
               <div className="demo__row">
-                <button type="submit" className="lp-btn lp-btn--primary" disabled={!text.trim()}>提出する</button>
-                <button type="button" className="lp-btn lp-btn--text" onClick={() => setText(SAMPLE)}>例文を入れる</button>
+                <button type="submit" className="lp-btn lp-btn--primary" disabled={!text.trim()}>書き終えた</button>
+                <button type="button" className="lp-btn lp-btn--text" onClick={() => setText(SAMPLE)}>例を入れてみる</button>
               </div>
             </form>
           )}
           {step === 0 && submitted && (
             <div className="demo__done" role="status">
               <p className="paper paper--mine">{text}</p>
-              <p className="demo__hint">提出しました。本文は、あなたにだけ見えます。</p>
+              <p className="demo__hint">書けた。この考えは、あなたにしか見えない。</p>
             </div>
           )}
 
@@ -96,19 +96,19 @@ export function LpDemo() {
               <ul className="demo__lines" aria-live="polite">
                 {TALK.slice(0, lines).map((l) => <li key={l.who}><span className="demo__avatar">{l.who}</span><p>{l.text}</p></li>)}
               </ul>
-              {!talked && <p className="demo__hint">話し合っています…</p>}
+              {!talked && <p className="demo__hint">議論が進んでいる…</p>}
             </div>
           )}
 
           {step === 2 && (
             <div className="demo__sum">
-              <p className="demo__label" id="demo-reading">結論を、自分の言葉で言うと？</p>
+              <p className="demo__label" id="demo-reading">結論を、自分の言葉で言うなら？</p>
               <div className="demo__choices" role="radiogroup" aria-labelledby="demo-reading">
                 {READINGS.map((r, i) => (
                   <button key={r.text} type="button" role="radio" aria-checked={choice === i} className={`demo__choice${choice === i ? " is-on" : ""}`} onClick={() => setChoice(i)} disabled={choice !== null && choice !== i}>{r.text}</button>
                 ))}
               </div>
-              {choice !== null && <p className="demo__hint" role="status">送りました。ほかの5人も、それぞれの言葉で書いています。</p>}
+              {choice !== null && <p className="demo__hint" role="status">ほかの5人も、それぞれの言葉で書いた。</p>}
             </div>
           )}
         </section>
@@ -119,25 +119,25 @@ export function LpDemo() {
 
           {step === 0 && (
             <div>
-              <p className="demo__label">事前の意見　{total} / {CLASSMATES + 1}人</p>
+              <p className="demo__label">集まった考え　{total} / {CLASSMATES + 1}人</p>
               <ul className="demo__slots" aria-hidden="true">
                 {Array.from({ length: CLASSMATES + 1 }, (_, i) => <li key={i} className={i < total ? "is-in" : undefined} />)}
               </ul>
-              <p className="demo__hint">教員に見えるのは、提出した人数だけ。本文は見えない。</p>
+              <p className="demo__hint">教員に見えるのは、集まった人数だけ。中身は見えない。</p>
             </div>
           )}
 
           {step === 1 && (
             <div className="demo__teacher-talk">
-              {!talked && <p className="demo__hint">議論の内容と、事前の意見を照らし合わせています。</p>}
+              {!talked && <p className="demo__hint">議論と、事前に書かれた考えを照らし合わせている…</p>}
               {talked && question === "pending" && (
                 <div className="ai-note" role="status">
                   <p className="ai-note__label">まだ話されていない論点</p>
                   <p className="ai-note__text">AI を使ったことを、どこまで申告する？</p>
-                  <p className="ai-note__why">事前の意見で、2人が触れています。</p>
+                  <p className="ai-note__why">事前に2人が書いていたのに、まだ誰も話していない。</p>
                   <div className="demo__row">
-                    <button type="button" className="lp-btn lp-btn--dark" onClick={() => setQuestion("shown")}>全員に表示</button>
-                    <button type="button" className="lp-btn lp-btn--text" onClick={() => setQuestion("skipped")}>見送る</button>
+                    <button type="button" className="lp-btn lp-btn--dark" onClick={() => setQuestion("shown")}>全員に問いかける</button>
+                    <button type="button" className="lp-btn lp-btn--text" onClick={() => setQuestion("skipped")}>今は見送る</button>
                   </div>
                 </div>
               )}
@@ -151,7 +151,7 @@ export function LpDemo() {
               <p className="demo__label">グループの結論</p>
               <p className="demo__conclusion">AI の利用を認める。<span>全員が賛成</span></p>
               {choice === null
-                ? <p className="demo__hint">全員の一文を待っています。</p>
+                ? <p className="demo__hint">全員の一文を待っている…</p>
                 : (
                   <div role="status">
                     <ul className="demo__split">
@@ -168,7 +168,7 @@ export function LpDemo() {
       <div className="demo__next">
         {step === 0 && <button type="button" className="lp-btn lp-btn--primary" disabled={!submitted || others < CLASSMATES} onClick={() => setStep(1)}>議論を始める</button>}
         {step === 1 && <button type="button" className="lp-btn lp-btn--primary" disabled={!talked || question === "pending"} onClick={() => setStep(2)}>結論をまとめる</button>}
-        {step === 2 && choice !== null && <button type="button" className="lp-btn lp-btn--text" onClick={restart}>最初から体験する</button>}
+        {step === 2 && choice !== null && <button type="button" className="lp-btn lp-btn--text" onClick={restart}>もう一度やってみる</button>}
         <p className="demo__note">このデモは端末の中だけで動く。入力した文章は送信しない。</p>
       </div>
     </div>

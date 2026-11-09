@@ -36,7 +36,8 @@ html:has(.lp) { background: #000; scroll-behavior: smooth; }
 .lp-btn--light:hover { background: #fff; }
 .lp-btn--outline { background: transparent; color: var(--white) !important; border-color: rgb(255 255 255 / .45); }
 .lp-btn--outline:hover { border-color: var(--white); }
-.lp-btn--dark { background: var(--ink); color: #fff; }
+.lp-btn--dark { background: var(--ink); color: #fff !important; }
+.lp-btn--dark:not(:disabled):hover { background: #000; }
 .lp-btn--text { min-height: 44px; padding: 0 12px; background: none; border: 0; color: var(--brand-ink); }
 .lp-btn--text:hover { text-decoration: underline; text-underline-offset: 4px; }
 .lp-btn--sm { min-height: 36px; padding: 0 18px; font-size: 13px; background: var(--white); color: #000 !important; }
@@ -193,6 +194,18 @@ html:has(.lp) { background: #000; scroll-behavior: smooth; }
 .plan--school { background: var(--brand); color: #fff; }
 .plan--school .plan__who, .plan--school .plan__body { color: rgb(255 255 255 / .8); }
 
+/* 始め方：立場ごとの入口 */
+.starts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: clamp(48px, 7vw, 88px); }
+.start { display: flex; flex-direction: column; min-height: 360px; padding: clamp(32px, 3.4vw, 48px); background: #fff; border-radius: 36px; }
+.start:nth-child(2) { transition-delay: .12s; } .start:nth-child(3) { transition-delay: .24s; }
+.start__who { font-size: 15px; font-weight: 700; color: var(--ink-2); }
+.start__title { margin-top: 8px; font-size: clamp(22px, 2vw, 28px); font-weight: 800; line-height: 1.35; letter-spacing: -.02em; font-feature-settings: "palt" 1; }
+.start__body { margin: 14px 0 32px; font-size: 16px; line-height: 1.75; color: var(--ink-2); }
+.start__cta { align-self: flex-start; margin-top: auto; }
+.start--apply { background: var(--brand); color: #fff; }
+.start--apply .start__who, .start--apply .start__body { color: rgb(255 255 255 / .82); }
+.start__mail { margin-top: 12px; font-size: 14px; color: rgb(255 255 255 / .82); }
+
 /* 締め */
 .end__brand { display: inline-flex; align-items: center; gap: 10px; font-size: 21px; font-weight: 700; }
 .end__brand span { width: 16px; height: 16px; border-radius: 2px 2px 7px 2px; background: var(--insight); }
@@ -295,6 +308,8 @@ html:has(.lp) { background: #000; scroll-behavior: smooth; }
 
 /* ---------- タブレット・スマホ ---------- */
 @media (max-width: 1023px) {
+  .starts { grid-template-columns: minmax(0, 1fr); }
+  .start { min-height: 0; }
   .stage { grid-template-columns: minmax(0, 1fr); min-height: 0; }
   .audience { grid-template-columns: minmax(0, 1fr); }
 }
@@ -311,7 +326,9 @@ html:has(.lp) { background: #000; scroll-behavior: smooth; }
   .art--during > i:nth-child(n+7) { display: none; }
   .art__found { grid-column: 1 / -1; }
   .art__groups span:nth-child(2) { margin-left: 4%; } .art__groups span:nth-child(3) { margin-left: 8%; }
-  .plans { grid-template-columns: minmax(0, 1fr); }
+  .plans, .starts { grid-template-columns: minmax(0, 1fr); }
+  .start { min-height: 0; }
+  .start__cta { align-self: stretch; }
   .plan { min-height: 0; }
   .demo__stage { grid-template-columns: minmax(0, 1fr); }
   .demo__pane { min-height: 0; }

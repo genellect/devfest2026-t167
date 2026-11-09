@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { InstallButton } from "@/components/lp/InstallButton";
 import { LpDemo } from "@/components/lp/LpDemo";
 import { NotesScene, RoomsScene } from "@/components/lp/LpGL";
 import { LpScenes } from "@/components/lp/LpScenes";
@@ -11,7 +10,7 @@ import "./lp.css";
  * 見出しは確定済みのタグライン。構成はタグラインの前半と後半を順に掘り下げる。
  * - 誰の考えも埋もれない議論：議論の前・中・あとの3つの機能（事前意見収集・未検討論点の検出・合意の実態検証）
  * - すべての教室に：学生・教員・学校それぞれにとっての価値（Docs「サービス形態」の目的）
- * 行動は「デモを体験」と「インストール」。主役は映像（Three.js の2つの場面と付箋の図）で、文章は短く控えめにする。アプリの画面は使わない。
+ * 行動は「ログイン」（学生・招待済みの教員）と「利用を申し込む」（これから使う教員・学校。メール）。「デモを体験」は LP の中で完結する。主役は映像（Three.js の2つの場面と付箋の図）で、文章は短く控えめにする。アプリの画面は使わない。
  */
 
 export const metadata: Metadata = {
@@ -19,6 +18,10 @@ export const metadata: Metadata = {
   description: "議論の前に全員の考えを集め、まだ話されていない論点と、合意のずれを AI が見つける。",
   openGraph: { title: "Topos — 誰の考えも埋もれない議論を、すべての教室に。", description: "議論の前に全員の考えを集め、まだ話されていない論点と、合意のずれを AI が見つける。", locale: "ja_JP", type: "website" },
 };
+
+/** 利用の申し込み（これから使う教員・学校）。窓口はメール。件名と記入項目を入れて開く */
+const CONTACT = "contact@yuto-matsui.com";
+const APPLY = `mailto:${CONTACT}?subject=${encodeURIComponent("Topos の利用申し込み")}&body=${encodeURIComponent("学校名：\nお名前：\n担当の授業・学年：\n使う教員の人数：\n")}`;
 
 const STAGES = [
   { when: "議論の前", title: "まず、全員が書く。", body: "読めるのは、書いた本人だけ。人前では言えない本音も、ここなら書ける。", feature: "事前意見収集", art: "before" },
@@ -72,8 +75,8 @@ export default function LandingPage() {
         <div className="lp-nav__in">
           <Link href="/lp" className="lp-nav__brand"><span className="lp-nav__mark" aria-hidden="true" />Topos</Link>
           <nav className="lp-nav__end" aria-label="LP">
-            <Link href="/" className="lp-nav__link">ログイン</Link>
-            <a href="#demo" className="lp-btn lp-btn--sm">デモを体験</a>
+            <a href="#demo" className="lp-nav__link">デモを体験</a>
+            <Link href="/" className="lp-btn lp-btn--sm">ログイン</Link>
           </nav>
         </div>
       </header>
@@ -88,8 +91,8 @@ export default function LandingPage() {
               <h1 id="lp-title" className="hero__title">誰の考えも埋もれない議論を、<br />すべての教室に。</h1>
               <p className="hero__lead">議論の前に全員の考えを集め、まだ話されていない論点と、合意のずれを AI が見つける。</p>
               <div className="lp-actions">
-                <a href="#demo" className="lp-btn lp-btn--light">デモを体験</a>
-                <InstallButton className="lp-btn lp-btn--outline" />
+                <Link href="/" className="lp-btn lp-btn--light">ログイン</Link>
+                <a href="#demo" className="lp-btn lp-btn--outline">デモを体験</a>
               </div>
             </div>
             <p className="hero__found">書いたのに、言い出せなかった意見がある。<br />Topos は、それを見逃さない。</p>
@@ -160,18 +163,27 @@ export default function LandingPage() {
         <section className="sec sec--gray" aria-labelledby="lp-start-title">
           <div className="wrap">
             <header className="sec__head" data-reveal>
-              <h2 id="lp-start-title" className="h2">教員1人から、今日始められる。</h2>
+              <h2 id="lp-start-title" className="h2">今日から、使い始める。</h2>
             </header>
-            <div className="plans">
-              <article className="plan" data-reveal>
-                <p className="plan__who">教員</p>
-                <h3 className="plan__title">教員1人で使う</h3>
-                <p className="plan__body">招待された Google アカウントで、すぐに議論を作れる。学生は参加コードか QR で入るだけ。</p>
+            <div className="starts">
+              <article className="start" data-reveal>
+                <p className="start__who">学生</p>
+                <h3 className="start__title">授業の議論に参加する</h3>
+                <p className="start__body">教員から届いた参加コードか QR で入る。Google アカウントがあれば参加できる。</p>
+                <Link href="/" className="lp-btn lp-btn--dark start__cta">ログインして参加する</Link>
               </article>
-              <article className="plan plan--school" data-reveal>
-                <p className="plan__who">学校</p>
-                <h3 className="plan__title">学校全体で使う</h3>
-                <p className="plan__body">全クラスで使うなら、教員の権限を学校でまとめて管理できる。</p>
+              <article className="start" data-reveal>
+                <p className="start__who">招待を受けた教員</p>
+                <h3 className="start__title">議論を作る</h3>
+                <p className="start__body">招待された Google アカウントでログインすると、すぐにテーマを入れて議論を作れる。</p>
+                <Link href="/" className="lp-btn lp-btn--dark start__cta">ログイン</Link>
+              </article>
+              <article className="start start--apply" data-reveal>
+                <p className="start__who">これから使う教員・学校</p>
+                <h3 className="start__title">利用を申し込む</h3>
+                <p className="start__body">教員1人でも、学校全体でも。メールで申し込むと、議論を作れる教員の招待を届ける。</p>
+                <a href={APPLY} className="lp-btn lp-btn--light start__cta">メールで申し込む</a>
+                <p className="start__mail">{CONTACT}</p>
               </article>
             </div>
           </div>
@@ -183,8 +195,8 @@ export default function LandingPage() {
             <p className="end__brand"><span aria-hidden="true" />Topos</p>
             <h2 id="lp-end-title" className="end__title">誰の考えも埋もれない議論を、すべての教室に。</h2>
             <div className="lp-actions">
-              <a href="#demo" className="lp-btn lp-btn--light">デモを体験</a>
-              <InstallButton className="lp-btn lp-btn--outline" />
+              <Link href="/" className="lp-btn lp-btn--light">ログイン</Link>
+              <a href={APPLY} className="lp-btn lp-btn--outline">利用を申し込む</a>
             </div>
           </div>
         </section>
@@ -193,7 +205,7 @@ export default function LandingPage() {
       <footer className="foot">
         <p className="foot__brand">Topos</p>
         <p>© 2026 Triple Helix. Developed by Yuto, Ryota &amp; Koyuri.</p>
-        <nav aria-label="フッター" className="foot__links"><Link href="/about">プライバシー</Link><Link href="/">ログイン</Link></nav>
+        <nav aria-label="フッター" className="foot__links"><Link href="/about">プライバシー</Link><a href={APPLY}>お問い合わせ</a><Link href="/">ログイン</Link></nav>
       </footer>
     </div>
   );
