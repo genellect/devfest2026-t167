@@ -42,7 +42,7 @@ export function GroupCards({ roomId, room, groups, results, speaking = [], confi
           const sp = key === "discussing" ? speaking.find((s) => s.group === g || (s as unknown as { id?: string }).id === String(g)) : undefined;
           const config = configs.find((c) => c.number === g);
           const recorder = room.recording !== false && key === "discussing" && config?.recorderName
-            ? isRecordingLive(config, now) ? `録音中：${config.recorderName}さん` : `録音担当：${config.recorderName}さん（停止中）` : "";
+            ? isRecordingLive(config, now) ? `録音中：${config.recorderName}さん` : `録音担当：${config.recorderName}さん（録音していません）` : "";
           const sub = key === "consensus" ? `提出 ${st.submitted ?? 0}/${st.total ?? 0}人`
             : key === "done" ? `${result?.respondents ?? st.total ?? 0}人${result ? `・${result.clusters.length > 1 ? `理解が${result.clusters.length}通り` : "大きな違いなし"}` : ""}`
               : `${st.total ?? 0}人`;
