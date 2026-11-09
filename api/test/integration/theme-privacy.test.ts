@@ -15,7 +15,7 @@ if (!projectId?.startsWith('demo-') || !/^(localhost|127\.0\.0\.1):\d+$/.test(pr
 initializeApp({ projectId });
 const db = getFirestore(), auth = getAuth(), app = createApp({ db, auth, gemini: mockGemini() });
 
-const SECRET = '架空の非公開テーマ：端末を持たない人の参加をどう保障するか';
+const SECRET = '架空の非公開テーマ：端末を持たない人の参加をどう保障するか';  // submit-allow: テスト用のダミー
 const NAME = '架空の授業 第2回';
 
 async function client(kind: 'teacher' | 'student' = 'student') {

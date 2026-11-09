@@ -71,7 +71,7 @@ Node.jsは22.12以上の22系を使う（`.nvmrc`は22）。Vitest 5の実行要
 3. **PR を出す。** コミットしたら `bash scripts/dev.sh pr --no-merge` を実行する。手元の検査（`check --quick`）、push、PR の作成を1回で行い、auto-merge は付けない。PR の本文にはコミットの件名が入るので、[PR テンプレート](.github/pull_request_template.md)の残りの項目（背景・目的、検査とプレビューの結果、未確認のこと、スクリーンショット）を書き足す。
 4. **画面を確かめる。** `web/` を変えた PR は、CI と並行して[プレビュー](#画面のプレビュー)に自動で出る。PR の「View deployment」からスマホでも開ける。
 5. **本番反映の承諾をもらう。** `main` へのマージから自動デプロイまでを「本番反映」と呼ぶ。始める前に、必ず Yuto Matsui（GitHub：`genellect`）の承諾を得る。承諾はその PR の本番反映への1回で、マージとデプロイで2回に分けない。CI・レビュー・プレビューの成功は承諾の代わりにならない。承諾を待つ間はマージせず、auto-merge も付けない。依頼の書き方は [PR の確認から本番反映までの手順](docs/contributor-preview-guide.md) の手順4。
-6. **本番反映する。** 承諾のあと、Yuto Matsui または任された担当者が、CI の成功と必要なレビューを確かめてから `bash scripts/dev.sh pr --approved` で auto-merge を付ける。CI が通ると squash merge され、`deploy` が本番に反映する。CI が落ちたら直して push すれば、同じ PR で検査がやり直される。
+6. **本番反映する。** 承諾のあと、Yuto Matsui または任された担当者が、CI の成功と必要なレビューを確かめてから `bash scripts/dev.sh pr --approved` で auto-merge を付ける。CI が通ると squash merge され、`deploy` が本番に反映する。PR の CI で検査を通った中身と同じなら、`deploy` は検査をやり直さない（中身が変わっていたときだけ検査する）。CI が落ちたら直して push すれば、同じ PR で検査がやり直される。
 7. **レビューが要る PR。** Rules（`firebase/firestore.rules`・`firebase/storage.rules`）・`firebase.json`・`web/apphosting*.yaml`・ワークフロー（`.github/`）・構築スクリプト（`infra/`・`demo/`）・AI 用の鍵を使うセッションの設定（`.claude/`・`.codex/`・`scripts/claude-gcp-login.sh`）を変える PR には、`--approved` でも `pr` が auto-merge を付けない。もう1人のレビューと本番反映の承諾の両方を得てから、`gh pr merge --auto --squash --delete-branch` を実行する。それ以外の PR はレビューを必須にしない。
 
 ```bash
@@ -169,7 +169,7 @@ Gemini の費用は、ほぼ「モデル」と「思考レベル」で決まる�
 | クラウドの Claude Code 用の鍵 | Claude Code の環境変数 `GCP_SA_KEY` |
 | クレジットコード | どこにも書かない（代表者だけが使う） |
 
-提出用リポジトリへの反映は `scripts/submit.sh` が秘密情報を検査してから行う。値はチャット、Issue、PR、ログ、スクリーンショットに貼らない。
+提出用リポジトリへの反映は、`scripts/submit.sh` が最新版と履歴の秘密情報を検査してから、開発の履歴ごとマージして行う（[インフラ構築手順書](docs/infra-manual.md)の手順13）。値はチャット、Issue、PR、ログ、スクリーンショットに貼らない。
 
 ## 設計の詳細
 

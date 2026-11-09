@@ -6,6 +6,14 @@ const read = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf
 test('本番のAPIビルドは音声処理を含むルートcontextと専用Dockerfileを使用する', () => {
   const workflow = read('.github/workflows/deploy.yml');
   assert.match(workflow, /docker build -f api\/Dockerfile -t "\$IMAGE" \./);
+  // 話者推定のモデルは、ビルドの前に、いま動いている API のイメージから控えに取り出す（外部の取得先の障害で止めない）
+  const build = workflow.indexOf('docker build -f api/Dockerfile');
+  const extract = workflow.indexOf('docker cp "${CID}:/app/.local-data/speaker-models/." speech/models-cache/');
+  assert.ok(extract > 0 && extract < build, 'モデルの控えをビルドの前に取り出す');
+  // 取り出し元は、本番のイメージでモデルを置く場所（SPEAKER_EMBEDDING_MODEL・SPEAKER_VAD_MODEL のディレクトリ）と同じ
+  assert.match(read('api/Dockerfile'), /SPEAKER_EMBEDDING_MODEL=\/app\/\.local-data\/speaker-models\/campplus\.onnx/);
+  // 取り出せないときは、ステップを止めずに取得先から取る
+  for (const warning of ['いまの API のイメージがわからない', 'を取得できなかった', 'からモデルを取り出せなかった', 'からコンテナを作れなかった']) assert.ok(workflow.includes(warning), warning);
   assert.match(workflow, /--cpu 2 --memory 2Gi --concurrency 8 --min-instances "\$API_MIN_INSTANCES" --max-instances 2/);
   // 最小インスタンス数は Variables で変えられるが、未登録なら 0（授業のない時間の計算資源の費用を 0 にする）
   assert.match(workflow, /API_MIN_INSTANCES: \$\{\{ vars\.API_MIN_INSTANCES \|\| '0' \}\}/);
@@ -25,5 +33,5 @@ test('本番ランタイムにPython・固定依存・モデルを同梱し非ro
 test('API専用contextは許可したソースだけを送り、端末内データや秘密を持ち込まない', () => {
   const lines = read('api/Dockerfile.dockerignore').split('\n').map((s) => s.trim()).filter((s) => s && !s.startsWith('#'));
   assert.equal(lines[0], '**');
-  assert.deepEqual(lines.filter((s) => s.startsWith('!')), ['!api/', '!api/package.json', '!api/package-lock.json', '!api/tsconfig.json', '!api/src/', '!api/src/**', '!speech/', '!speech/requirements.txt', '!speech/setup_models.py', '!speech/worker.py']);
+  assert.deepEqual(lines.filter((s) => s.startsWith('!')), ['!api/', '!api/package.json', '!api/package-lock.json', '!api/tsconfig.json', '!api/src/', '!api/src/**', '!speech/', '!speech/requirements.txt', '!speech/setup_models.py', '!speech/worker.py', '!speech/models-cache/', '!speech/models-cache/*.onnx']);
 });

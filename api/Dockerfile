@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 python3
 WORKDIR /app
 COPY speech ./speech
 # 固定版の依存とSHA-256検証済みモデルをビルド時に準備する。起動時に取得しない。
+# モデルは、控え（speech/models-cache。deploy がいまの API のイメージから取り出す）にあればそれを使い、なければ取得先から取る。
+# 控えは COPY の層に残る（イメージはモデルの分だけ重くなるが、読み込まれず、公開物なので秘密は含まない）
 RUN python3 -m venv /app/speaker-venv && /app/speaker-venv/bin/pip install --no-cache-dir -r speech/requirements.txt && python3 speech/setup_models.py
 WORKDIR /app/api
 ENV NODE_ENV=production

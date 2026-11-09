@@ -89,7 +89,7 @@ describe('AI応答の参照整合性', () => {
   });
   it('モックは非公開の事前意見と合意の一文の本文を、要約やラベルに写さない', async () => {
     const { mockGemini } = await import('../../src/gemini.js');
-    const secret = '非公開の事前意見の本文マーカー';
+    const secret = '非公開の事前意見の本文マーカー';  // submit-allow: テスト用のダミー
     const points = await mockGemini().findPoints([secret], []);
     expect(JSON.stringify(points)).not.toContain('マーカー');
     const cmp = await mockGemini().compare([`${secret}A`, `${secret}A`, `${secret}B`], [], []);

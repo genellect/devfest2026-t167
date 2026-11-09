@@ -57,7 +57,7 @@ test('通信失敗・壊れた一覧・別プロジェクト・繰り返しペ�
     async () => { throw new Error('offline'); },
     async () => reply({ buckets: 'invalid' }),
     async () => reply({ buckets: [{ name: 'projects/999/buckets/another-project' }] }),
-    async () => reply({ nextPageToken: 'repeat' }),
+    async () => reply({ nextPageToken: 'repeat' }),  // submit-allow: テスト用のダミー
   ]) await assert.rejects(deployRules({ ...f, request }));
   assert.equal(f.calls.length, 0);
 }));

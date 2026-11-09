@@ -23,3 +23,6 @@ ui-debug.log
 api/coverage/
 .local-data/
 __pycache__/
+
+# deploy がいまの API のイメージから取り出す話者推定のモデルの控え
+speech/models-cache/

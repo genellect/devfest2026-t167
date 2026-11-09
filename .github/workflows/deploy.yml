@@ -17,13 +17,53 @@ permissions:
   id-token: write
   actions: read   # ロールバック先が過去にデプロイに成功したかを確かめる
 jobs:
-  ci:
+  # main に入った中身（ツリー）が、PR の CI で検査を通った中身と同じかを確かめる。
+  # 同じなら検査をやり直さない。PR のあとに main が進んで中身が変わったときだけ、ここで検査する
+  tested:
     if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ok: ${{ steps.find.outputs.ok }}
+    steps:
+      - id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO_ID: ${{ github.repository_id }}
+        # API が失敗しても、このジョブは失敗にせず「記録なし」として扱う（実行が失敗になると、そのコミットにロールバックできなくなる）
+        run: |
+          OK=false
+          TREE=$(gh api "repos/${GITHUB_REPOSITORY}/git/commits/${GITHUB_SHA}" --jq .tree.sha) || TREE=""
+          if [ -n "$TREE" ]; then
+            # 期限内で、このリポジトリのブランチから記録を残した実行（フォークの PR の記録は使わない）
+            RUNS=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=tested-tree-${TREE}&per_page=100" \
+              --jq "[.artifacts[] | select(.expired | not) | select(.workflow_run.head_repository_id == ${REPO_ID})] | .[].workflow_run.id") || RUNS=""
+            for RUN in $RUNS; do
+              # PR の CI（ci.yml・pull_request）で成功した実行の記録だけを使う。ほかのワークフローが作った同じ名前の記録は使わない
+              R=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN}" --jq '[.path, .event, .conclusion] | join(" ")') || continue
+              if [ "$R" = ".github/workflows/ci.yml pull_request success" ]; then OK=true; break; fi
+            done
+          fi
+          echo "ok=${OK}" >> "$GITHUB_OUTPUT"
+          if [ "$OK" = true ]; then
+            echo "| 検査 | ツリー ${TREE} は PR の CI で検査を通った中身と同じ。やり直さない |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| 検査 | ツリー ${TREE:-（取得できず）} は検査を通った記録がない（PR のあとに main が進んだか、確かめられない）。やり直す |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+  ci:
+    needs: tested
+    # 記録を確かめられなかったとき（API の失敗を含む）も検査する。run を取り消したときは動かない
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.tested.outputs.ok != 'true' }}
     uses: ./.github/workflows/ci.yml
   deploy:
-    needs: ci
-    # push は CI 通過後のみ。手動の再デプロイ（ロールバック）は、過去に CI を通ったコミットを使う
-    if: always() && (needs.ci.result == 'success' || (github.event_name == 'workflow_dispatch' && needs.ci.result == 'skipped'))
+    needs: [tested, ci]
+    # push は、検査を通った中身と同じか、ここでの CI を通ったときだけ。手動の再デプロイ（ロールバック）は、過去に CI を通ったコミットを使う
+    # run を取り消したときは動かない（always() は取り消しのときも真になるため、!cancelled() を使う）
+    if: >-
+      !cancelled() && (
+        needs.ci.result == 'success' ||
+        (github.event_name == 'push' && needs.tested.outputs.ok == 'true' && needs.ci.result == 'skipped') ||
+        (github.event_name == 'workflow_dispatch' && needs.ci.result == 'skipped'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -86,6 +126,23 @@ jobs:
           SHA=$(git rev-parse HEAD)
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/app/api:${SHA}"
           gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          # 話者推定のモデルを、いま動いている API のイメージから控え（speech/models-cache）に取り出す。
+          # 外部の取得先（GitHub のリリース）の障害でデプロイを止めないため。取り出せなければ、ビルドの中で取得先から取る
+          mkdir -p speech/models-cache
+          # 取り出せないときは、理由を警告に出して取得先から取る（このステップは止めない）
+          CURRENT=$(gcloud run services describe api --project "$PROJECT_ID" --region "$REGION" --format='value(spec.template.spec.containers[0].image)' 2>describe.err) || CURRENT=""
+          if [ -z "$CURRENT" ]; then
+            echo "::warning::いまの API のイメージがわからない（$(tr '\n' ' ' < describe.err)）。モデルは取得先から取る"
+          elif ! docker pull -q "$CURRENT" >/dev/null 2>pull.err; then
+            echo "::warning::${CURRENT} を取得できなかった（$(tr '\n' ' ' < pull.err)）。モデルは取得先から取る"
+          elif CID=$(docker create "$CURRENT"); then
+            docker cp "${CID}:/app/.local-data/speaker-models/." speech/models-cache/ || echo "::warning::${CURRENT} からモデルを取り出せなかった。取得先から取る"
+            docker rm "$CID" >/dev/null || true
+          else
+            echo "::warning::${CURRENT} からコンテナを作れなかった。モデルは取得先から取る"
+          fi
+          rm -f describe.err pull.err
+          ls -l speech/models-cache
           docker build -f api/Dockerfile -t "$IMAGE" .
           docker push "$IMAGE"
           gcloud run deploy api --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE" \

@@ -156,6 +156,63 @@ EOF
 PATH="$T/bin:$PATH" GEMINI_MOCK=0 bash "$ROOT/scripts/dev.sh" serve > "$T/out" 2>&1
 [ $? -ne 0 ] && grep -q "application-default login" "$T/out" && ok "ADC がなければ login を案内して止まる" || ng "ADC がないときの案内（$(cat "$T/out")）"
 
+# 検査をやり直さない条件：PR の CI が検査を通ったツリーを記録し、deploy が同じ名前で照合する（docs/infra-manual.md「CI とデプロイ」）
+CI="$ROOT/.github/workflows/ci.yml"
+awk '/run: bash scripts\/dev.sh check/{c=1} c && /name: tested-tree-\$\{\{ env.TESTED_TREE \}\}/{print "ok"; exit}' "$CI" | grep -q ok \
+  && ok "PR の CI は、検査を通ったあとでだけツリーを記録する" || ng "ci.yml が検査の前にツリーを記録しているか、記録していない"
+grep -A4 'name: tested-tree-' "$CI" | grep -q 'if-no-files-found: error' && ok "記録が残らなければ CI を失敗にする" || ng "ci.yml の記録に if-no-files-found: error がない"
+grep -A3 'name: tested-tree-' "$CI" | grep -E 'path: *\.' >/dev/null && ng "記録に「.」で始まるファイルを使っている（upload-artifact が除外する）" || ok "記録は「.」で始まらないファイルで残す"
+grep -q 'artifacts?name=tested-tree-${TREE}' "$DEPLOY" && ok "deploy は main のツリーと同じ名前の記録を探す" || ng "deploy.yml が ci.yml の記録の名前と一致しない"
+grep -q "needs.tested.outputs.ok != 'true'" "$DEPLOY" && ok "記録がないか確かめられないときは、deploy の中で検査する" || ng "deploy.yml が記録のないときに検査しない"
+# deploy の条件：検査を省くのは記録が見つかり CI を飛ばしたときだけ。取り消した run は反映しない
+grep -A12 '^  deploy:' "$DEPLOY" | tr -d '\n' | grep -q "needs.tested.outputs.ok == 'true' && needs.ci.result == 'skipped'" \
+  && ok "deploy は、記録が見つかったときだけ検査なしで反映する" || ng "deploy.yml の deploy の条件が記録の確認に結びついていない"
+NOCOMMENT=$(sed -E 's/(^|[[:space:]])#.*$//' "$DEPLOY")
+[ "$(grep -c '!cancelled()' <<<"$NOCOMMENT")" -ge 2 ] && ! grep -q 'always()' <<<"$NOCOMMENT" \
+  && ok "ci と deploy は、取り消した run では動かない（always() を使わない）" || ng "deploy.yml の ci か deploy が always() のまま"
+# 記録の2つの手順は、PR のときだけ動く
+[ "$(awk '/name: Record the tested tree/{c=1} c && /if:/{print} c && /retention-days/{exit}' "$CI" | grep -c "if: github.event_name == 'pull_request'$")" = 2 ] \
+  && ok "記録は PR の CI のときだけ残す" || ng "ci.yml の記録の手順の条件が PR だけになっていない"
+
+# 記録を照合する処理そのもの（deploy.yml の tested の run）を取り出し、偽の gh で動かす
+awk '/- id: find/{f=1} f && /run: \|/{r=1; next} r && /^  ci:/{exit} r' "$DEPLOY" | sed -E 's/^ {10}//' | grep -v '^\s*#' > "$T/find.sh"
+mkdir -p "$T/fakegh"
+cat > "$T/fakegh/gh" <<'EOF2'
+#!/usr/bin/env bash
+# gh api <URL> --jq <式>：URL に対応する固定の JSON に、式を当てて返す。FAIL=1 なら失敗する
+[ "${FAIL:-0}" = 1 ] && exit 1
+url="$2"; filter="$4"
+case "$url" in
+  */git/commits/*) f=commit ;;
+  */actions/artifacts*) f=artifacts ;;
+  */actions/runs/*) f="run-${url##*/}" ;;
+esac
+jq -r "$filter" "$FIX/$f.json"
+EOF2
+chmod +x "$T/fakegh/gh"
+find_ok() { # $1: 固定データの場所。ok の値を出す（スクリプトの終了コードが 0 でなければ「exit=…」）
+  : > "$T/out.txt"; : > "$T/summary.txt"
+  FIX="$1" PATH="$T/fakegh:$PATH" GITHUB_REPOSITORY=o/r GITHUB_SHA=abc REPO_ID=42 GITHUB_OUTPUT="$T/out.txt" GITHUB_STEP_SUMMARY="$T/summary.txt" \
+    bash -eo pipefail "$T/find.sh" >/dev/null 2>&1 || { echo "exit=$?"; return; }
+  sed -n 's/^ok=//p' "$T/out.txt"
+}
+mkfix() { # 場所、artifacts、run の id、path、event、conclusion
+  mkdir -p "$1"; echo '{"tree":{"sha":"t1"}}' > "$1/commit.json"; echo "$2" > "$1/artifacts.json"
+  [ -n "${3:-}" ] && printf '{"path":"%s","event":"%s","conclusion":"%s"}' "$4" "$5" "$6" > "$1/run-$3.json"
+}
+A='{"artifacts":[{"expired":false,"workflow_run":{"id":7,"head_repository_id":42}}]}'
+mkfix "$T/fx1" "$A" 7 .github/workflows/ci.yml pull_request success
+same "PR の CI が成功した実行の記録があれば、検査を省く" "true" "$(find_ok "$T/fx1")"
+mkfix "$T/fx2" "$A" 7 .github/workflows/other.yml push success
+same "ほかのワークフローが作った同じ名前の記録では、検査を省かない" "false" "$(find_ok "$T/fx2")"
+mkfix "$T/fx3" "$A" 7 .github/workflows/ci.yml pull_request failure
+same "失敗した CI の記録では、検査を省かない" "false" "$(find_ok "$T/fx3")"
+mkfix "$T/fx4" '{"artifacts":[{"expired":true,"workflow_run":{"id":7,"head_repository_id":42}},{"expired":false,"workflow_run":{"id":8,"head_repository_id":9}}]}' 7 .github/workflows/ci.yml pull_request success
+same "期限切れとフォークの記録しかなければ、検査を省かない" "false" "$(find_ok "$T/fx4")"
+mkfix "$T/fx5" '{"artifacts":[]}'
+same "記録がなければ、検査を省かない" "false" "$(find_ok "$T/fx5")"
+same "API が失敗しても、ジョブは失敗せず検査する側に倒れる" "false" "$(FAIL=1 find_ok "$T/fx1")"
+
 echo "結果: ${pass} 件成功、${fail} 件失敗"
 [ "$fail" -eq 0 ] && echo "ALL PASS"
 [ "$fail" -eq 0 ]
