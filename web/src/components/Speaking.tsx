@@ -26,14 +26,17 @@ function SelfSpeakingRates({ state }: { state: SelfSpeaking }) {
 }
 export function SpeakingRates({ state }: { state: SpeakingState }) {
   const total = Object.values(state.talkMs).reduce((a, b) => a + b, 0) + state.unknownMs;
-  return <section className="box pad stack" aria-label={`グループ${state.group}の発言時間`}>
+  return <section className="box pad stack speaking-rates" aria-label={`グループ${state.group}の発言時間`}>
     <h3>グループ{state.group}の発言時間（推定）</h3>
     {state.source === 'model' && <p className="t-note">実音声モデルで照合しています。</p>}
     {state.source === 'mock' && <p>音声モックのテスト表示です。実際の声は識別していません。</p>}
+    <div className="stack speaking-rates__content"><div className="stack speaking-rates__values">
     <p>直近の発言者：{state.latest?.label ?? '発話なし'}</p>
     {state.members.map((m) => <div key={m.uid}><span>{m.label}：{((state.talkMs[m.uid] ?? 0) / 1000).toFixed(1)}秒 · {total ? `${Math.round((state.talkMs[m.uid] ?? 0) / total * 100)}%` : 'データなし'}</span><progress aria-label={`${m.label}の発言率`} value={state.talkMs[m.uid] ?? 0} max={total || 1} /></div>)}
     <p>判別不能：{(state.unknownMs / 1000).toFixed(1)}秒</p>
+    </div>
     {state.timeline && <SpeakingTimeline timeline={state.timeline} members={state.members} processedMs={state.processedMs} />}
+    </div>
     <p className="t-note">無音を除いた発話時間からの推定です。短い相づちや同時発話は誤判別し得ます。能力・意欲の評価には使用しません。</p>
   </section>;
 }

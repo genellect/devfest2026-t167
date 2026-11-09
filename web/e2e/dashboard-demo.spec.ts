@@ -2,9 +2,18 @@ import { expect, test, type Page } from "@playwright/test";
 import { seedDashboardDemo } from "../../firebase/dashboard-demo.mjs";
 
 async function capture(page: Page, scene: string, fullPage = true) {
-  for (const [label, width, height] of [["mobile", 390, 844], ["tablet", 820, 1180], ["desktop", 1440, 1000]] as const) {
+  for (const [label, width, height] of [["small-phone", 320, 740], ["mobile", 390, 844], ["tablet", 820, 1180], ["tablet-landscape", 1024, 768], ["laptop", 1280, 800], ["desktop", 1440, 1000], ["wide", 1920, 1080], ["ultrawide", 2560, 1440]] as const) {
     await page.setViewportSize({ width, height });
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    if (width >= 1280) {
+      const layout = fullPage ? page.locator(".teacher__body.live") : page.getByRole("dialog", { name: "グループ2", exact: true });
+      const box = await layout.boundingBox();
+      expect(box!.width).toBeGreaterThan(width * .9);
+    }
+    if (!fullPage) {
+      const plot = page.locator('.session-group-sheet .speak-chart__plot > svg[role="img"]');
+      await expect.poll(() => plot.evaluate(el => Math.abs(Number(el.getAttribute("width")) - el.parentElement!.clientWidth))).toBeLessThanOrEqual(2);
+    }
     await page.screenshot({ path: `../docs/screenshots/session-host-demo-${scene}-${label}.png`, fullPage, animations: "disabled", scale: "css" });
   }
 }

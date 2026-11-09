@@ -20,7 +20,7 @@ export function SessionGroups({ roomId, room, members, dashboard = false }: { ro
   }
   const current = selected != null ? groupData(selected) : undefined;
   const names = (people: { id: string; displayName: string }[]) => <div className="session-group-card__people" aria-label="参加者名">{people.length ? people.map(p => <span key={p.id}>{p.displayName}</span>) : <p className="t-note">参加を待っています</p>}</div>;
-  return <section className="session-groups" aria-labelledby="session-groups-title">
+  return <section className="session-groups" data-dashboard={dashboard || undefined} aria-labelledby="session-groups-title">
     <div className="heading-row"><div><h2 id="session-groups-title" className="t-md">グループの状況</h2>{dashboard && <p className="t-note">カードを押すと詳細を表示</p>}</div><span className="t-note">{room.groups ?? 1}グループ</span></div>
     <div className="session-group-grid">
       {Array.from({ length: room.groups ?? 1 }, (_, i) => i + 1).map(group => {

@@ -10,7 +10,6 @@ export interface SpeakingMinute { talkMs: Record<string, number>; unknownMs: num
  */
 const COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
 const UNKNOWN = "#8f8e89";
-const H = 220;
 
 interface Series { id: string; label: string; color: string; dashed?: boolean; values: number[] }
 
@@ -21,6 +20,7 @@ export function SpeakingTimeline({ timeline, members, processedMs, self = false 
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(560);
+  const H = Math.round(Math.max(220, Math.min(360, width * .35)));
   const [active, setActive] = useState<number | null>(null);
   // グラフは録音が2分を超えてから描くので、描いた時点で幅の監視を始める（最初から開いている画面でも幅を合わせる）
   const shown = timeline.length >= 2;
