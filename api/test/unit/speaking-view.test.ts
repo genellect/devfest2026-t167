@@ -9,13 +9,13 @@ const state: SpeakingState = {
   timeline: [{ talkMs: { me: 1000, other: 8000 }, unknownMs: 1000 }, { talkMs: { me: 5000, other: 4000 }, unknownMs: 1000 }],
 };
 
-it('本人の時間と、分母になるグループ全体の時間だけを渡し、ほかの人の名前・時間・直近の発言者を出さない', () => {
+it('本人の時間と分母、ほかの人の時間は名前とIDを外した配列だけを渡し、直近の発言者を出さない', () => {
   const view = selfSpeakingView(state, ['me']);
   expect(view.members).toEqual([{ uid: 'me', label: '本人' }]);
   expect(view.talkMs).toEqual({ me: 6000 });
   expect(view.totalMs).toBe(20_000); expect(view.memberCount).toBe(2);
-  expect(view.timeline).toEqual([{ talkMs: { me: 1000 }, unknownMs: 0, totalMs: 10_000 }, { talkMs: { me: 5000 }, unknownMs: 0, totalMs: 10_000 }]);
-  expect(JSON.stringify(view)).not.toMatch(/other|ほかの人|latest|confidence/);
+  expect(view.timeline).toEqual([{ talkMs: { me: 1000 }, unknownMs: 0, totalMs: 10_000, othersMs: [8000] }, { talkMs: { me: 5000 }, unknownMs: 0, totalMs: 10_000, othersMs: [4000] }]);
+  expect(JSON.stringify(view)).not.toMatch(/"other"|ほかの人|latest|confidence/);
 });
 
 it('共有端末では、その端末で登録した全員を本人として扱う', () => {

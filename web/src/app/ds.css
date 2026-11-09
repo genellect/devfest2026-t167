@@ -950,3 +950,10 @@ progress::-moz-progress-bar { background: var(--brand); }
 @keyframes rec-blink { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .other-recording__dot { animation: none; } }
 @media (max-width: 767px) { .other-recording .btn { width: 100%; } }
+
+/* 議論の経過時間の丸（Figma「最新」P3 345:44 / スマホ 358:68） */
+.elapsed-circle { align-self: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 180px; height: 180px; margin: 8px auto; border-radius: 50%; background: #c2e7ff; color: #001d35; }
+.elapsed-circle__label { font-size: 13px; }
+.elapsed-circle__time { font-size: 32px; font-variant-numeric: tabular-nums; }
+.other-recording .elapsed-circle { background: #fff7e0; }
+@media (max-width: 767px) { .elapsed-circle { width: 140px; height: 140px; } .elapsed-circle__time { font-size: 28px; } }

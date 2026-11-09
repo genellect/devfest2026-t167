@@ -28,7 +28,7 @@ export function SessionSettings({ roomId, room, embedded = false }: { roomId: st
   const voice = (m: (typeof members)[number]) => (m.ready ? "声：登録済み" : "声：未登録");
   const many = (room.groups ?? 1) > 1;
   const viewKeys = (["theme", "timer", "members", "speaking"] as const).filter((key) => key !== "timer" || !!room.minutes);
-  const viewLabel = { theme: "テーマ", timer: "残り時間", members: "所属グループの参加者", speaking: "所属グループの発言時間の推定" } as const;
+  const viewLabel = { theme: "テーマ", timer: "経過時間・残り時間", members: "所属グループの参加者", speaking: "結果画面の発言率の推移" } as const;
   const content = <div className="stack settings">
     <section className="settings__group" aria-labelledby="set-theme">
       <h3 id="set-theme" className="t-sm">テーマ</h3>

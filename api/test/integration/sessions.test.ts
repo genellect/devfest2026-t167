@@ -244,7 +244,7 @@ describe('ライブ配信と既存データの認可', () => {
       expect(ended).toContain('session_revoked'); expect(ended).not.toContain('after-revoke');
     } finally { await stream.close(); }
   });
-  it('話者集計はHostが許可した所属グループだけに配信し、終了後は結果公開も必要', async () => {
+  it('話者集計はHostが許可した所属グループだけに、議論の終了後に結果を公開したときだけ配信する', async () => {
     const c = await login(await user()), room = await seed(c, 'participant');
     await room.collection('speaking').doc('1').set({ label: 'OWN-SPEAKING' });
     await room.collection('speaking').doc('2').set({ label: 'OTHER-SPEAKING' });
@@ -253,8 +253,10 @@ describe('ライブ配信と既存データの認可', () => {
     try {
       const hidden = await stream.until((s) => s.includes(`"${room.path}/speaking/1":null`));
       expect(hidden).not.toContain('OWN-SPEAKING');
-      await room.update({ participantView: { speaking: true } });
-      await stream.until((s) => s.includes('OWN-SPEAKING'));
+      // 許可しても、議論中は届けない（学生の画面には議論中の発言率を出さない）
+      await room.update({ participantView: { speaking: true }, title: 'speaking-live' });
+      const live = await stream.until((s) => s.includes('speaking-live'));
+      expect(live).not.toContain('OWN-SPEAKING');
       await room.update({ endedAt: Timestamp.now(), resultsPublished: false });
       // 終了後は本人の時間と割合だけ：同じグループのほかの人の名前・時間・直近の発言者は渡さない
       await room.collection('members').doc(c.uid).update({ attendees: [{ id: 'own-attendee', displayName: 'OWN-NAME' }] });
@@ -273,6 +275,8 @@ describe('ライブ配信と既存データの認可', () => {
       expect(published).not.toContain('OTHER-SPEAKING'); expect(published).not.toContain('PRIVATE-VOICE-VECTOR');
       expect(published).not.toContain('PEER-IN-SAME-GROUP'); expect(published).not.toContain('peer-attendee');
       expect(published).toContain('"scope":"self"'); expect(published).toContain('"totalMs":10000');
+      // ほかのメンバーの時間は、名前とIDを外した配列でだけ届く
+      expect(published).toContain('"othersMs":[5000]');
     } finally { await stream.close(); }
   });
   it('メンバー外と失効済みセッションの配信・所属取得を拒否する', async () => {

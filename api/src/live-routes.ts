@@ -76,7 +76,8 @@ export function registerLiveRoutes(app: Express, deps: Dependencies, guards: Ret
           const room = await db.doc(roomPath).get();
           if (payload.docs) {
             for (const path of Object.keys(payload.docs)) {
-              if (path.includes('/speaking/') && (room.get('participantView.speaking') !== true || (room.get('endedAt') && room.get('resultsPublished') !== true))) payload.docs[path] = null;
+              // 学生には、議論の終了後に結果を公開したときだけ届ける（議論中の画面には発言率を出さない）
+              if (path.includes('/speaking/') && (room.get('participantView.speaking') !== true || !room.get('endedAt') || room.get('resultsPublished') !== true)) payload.docs[path] = null;
               // 終了後の結果画面では、本人の発言時間と割合だけを渡す（ほかの人の名前と時間は渡さない）
               else if (path.includes('/speaking/') && room.get('endedAt') && payload.docs[path]) {
                 const self = await db.doc(`${roomPath}/members/${uid}`).get();

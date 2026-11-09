@@ -44,10 +44,11 @@ test('録音と同じマイクで登録済みの声を照合し、Hostが表示�
     await expect(guest.getByRole('region', { name: 'グループ1の発言時間' })).toHaveCount(0);
     // 設定は歯車のボタンから開くダイアログにある
     await page.getByRole('button', { name: '設定', exact: true }).click();
-    await page.getByLabel('参加者に所属グループの発言時間の推定を表示').check();
-    await expect(guest.getByRole('region', { name: 'グループ1の発言時間' })).toBeVisible();
-    await page.getByLabel('参加者に所属グループの発言時間の推定を表示').uncheck();
+    // 議論中の学生の画面には発言率を出さず、経過時間だけを出す（発言率は結果画面で、教員が許可したときだけ）
+    await page.getByLabel('参加者に結果画面の発言率の推移を表示').check();
+    await expect(guest.getByRole('timer', { name: /議論の経過時間/ })).toBeVisible();
     await expect(guest.getByRole('region', { name: 'グループ1の発言時間' })).toHaveCount(0);
+    await page.getByLabel('参加者に結果画面の発言率の推移を表示').uncheck();
     await page.getByRole('button', { name: '閉じる', exact: true }).click();
     await guest.screenshot({ path: '../docs/screenshots/mvp-speaker-guest-mobile.png', fullPage: true });
     await page.screenshot({ path: '../docs/screenshots/mvp-speaker-host-mobile.png', fullPage: true });

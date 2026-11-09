@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-export interface SpeakingMinute { talkMs: Record<string, number>; unknownMs: number; totalMs?: number }
+export interface SpeakingMinute { talkMs: Record<string, number>; unknownMs: number; totalMs?: number; othersMs?: number[] }
 
 /**
  * 発言率の推移（折れ線）。横軸は録音開始からの分、縦軸は「その時点までの発話時間に占める割合」。

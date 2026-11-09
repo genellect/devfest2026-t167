@@ -1,7 +1,6 @@
 "use client";
 import { AppShell, Stepper } from "@/components/shell";
 import { SpeakerCapture } from "@/lib/speaker-capture";
-import { GuestSpeaking } from "@/components/Speaking";
 import { useEffect, useRef, useState } from "react";
 import { callApi } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/session";
@@ -179,7 +178,7 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
         <section className="talk-hero" aria-labelledby="talk-title">
           <h2 id="talk-title" className="talk-hero__title">グループで話し合いましょう</h2>
           {room.participantView?.theme !== false && room.theme && <p className="talk-hero__theme">テーマ：{room.theme}</p>}
-          {room.participantView?.timer !== false && room.endsAt && <p className="talk-hero__timer" role="timer">残り時間 {clock.text}</p>}
+          {room.participantView?.timer !== false && room.endsAt && <p className="talk-hero__timer" role="timer" aria-label={`残り時間 ${clock.text}`}>残り時間 {clock.text}</p>}
         </section>
         {/* 教員が承認した問いかけ（まだ話されていない論点）は、届いたらメモより上に出す */}
         {insights.length > 0 && question}
@@ -187,6 +186,7 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
         {canRecord && room.recording !== false && (
           <section className="flow-card record-card" aria-labelledby="record-title">
             <h2 id="record-title" className="t-sm">{recorder?.mine ? "録音（この端末が担当）" : "録音"}</h2>
+            {room.participantView?.timer !== false && <ElapsedCircle startedAt={room.startedAt} />}
             {!recorder?.mine && <p className="t-small">録音はグループで1台です。この端末で録音すると、ほかの人の画面に、この端末が担当だと出ます。</p>}
             <label className="check"><input type="checkbox" checked={recordingConsent} onChange={(e) => { setRecordingConsent(e.target.checked); if (!e.target.checked) void recording.discard(); }} /><span>グループ全員が録音・声の照合・発言時間の集計に同意しました</span></label>
             <p className="t-small">録音はグループで1台です。同意を取り消すと、ここまでの録音は送らずに削除します。</p>
@@ -202,6 +202,7 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
         {/* Figma「最新」P3（他の人が録音中）345:44：誰の端末が録音しているかを、赤い点と名前で目立たせる（アプリフィードバック「誰が録音しているか分からない」） */}
         {!canRecord && room.recording !== false && (
           <section className="other-recording" aria-labelledby="other-recording-title" role="status">
+            {room.participantView?.timer !== false && <ElapsedCircle startedAt={room.startedAt} />}
             <p id="other-recording-title" className="other-recording__title"><span className="other-recording__dot" aria-hidden="true" />{recorder?.name ? `${recorder.name}さんが録音中です` : "グループの別の端末が録音を担当しています"}</p>
             <p className="t-small">録音はグループで1台です。この端末では録音しません。同意を取り消すと、録音は削除されます。</p>
             <button type="button" className="btn" disabled>録音を始める</button>
@@ -210,7 +211,25 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
         {insights.length === 0 && question}
       </>}
 
-      {group && room.participantView?.speaking === true && !ended && <GuestSpeaking roomId={roomId} group={group} />}
     </div>
   </AppShell>;
+}
+
+/**
+ * 議論の経過時間（Figma「最新」P3 録音中・他の人が録音中の丸）。先生のダッシュボードの経過時間と同じく、議論の開始からの時間を出す。
+ * 教員が「タイマーを表示しない」にしたときは出さない（呼び出し側で判定）。
+ */
+function ElapsedCircle({ startedAt }: { startedAt?: Room["startedAt"] }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  const start = millis(startedAt);
+  if (!start) return null;
+  const sec = Math.max(0, Math.floor((now - start) / 1000));
+  const label = `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
+  return (
+    <div className="elapsed-circle" role="timer" aria-label={`議論の経過時間 ${Math.floor(sec / 60)}分${sec % 60}秒`}>
+      <span className="elapsed-circle__label">経過時間</span>
+      <span className="elapsed-circle__time">{label}</span>
+    </div>
+  );
 }
