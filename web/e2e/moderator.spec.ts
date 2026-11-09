@@ -50,3 +50,23 @@ test("議論が始まったあとも、参加コードで途中から参加し�
   await expect(student.getByRole("heading", { name: "声の登録", exact: true })).toHaveCount(0);
   await student.context().close();
 });
+
+test("作成画面で Gemini のテーマ案を出し、選んだ案がテーマの欄に入る", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）" }).click();
+  await page.getByRole("link", { name: "議論を作る", exact: true }).click();
+  await page.getByLabel("授業の内容や、話し合ってほしいこと").fill("高校2年の情報。SNSの情報の見分け方");
+  await page.getByRole("button", { name: "案を出す", exact: true }).click();
+  const ideas = page.getByRole("group", { name: "テーマ案" }).getByRole("button");
+  await expect(ideas).toHaveCount(3);
+  const first = (await ideas.first().innerText()).trim();
+  await ideas.first().click();
+  await expect(page.getByLabel("テーマ", { exact: true })).toHaveValue(first);
+  await expect(ideas.first()).toHaveAttribute("aria-pressed", "true");
+  // 別の案は、前の3つと重ならない
+  await page.getByRole("button", { name: "別の案を出す", exact: true }).click();
+  await expect(page.getByRole("group", { name: "テーマ案" }).getByRole("button", { name: first, exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "作成する", exact: true }).click();
+  await expect(page).toHaveURL(/\/rooms\//);
+  await expect(page.getByRole("heading", { name: first })).toBeVisible();
+});

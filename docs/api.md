@@ -24,6 +24,7 @@ health以外は有効なGoogle IDトークンとアプリセッションCookie�
 | `POST /rooms/{部屋}/speaker/start` / `{runId}/chunk` / `{runId}/stop` | Google＋独自セッション | 必要 | Participantの録音担当のみ | Host開始後・同意・登録済みの所属グループ。背景送信は利用期限を延長しない |
 | `GET/PUT /schools/{学校}/security-policy` | Google＋独自セッション | 同校管理者claim | 必要 | policy値域を検査 |
 | `POST /schools/{学校}/users/{利用者}/sessions/revoke` | Google＋独自セッション | 同校管理者claim | 必要 | 対象者も同校であることをサーバーで検査 |
+| `POST /themes/suggest` | Google（教員の teacher claim。ない場合は `403 teacher_required`） | — | — | 議論のテーマ案を Gemini で3つ返す。`request`（500文字まで）と、「別の案」のときは前の案 `previous`（3つまで）。1人1分に6回まで（`429`）。Gemini の失敗は `503 theme_unavailable`。依頼の本文は保存しない |
 | `POST /rooms` | Google（招待された教員の teacher claim。ない場合は `403 teacher_required`） | —（作成者が司会者になる） | — | テーマと任意のクラス名（`className`）。時間（`minutes`）は任意。作成から3時間後の `expiresAt` を書き、過ぎたセッションは書き込みを `409 room_expired` で断る |
 | `POST /rooms/join` | Google | —（参加コードで部屋を特定） | — | 新しい参加は `closed`・失効以外で、議論の開始前と議論中（1本化した流れで、グループをサーバーが決める部屋）。議論を終えたあとは受け付けない。1本化した流れでは、グループをサーバーが決める（1グループ100人まで。超えたら次のグループを作る）。参加済みの人は開始後・終了後も同じコードで戻れる（外された参加者は `403`） |
 | `POST /rooms/{部屋}/phase` | 必要 | 必要 | 必要 | 1つずつ順に進める。1本化した流れの開始には、全参加者の表示名の登録と所属が必要（音声登録は任意）。未準備がいれば`409 guests_not_ready`（人数 `notReady`）。`excludeNotReady: true`で未準備の参加者を外して開始し、外した参加者は以後この部屋に入れない。時間が設定されていなければ終了時刻を付けない |

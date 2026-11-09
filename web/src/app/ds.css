@@ -762,6 +762,15 @@ progress::-moz-progress-bar { background: var(--brand); }
 .create { width: min(1080px, 100%); margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
 @media (min-width: 900px) { .create { grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); gap: 28px; } }
 .create__next { display: flex; flex-direction: column; gap: 12px; padding: 4px 4px 0; }
+/* テーマ案：テーマの欄の下に置く補助。点線の枠で、入力欄とは別の手伝いだと分かるようにする */
+.ideas { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px dashed var(--line-strong); border-radius: var(--r-control); background: var(--surface-2); }
+.ideas__ask { display: flex; flex-wrap: wrap; gap: 8px; }
+.ideas__ask .input { flex: 1 1 220px; min-width: 0; }
+.ideas__ask .btn { flex: none; }
+.ideas__list { display: flex; flex-direction: column; gap: 8px; }
+.ideas__list .choice { flex: none; background: var(--surface); line-height: 1.6; text-align: left; }
+.ideas__list .choice[aria-pressed="true"] { background: var(--brand-soft); }
+.ideas .field__hint .text-btn { margin-left: 8px; }
 /* 順に進む手順：番号の丸と、太字の見出し＋説明 */
 .steps-list { list-style: none; margin: 0; padding: 0; counter-reset: step; display: flex; flex-direction: column; gap: 14px; }
 .steps-list li { counter-increment: step; display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 12px; row-gap: 2px; }
