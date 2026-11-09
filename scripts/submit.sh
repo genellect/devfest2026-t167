@@ -47,11 +47,16 @@ git -C "$DEV" archive "$COMMIT" | tar -x -C "$TIP"
 EXCLUDE=()
 for C in $(git -C "$DEV" rev-list "$COMMIT"); do submitted "$C" && EXCLUDE+=("^$C"); done
 NEW_COMMITS=$(git -C "$DEV" rev-list --count "$COMMIT" ${EXCLUDE[@]+"${EXCLUDE[@]}"})
+# パスは -z（NUL 区切り）で受け取る。既定の出力では日本語などのパスが引用符付きに変形され、.p12 などのファイル名の検査をすり抜けるため
 git -C "$DEV" rev-list "$COMMIT" ${EXCLUDE[@]+"${EXCLUDE[@]}"} \
-  | git -C "$DEV" diff-tree --stdin -r -m --root --no-commit-id --diff-filter=AMRCT --format= \
-  | awk -F'\t' '{ split($1, m, " "); if (m[2] != "160000") print m[4] "\t" $NF }' | sort -u \
-  | while IFS=$'\t' read -r BLOB FILE; do
-      mkdir -p "$HIST/${BLOB:0:12}/$(dirname "$FILE")"
+  | git -C "$DEV" diff-tree --stdin -z -r -m --root --no-commit-id --diff-filter=AMRCT --format= \
+  | while IFS= read -r -d '' META; do
+      case "$META" in :*) ;; *) continue ;; esac   # コミットの区切りの空の項目は飛ばす
+      read -r _ MODE _ BLOB STATUS <<< "$META"
+      IFS= read -r -d '' FILE
+      case "$STATUS" in R*|C*) IFS= read -r -d '' FILE ;; esac   # 名前の変更・複製は、変更後のパスが2つ目に来る
+      [ "$MODE" = 160000 ] && continue   # サブモジュール
+      mkdir -p "$HIST/${BLOB:0:12}/$(dirname -- "$FILE")"
       git -C "$DEV" cat-file blob "$BLOB" > "$HIST/${BLOB:0:12}/$FILE"
     done
 

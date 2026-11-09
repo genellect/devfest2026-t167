@@ -66,6 +66,10 @@ expect ng "過去のコミットの秘密鍵"; grep -q '過去のコミット' o
 untouched && pass "履歴の検査で止まったときも提出先に触れない" || ng "提出先が変わった"
 mk; commit; echo X=1 > dev/.env.local; commit leak; git -C dev rm -q .env.local; commit fix
 expect ng "過去のコミットの .env"
+mk; commit; mkdir -p dev/設定; printf '\000\001bin' > dev/設定/server.p12; commit leak; git -C dev rm -q 設定/server.p12; commit fix
+expect ng "日本語のフォルダにあった過去の鍵ファイル"
+mk; commit; mkdir -p 'dev/a b'; echo 'k=AKIAABCDEFGHIJKLMNOP' > 'dev/a b/設定.txt'; commit leak; git -C dev rm -q 'a b/設定.txt'; commit fix  # submit-allow: テスト用のダミー
+expect ng "空白と日本語を含むパスにあった過去の鍵"
 mk; commit; echo 'aws=AKIAABCDEFGHIJKLMNOP' > dev/web/config.txt; commit leak; git -C dev mv web/config.txt web/renamed.txt; commit mv; git -C dev rm -q web/renamed.txt; commit fix  # submit-allow: テスト用のダミー
 expect ng "名前を変えてから消したファイルの鍵"
 mk; commit; printf -- '-----BEGIN PRIVATE KEY-----  # submit-allow: テスト用のダミー\n' > dev/k.txt; commit allowed; git -C dev rm -q k.txt; commit fix
