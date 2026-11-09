@@ -38,7 +38,7 @@ export default function About() {
           <section className="box box--md pad stack">
             <h2 className="t-md">ホストの使い方</h2>
             <ol className="steps-list">
-              <li><b>議論を作る</b><span>テーマを決めて作ります。ホストとして招待されたアカウントだけが作れます。</span></li>
+              <li><b>議論を作る</b><span>Googleでログインすれば、教師・生徒に関係なく議論を作れます。作った人がその議論のホストになります。</span></li>
               <li><b>投影画面を映す</b><span>参加コードと QR を教室に映し、全員の事前の意見がそろったら議論を始めます。</span></li>
               <li><b>論点を投げかける</b><span>AI が提案した「まだ話されていない論点」を確かめ、全員に表示するか、見送ります。</span></li>
               <li><b>結果をまとめる</b><span>議論を終え、全員の結論の一文がそろったら、合意の中身と指標を見ます。</span></li>

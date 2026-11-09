@@ -10,7 +10,7 @@ import "./lp.css";
  * 見出しは確定済みのタグライン。構成はタグラインの前半と後半を順に掘り下げる。
  * - 誰の考えも埋もれない議論：議論の前・中・あとの3つの機能（事前意見収集・未検討論点の検出・合意の実態検証）
  * - すべての教室に：学生・教員・学校それぞれにとっての価値（Docs「サービス形態」の目的）
- * 行動は「ログイン」（学生・招待済みの教員）と「利用を申し込む」（これから使う教員・学校。メール）。「デモを体験」は LP の中で完結する。主役は映像（Three.js の2つの場面と付箋の図）で、文章は短く控えめにする。アプリの画面は使わない。
+ * Googleログイン後は誰でも議論を作成・参加できる。学校での利用相談はメールで受け付ける。「デモを体験」は LP の中で完結する。主役は映像（Three.js の2つの場面と付箋の図）で、文章は短く控えめにする。アプリの画面は使わない。
  */
 
 export const metadata: Metadata = {
@@ -153,7 +153,7 @@ export default function LandingPage() {
           <div className="wrap">
             <header className="sec__head" data-reveal>
               <h2 id="lp-demo-title" className="h2">ひとつの議論を、3分で体験する。</h2>
-              <p className="sec__lead">学生として意見を書いて、教員の画面で何が起きるかを見てみよう。ログインはいらない。</p>
+              <p className="sec__lead">参加者として意見を書いて、ホストの画面で何が起きるかを見てみよう。ログインはいらない。</p>
             </header>
             <LpDemo />
           </div>
@@ -167,21 +167,21 @@ export default function LandingPage() {
             </header>
             <div className="starts">
               <article className="start" data-reveal>
-                <p className="start__who">学生</p>
+                <p className="start__who">参加したい方</p>
                 <h3 className="start__title">授業の議論に参加する</h3>
-                <p className="start__body">教員から届いた参加コードか QR で入る。Google アカウントがあれば参加できる。</p>
+                <p className="start__body">ホストから届いた参加コードか QR で入る。Google アカウントがあれば参加できる。</p>
                 <Link href="/" className="lp-btn lp-btn--dark start__cta">ログインして参加する</Link>
               </article>
               <article className="start" data-reveal>
-                <p className="start__who">招待を受けた教員</p>
+                <p className="start__who">ホストになりたい方</p>
                 <h3 className="start__title">議論を作る</h3>
-                <p className="start__body">招待された Google アカウントでログインすると、すぐにテーマを入れて議論を作れる。</p>
+                <p className="start__body">Googleでログインすれば、教師・生徒に関係なく議論を作れる。作った人がその議論のホストになる。</p>
                 <Link href="/" className="lp-btn lp-btn--dark start__cta">ログイン</Link>
               </article>
               <article className="start start--apply" data-reveal>
                 <p className="start__who">これから使う教員・学校</p>
                 <h3 className="start__title">利用を申し込む</h3>
-                <p className="start__body">教員1人でも、学校全体でも。メールで申し込むと、議論を作れる教員の招待を届ける。</p>
+                <p className="start__body">教員1人でも、学校全体でも。授業での活用や学校への導入について、メールで相談できる。</p>
                 <a href={APPLY} className="lp-btn lp-btn--light start__cta">メールで申し込む</a>
                 <p className="start__mail">{CONTACT}</p>
               </article>
