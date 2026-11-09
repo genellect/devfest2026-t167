@@ -33,14 +33,16 @@ export function JoinForm({ autoJoin = false }: { autoJoin?: boolean }) {
       clearJoinCode();
       const member = await sessionRequest<{ role: string }>(`/rooms/${roomId}/me`);
       if (member.role === "host") { setOwnRoom(roomId); setBusy(false); return; }
-      router.push(`/rooms/${roomId}`);
+      // QRやリンク（?code=）から来たときは履歴を置き換える。戻るで ?code= の画面に戻り、自動参加で部屋へ連れ戻されないようにする
+      const destination = `/rooms/${roomId}`;
+      if (params.get("code")) router.replace(destination); else router.push(destination);
     } catch (err) {
       clearJoinCode();
       setError((err as Error).message);
       setBusy(false);
       input.current?.focus(); // すぐ打ち直せるように
     }
-  }, [router]);
+  }, [router, params]);
 
   const autoJoined = useRef(false);
   useEffect(() => {

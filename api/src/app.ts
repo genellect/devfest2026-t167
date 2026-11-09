@@ -120,7 +120,8 @@ export function createApp(deps: Omit<Dependencies, 'now'> & { now?: () => number
         return 0;
       }
       requireOpenRoom(room); requireDiscussionActive(room);
-      if (room.get('flowVersion') === 1 && room.get('phase') !== 'collecting') throw new HttpError(409, 'already_started', '開始済みのセッションには新規参加できません');
+      // 議論の途中からも参加できる（Docs「アプリフィードバック」）。終了後と、教員がグループを割り当てる部屋の開始後は締め切る
+      if (room.get('flowVersion') === 1 && (!['collecting', 'discussing'].includes(room.get('phase')) || (room.get('groupSelection') === 'host' && room.get('phase') !== 'collecting'))) throw new HttpError(409, 'already_started', '開始済みのセッションには新規参加できません');
       if (room.get('flowVersion') === 1 && room.get('groupSelection') !== 'host') {
         // グループはサーバーが決める。1グループ GROUP_CAPACITY 人までで、超えたら次のグループを作る
         const groups = room.get('groups') ?? 1;

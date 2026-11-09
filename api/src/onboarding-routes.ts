@@ -17,14 +17,19 @@ export function registerOnboardingRoutes(app: Express, deps: Dependencies, guard
     const version = deps.voice?.version ?? 'unavailable';
     const ownVoice = await profilePath(req.params.roomId, req.ctx.uid, '', false).get();
     const reusable = body.mode === 'personal' && ownVoice.exists && ownVoice.get('version') === version;
-    await deps.db.runTransaction(async (tx) => {
+    const reused = await deps.db.runTransaction(async (tx) => {
       const [room, own] = await tx.getAll(ref.parent.parent!, ref);
       if (own.get('role') !== 'participant') throw new HttpError(403, 'participant_only', 'Guestとして参加してください');
-      if (room.get('phase') !== 'collecting') throw new HttpError(409, 'already_started', '開始前に登録を完了してください');
-      const attendees = body.names.map((displayName) => ({ id: randomUUID(), displayName, voiceRegistered: reusable }));
-      tx.update(ref, { voiceSource: deps.voice?.source ?? null, displayName: body.names[0], deviceMode: body.mode, attendees, ready: reusable, updatedAt: FieldValue.serverTimestamp() });
+      // 開始後は、途中から参加して表示名をまだ決めていない人だけが登録できる（登録済みの人は名前を変えない）
+      const lateJoin = room.get('phase') === 'discussing' && !room.get('endedAt') && !(own.get('attendees') as unknown[] | undefined)?.length;
+      if (room.get('phase') !== 'collecting' && !lateJoin) throw new HttpError(409, 'already_started', '開始前に登録を完了してください');
+      // 途中から参加した人の声は、議論中の話者の推定に加えない（推定の名簿が途中で変わると、それまでの集計が消えるため）
+      const voiced = reusable && !lateJoin;
+      const attendees = body.names.map((displayName) => ({ id: randomUUID(), displayName, voiceRegistered: voiced }));
+      tx.update(ref, { voiceSource: deps.voice?.source ?? null, displayName: body.names[0], deviceMode: body.mode, attendees, ready: voiced, updatedAt: FieldValue.serverTimestamp() });
+      return voiced;
     });
-    res.json({ ok: true, reused: reusable });
+    res.json({ ok: true, reused });
   }));
   app.post('/rooms/:roomId/voice/:attendeeId', authenticate, member, express.raw({ type: 'audio/pcm', limit: 400_000 }), wrap(async (req, res) => {
     if (req.query.consent !== '1') throw new HttpError(400, 'consent_required', '音声登録への同意を確認してください');
