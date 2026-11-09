@@ -125,7 +125,8 @@ $HITS"
 # ---- 3. 検査を通ったものだけを提出先にマージする ----
 # -s ours でマージの形だけを作り、中身は指定コミットと完全に同じにする。前回の古いファイルは残らない
 git -C "$SUBMIT" fetch -q "$DEV_TOP" "$COMMIT"
-git -C "$SUBMIT" merge -q --no-commit --no-ff --allow-unrelated-histories -s ours "$COMMIT" >/dev/null
+git -C "$SUBMIT" merge -q --no-commit --no-ff --allow-unrelated-histories -s ours "$COMMIT" >/dev/null 2>&1 \
+  || fail "マージを始められませんでした（git -C \"$SUBMIT\" merge --abort で元に戻してください）"
 git -C "$SUBMIT" read-tree -u --reset "$COMMIT"
 git -C "$SUBMIT" diff --cached --quiet "$COMMIT" \
   || fail "マージ後の中身が $COMMIT と一致しません（git -C \"$SUBMIT\" merge --abort で元に戻してください）"
