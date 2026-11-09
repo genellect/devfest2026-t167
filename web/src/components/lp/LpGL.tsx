@@ -5,7 +5,6 @@ import type * as THREE_NS from "three";
 /**
  * LP の WebGL の場面（Three.js）。three は画面に入ってから読み込む。
  * - NotesScene：奥行きのある空間に学生の付箋が浮かび、スクロールで1枚が黄色く光って手前に来る（まだ話されていない論点）
- * - RoomsScene：教室が地平線まで並び、引いていくと中央から外へ付箋が灯っていく（すべての教室に）
  * 進み具合は、いちばん近い [data-scene] の節のスクロール量から求める。
  * 画面の外では描画を止め、動きを減らす設定では最後の状態を1枚だけ描く。WebGL が使えなければ何も描かない。
  */
@@ -174,69 +173,4 @@ function setupNotes(label: string, lines: string[]) {
   };
   setupNotesCache.set(key, fn);
   return fn;
-}
-
-const setupRooms: Parameters<typeof useStage>[0] = async (THREE, { host, renderer, reduce }) => {
-  const small = window.innerWidth < 768;
-  const G = small ? 17 : 19, GAP = 2.3;
-  const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x000000, 18, 70);
-  const camera = new THREE.PerspectiveCamera(small ? 60 : 42, 1, 0.1, 200);
-
-  const roomTex = (() => {
-    const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d")!;
-    g.beginPath(); g.roundRect(6, 6, 244, 244, 36); g.fillStyle = "#fff"; g.fill();
-    const t = new THREE.CanvasTexture(c); return t;
-  })();
-  const rooms = new THREE.InstancedMesh(new THREE.PlaneGeometry(2, 1.4), new THREE.MeshBasicMaterial({ map: roomTex, transparent: true, depthWrite: false }), G * G);
-  const noteTex = noteTexture(THREE, false);
-  const PER = 6;
-  const notes = new THREE.InstancedMesh(new THREE.PlaneGeometry(.42, .3), new THREE.MeshBasicMaterial({ map: noteTex, transparent: true, depthWrite: false }), G * G * PER);
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)), v = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
-  const half = (G - 1) / 2;
-  const dist: number[] = [];
-  const hue: number[] = [];
-  for (let r = 0; r < G; r++) for (let c = 0; c < G; c++) {
-    const i = r * G + c, x = (c - half) * GAP, z = (r - half) * GAP * .82;
-    rooms.setMatrixAt(i, m.compose(v.set(x, 0, z), q, one));
-    dist[i] = Math.hypot(c - half, r - half);
-    for (let k = 0; k < PER; k++) {
-      const nx = x - .58 + (k % 3) * .58, nz = z - .25 + Math.floor(k / 3) * .5;
-      notes.setMatrixAt(i * PER + k, m.compose(v.set(nx, .01, nz), q, one));
-      hue[i * PER + k] = rand(i * PER + k, 8) > .9 ? YELLOW : PASTELS[Math.floor(rand(i * PER + k, 9) * 4)];
-    }
-  }
-  rooms.renderOrder = 0; notes.renderOrder = 1; // 付箋を教室の板より後に描く（同じ高さで重なるため）
-  scene.add(rooms, notes);
-  const off = new THREE.Color(0x1d1d20), roomOff = new THREE.Color(0x111113), roomOn = new THREE.Color(0x2a2a2e), cc = new THREE.Color(), on = new THREE.Color();
-  const maxD = Math.hypot(half, half);
-  let last = -1;
-  const frame = (t: number) => {
-    const p = reduce ? 1 : sceneProgress(host);
-    const g = ease(p / .7);
-    if (Math.abs(p - last) > .0005) {
-      last = p;
-      const front = g * (maxD + 3);
-      for (let i = 0; i < G * G; i++) {
-        const l = clamp01((front - dist[i]) / 2.5);
-        rooms.setColorAt(i, cc.copy(roomOff).lerp(roomOn, l));
-        for (let k = 0; k < PER; k++) notes.setColorAt(i * PER + k, cc.copy(off).lerp(on.set(hue[i * PER + k]), l));
-      }
-      rooms.instanceColor!.needsUpdate = true; notes.instanceColor!.needsUpdate = true;
-    }
-    const drift = reduce ? 0 : Math.sin(t * .15) * .6;
-    camera.position.set(drift, 2.6 + g * (small ? 30 : 24), 2.2 + g * (small ? 14 : 20));
-    camera.lookAt(0, 0, -g * 2 + (small ? 8 * g : 0)); // 縦長の画面では手前を見下ろし、上の空きをなくす
-    renderer.render(scene, camera);
-  };
-  return {
-    frame,
-    resize: (w, h) => { camera.aspect = w / h; camera.updateProjectionMatrix(); },
-    dispose: () => { rooms.geometry.dispose(); notes.geometry.dispose(); roomTex.dispose(); noteTex.dispose(); },
-  };
-};
-
-export function RoomsScene() {
-  const host = useStage(setupRooms);
-  return <div ref={host} className="gl gl--rooms" aria-hidden="true" />;
 }

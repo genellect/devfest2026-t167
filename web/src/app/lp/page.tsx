@@ -1,68 +1,86 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { LpDemo } from "@/components/lp/LpDemo";
-import { NotesScene, RoomsScene } from "@/components/lp/LpGL";
+import { NotesScene } from "@/components/lp/LpGL";
 import { LpScenes } from "@/components/lp/LpScenes";
 import "./lp.css";
 
 /*
- * Topos の紹介ページ（LP）。ログインなしで開ける（LoginGate の公開ページ）。
- * 見出しは確定済みのタグライン。構成はタグラインの前半と後半を順に掘り下げる。
- * - 誰の考えも埋もれない議論：議論の前・中・あとの3つの機能（事前意見収集・未検討論点の検出・合意の実態検証）
- * - すべての教室に：学生・教員・学校それぞれにとっての価値（Docs「サービス形態」の目的）
- * 行動は「ログイン」（学生・招待済みの教員）と「利用を申し込む」（これから使う教員・学校。メール）。「デモを体験」は LP の中で完結する。主役は映像（Three.js の2つの場面と付箋の図）で、文章は短く控えめにする。アプリの画面は使わない。
+ * Topos の紹介ページ（LP）。ログインなしで開ける（LoginGate の公開ページ）。主な読み手は教員。
+ * 伝えること：AI が答えを出せる時代に、学校で育てたいのは、自分の考えを根拠とともに語り、他者の考えと比べ、
+ * 自分の考えを見直す力（論理的思考とメタ認知）。Topos は、グループディスカッションをその力を育てる場にする。
+ * 3機能（AGENTS.md・README）：発言率の可視化、音声認識による未検討の論点の可視化、事前の意見から結論への主張の変化の確認。
+ * 行動は「ログイン」（学生・招待済みの教員）と「利用を申し込む」（これから使う教員・学校。メール）。
  */
+
+const LEAD = "グループディスカッションで埋もれた考えを AI が見つけ、全員の考えが活かされる議論にする。";
 
 export const metadata: Metadata = {
   title: { absolute: "Topos — 誰の考えも埋もれない議論を、すべての教室に。" },
-  description: "議論の前に全員の考えを集め、まだ話されていない論点と、合意のずれを AI が見つける。",
-  openGraph: { title: "Topos — 誰の考えも埋もれない議論を、すべての教室に。", description: "議論の前に全員の考えを集め、まだ話されていない論点と、合意のずれを AI が見つける。", locale: "ja_JP", type: "website" },
+  description: LEAD,
+  openGraph: { title: "Topos — 誰の考えも埋もれない議論を、すべての教室に。", description: LEAD, locale: "ja_JP", type: "website" },
 };
 
 /** 利用の申し込み（これから使う教員・学校）。窓口はメール。件名と記入項目を入れて開く */
 const CONTACT = "contact@yuto-matsui.com";
 const APPLY = `mailto:${CONTACT}?subject=${encodeURIComponent("Topos の利用申し込み")}&body=${encodeURIComponent("学校名：\nお名前：\n担当の授業・学年：\n使う教員の人数：\n")}`;
 
-const STAGES = [
-  { when: "議論の前", title: "まず、全員が書く。", body: "読めるのは、書いた本人だけ。人前では言えない本音も、ここなら書ける。", feature: "事前意見収集", art: "before" },
-  { when: "議論の最中", title: "話されていない論点を、AI がそっと教員に知らせる。", body: "全員に問いかけるかどうかは、教員が決める。", feature: "未検討論点の検出", art: "during" },
-  { when: "議論の後", title: "「わかったつもり」が、見えるようになる。", body: "全員が結論を一文で書くと、理解の分かれ目が浮かび上がる。次の授業は、そこから始められる。", feature: "合意の実態検証", art: "after" },
+/** 話し合いをさせるだけでは起きること（README「課題」） */
+const GAPS = [
+  { title: "最初の発言に、議論が引きずられる", body: "異論や疑問を持っていた学生も、流れに合わせて黙る。検討されないまま、結論が決まる。" },
+  { title: "自分がどう関わったかを、学生は知らない", body: "どの場面で話し、どこで黙ったか。振り返る材料がないまま、次の議論も同じように過ぎる。" },
+  { title: "教員に見えるのは、結論だけ", body: "全部のグループの過程は追えない。誰の考えが、どこで失われたかは分からないまま授業が終わる。" },
+];
+
+/** 3機能。それぞれが、学生のどの力を支えるか */
+const FEATURES = [
+  {
+    art: "rate", name: "発言率の可視化", title: "自分の関わり方を、数字で振り返る。",
+    body: "話題ごとの発言率を示す。学生は、どの場面で話し、どこで黙ったかを客観的に捉え直せる。教員は、支援が必要な学生と場面を、根拠をもって特定できる。",
+    skill: "メタ認知：自分の参加の仕方を、外から見る",
+  },
+  {
+    art: "points", name: "音声認識による未検討の論点の可視化", title: "誰も検討しなかった論点を、残さない。",
+    body: "議論の録音と、学生が事前に書いた意見を照らし合わせ、話されなかった視点を示す。教員はそれを次の問いとして投げかけ、一人ひとりの考えを議論に取り込める。",
+    skill: "論理的思考：論点を漏らさず、比べて考える",
+  },
+  {
+    art: "change", name: "事前の意見から結論への主張の変化の確認", title: "考えがどう変わったかを、自分の言葉で確かめる。",
+    body: "議論の前に書いた意見と、議論の後の結論を並べる。なぜ考えが変わったのか、なぜ変わらなかったのかを、学生が自分で説明できる。グループの合意が形だけかどうかも分かる。",
+    skill: "メタ認知と論理：考えの変化を、根拠とともに語る",
+  },
 ] as const;
 
-function StageArt({ kind }: { kind: "before" | "during" | "after" }) {
-  if (kind === "before") return (
-    <div className="art art--before" aria-hidden="true">
-      {Array.from({ length: 12 }, (_, i) => <i key={i} style={{ "--k": i } as React.CSSProperties} />)}
-      <span className="art__lock">本人だけが読める</span>
+function FeatureArt({ kind }: { kind: "rate" | "points" | "change" }) {
+  if (kind === "rate") return (
+    <div className="fa fa--rate" aria-hidden="true">
+      <p className="fa__cap">話題ごとの発言率</p>
+      <div className="fa__topics">
+        {[["意見の出し合い", 34], ["理由の深掘り", 12], ["まとめ", 28]].map(([t, v]) => (
+          <div key={t} className="fa__topic"><span>{t}</span><i style={{ "--v": v } as React.CSSProperties} /><b>{v}%</b></div>
+        ))}
+      </div>
+      <p className="fa__note">理由の深掘りの場面で、発言が減っていた</p>
     </div>
   );
-  if (kind === "during") return (
-    <div className="art art--during" aria-hidden="true">
-      {Array.from({ length: 7 }, (_, i) => <i key={i} />)}
-      <div className="art__found">
-        <small>まだ話されていない論点</small>
-        <b>AI を使ったことを、どこまで申告する？</b>
-        <span><em>全員に表示する</em>見送る</span>
-      </div>
+  if (kind === "points") return (
+    <div className="fa fa--points" aria-hidden="true">
+      <p className="fa__cap">事前の意見にあった論点</p>
+      <ul>
+        <li className="is-done">調べものに使ってよいか<small>話された</small></li>
+        <li className="is-done">レポートを書かせてよいか<small>話された</small></li>
+        <li className="is-missing">使ったことを、どこまで申告するか<small>まだ話されていない</small></li>
+      </ul>
     </div>
   );
   return (
-    <div className="art art--after" aria-hidden="true">
-      <p className="art__said">結論：AI の利用を認める</p>
-      <div className="art__groups">
-        <span className="u-b">申告すれば、レポートにも<small>3人</small></span>
-        <span className="u-p">アイデア出しにだけ<small>2人</small></span>
-        <span className="u-m">教員が許可したときだけ<small>1人</small></span>
-      </div>
+    <div className="fa fa--change" aria-hidden="true">
+      <div className="fa__card"><small>議論の前の意見</small>AI は禁止すべき。考える力が落ちる。</div>
+      <span className="fa__arrow">↓</span>
+      <div className="fa__card fa__card--after"><small>議論の後の結論</small>申告すれば、下調べには使ってよい。</div>
+      <p className="fa__note">変わった理由を、自分の言葉で書く</p>
     </div>
   );
 }
-
-const AUDIENCE = [
-  { who: "学生", title: "話すのが苦手でも、考えはちゃんと届く。", body: "発言の多さではなく、考えの中身で議論に加われる。重ねるほど、対話の力が育っていく。", art: "student" },
-  { who: "教員", title: "全部のグループの声が、手元に集まる。", body: "教室を回りきれなくても、どこで何が話されていないかがわかる。準備はテーマを入れるだけ。", art: "teacher" },
-  { who: "学校", title: "安心して、すべての教室に。", body: "意見の本文は、書いた本人にしか見えない。AI が成績をつけることもない。", art: "school" },
-] as const;
 
 export default function LandingPage() {
   return (
@@ -75,7 +93,7 @@ export default function LandingPage() {
         <div className="lp-nav__in">
           <Link href="/lp" className="lp-nav__brand"><span className="lp-nav__mark" aria-hidden="true" />Topos</Link>
           <nav className="lp-nav__end" aria-label="LP">
-            <a href="#demo" className="lp-nav__link">デモを体験</a>
+            <a href={APPLY} className="lp-nav__link">利用を申し込む</a>
             <Link href="/" className="lp-btn lp-btn--sm">ログイン</Link>
           </nav>
         </div>
@@ -89,81 +107,94 @@ export default function LandingPage() {
             <div className="hero">
               <p className="hero__brand">Topos</p>
               <h1 id="lp-title" className="hero__title">誰の考えも埋もれない議論を、<br />すべての教室に。</h1>
-              <p className="hero__lead">議論の前に全員の考えを集め、まだ話されていない論点と、合意のずれを AI が見つける。</p>
+              <p className="hero__lead">{LEAD}</p>
               <div className="lp-actions">
                 <Link href="/" className="lp-btn lp-btn--light">ログイン</Link>
-                <a href="#demo" className="lp-btn lp-btn--outline">デモを体験</a>
+                <a href={APPLY} className="lp-btn lp-btn--outline">利用を申し込む</a>
               </div>
             </div>
-            <p className="hero__found">書いたのに、言い出せなかった意見がある。<br />Topos は、それを見逃さない。</p>
+            <p className="hero__found">学生が事前に書いていたのに、議論では誰も触れなかった論点。<br />Topos は、それを録音と照らし合わせて見つける。</p>
           </div>
         </section>
 
-        {/* 2. 誰の考えも埋もれない議論：議論の前・中・あと */}
-        <section className="sec sec--white" id="how" aria-labelledby="lp-how-title">
+        {/* 2. なぜ今か：AI 時代に育てたい力 */}
+        <section className="sec sec--white" aria-labelledby="lp-why-title">
           <div className="wrap">
             <header className="sec__head" data-reveal>
-              <h2 id="lp-how-title" className="h2">声の小さな意見ほど、議論を変える。</h2>
+              <p className="eyebrow">AI が答えを出せる時代に</p>
+              <h2 id="lp-why-title" className="h2">育てたいのは、自分の考えを持ち、<br />それを見直せる力。</h2>
             </header>
-            <div className="stages">
-              {STAGES.map((s) => (
-                <article key={s.art} className={`stage stage--${s.art}`} data-reveal>
-                  <div className="stage__text">
-                    <p className="stage__when">{s.when}</p>
-                    <h3 className="stage__title">{s.title}</h3>
-                    <p className="stage__body">{s.body}</p>
-                    <p className="stage__feature">{s.feature}</p>
+            <div className="why" data-reveal>
+              <p>調べれば答えが出る。文章も AI が書ける。だからこそ学校で育てたいのは、答えを知っていることではなく、自分の考えを根拠とともに語り、他者の考えと比べ、必要なら考えを改める力だ。</p>
+              <dl className="why__skills">
+                <div><dt>論理的思考</dt><dd>主張と根拠を結びつけ、論点を漏らさず比べる。</dd></div>
+                <div><dt>メタ認知</dt><dd>自分がどう考え、どう関わったかを、外から捉え直す。</dd></div>
+              </dl>
+              <p>グループディスカッションは、この2つを同時に鍛えられる数少ない場だ。ただし、話し合いをさせるだけでは育たない。</p>
+            </div>
+          </div>
+        </section>
+
+        {/* 3. 課題：話し合いをさせるだけでは起きること */}
+        <section className="sec sec--gray" aria-labelledby="lp-gap-title">
+          <div className="wrap">
+            <header className="sec__head" data-reveal>
+              <h2 id="lp-gap-title" className="h2">話し合いをさせるだけでは、<br />考えは埋もれる。</h2>
+            </header>
+            <ol className="gaps">
+              {GAPS.map((g, i) => (
+                <li key={g.title} className="gap" data-reveal>
+                  <span className="gap__n">{i + 1}</span>
+                  <h3 className="gap__title">{g.title}</h3>
+                  <p className="gap__body">{g.body}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        {/* 4. 3機能：埋もれた考えを、学びの材料に変える */}
+        <section className="sec sec--white" id="features" aria-labelledby="lp-feat-title">
+          <div className="wrap">
+            <header className="sec__head" data-reveal>
+              <h2 id="lp-feat-title" className="h2">議論の過程を、学びの材料に変える。</h2>
+              <p className="sec__lead">Topos は、議論の結論ではなく過程を残す。学生は自分を振り返る手がかりを、教員は指導の根拠を得る。</p>
+            </header>
+            <div className="features">
+              {FEATURES.map((f) => (
+                <article key={f.art} className="feature" data-reveal>
+                  <div className="feature__text">
+                    <p className="feature__name">{f.name}</p>
+                    <h3 className="feature__title">{f.title}</h3>
+                    <p className="feature__body">{f.body}</p>
+                    <p className="feature__skill">{f.skill}</p>
                   </div>
-                  <StageArt kind={s.art} />
+                  <FeatureArt kind={f.art} />
                 </article>
               ))}
             </div>
           </div>
         </section>
 
-        {/* 3. すべての教室に：教室が並ぶ空間（WebGL）。引いていくと、中央から外へ灯っていく */}
-        <section className="sc sc--rooms" id="everyone" data-scene aria-labelledby="lp-rooms-title">
-          <div className="sc__stick">
-            <RoomsScene />
-            <h2 id="lp-rooms-title" className="rooms__cap">ひとつの教室から始めて、学校じゅうに広げられる。</h2>
-          </div>
-        </section>
-
-        <section className="sec sec--gray" aria-labelledby="lp-aud-title">
+        {/* 5. AI の役割：考えるのは人 */}
+        <section className="sec sec--dark" aria-labelledby="lp-ai-title">
           <div className="wrap">
             <header className="sec__head" data-reveal>
-              <h2 id="lp-aud-title" className="h2">教室が、こう変わる。</h2>
+              <h2 id="lp-ai-title" className="h2">AI は答えを出さない。<br />考えるきっかけを示す。</h2>
             </header>
-            <div className="audience">
-              {AUDIENCE.map((a) => (
-                <article key={a.art} className={`aud aud--${a.art}`} data-reveal>
-                  <div className={`aud__art aud__art--${a.art}`} aria-hidden="true"><i /><i /><i /><i /><i /><i /></div>
-                  <p className="aud__who">{a.who}</p>
-                  <h3 className="aud__title">{a.title}</h3>
-                  <p className="aud__body">{a.body}</p>
-                </article>
-              ))}
-            </div>
-            <Link href="/about" className="more">だれが何を読めるか ›</Link>
+            <ul className="facts" data-reveal>
+              <li><b>答えではなく、問いを返す</b>話されなかった論点は、結論ではなく問いとして示される。それにどう答えるかを考えるのは、学生自身だ。</li>
+              <li><b>振り返るのは、学生自身</b>発言の偏りも、考えの変化も、材料を渡すだけ。なぜそうなったのか、次にどうするかは、学生が自分の言葉で決める。</li>
+              <li><b>問いかけるのは、教員</b>どのグループの、どの場面に声をかけるか。AI の示す根拠をもとに、教員が判断する。</li>
+            </ul>
           </div>
         </section>
 
-        {/* 4. デモ */}
-        <section className="sec sec--white" id="demo" aria-labelledby="lp-demo-title">
-          <div className="wrap">
-            <header className="sec__head" data-reveal>
-              <h2 id="lp-demo-title" className="h2">ひとつの議論を、3分で体験する。</h2>
-              <p className="sec__lead">学生として意見を書いて、教員の画面で何が起きるかを見てみよう。ログインはいらない。</p>
-            </header>
-            <LpDemo />
-          </div>
-        </section>
-
-        {/* 5. 始め方 */}
+        {/* 6. 始め方 */}
         <section className="sec sec--gray" aria-labelledby="lp-start-title">
           <div className="wrap">
             <header className="sec__head" data-reveal>
-              <h2 id="lp-start-title" className="h2">今日から、使い始める。</h2>
+              <h2 id="lp-start-title" className="h2">始め方</h2>
             </header>
             <div className="starts">
               <article className="start" data-reveal>
@@ -175,13 +206,13 @@ export default function LandingPage() {
               <article className="start" data-reveal>
                 <p className="start__who">招待を受けた教員</p>
                 <h3 className="start__title">議論を作る</h3>
-                <p className="start__body">招待された Google アカウントでログインすると、すぐにテーマを入れて議論を作れる。</p>
+                <p className="start__body">テーマを入れるだけで議論を作れる。グループ分けと参加コードは自動で用意される。</p>
                 <Link href="/" className="lp-btn lp-btn--dark start__cta">ログイン</Link>
               </article>
               <article className="start start--apply" data-reveal>
                 <p className="start__who">これから使う教員・学校</p>
                 <h3 className="start__title">利用を申し込む</h3>
-                <p className="start__body">教員1人でも、学校全体でも。メールで申し込むと、議論を作れる教員の招待を届ける。</p>
+                <p className="start__body">議論を作れるのは、招待を受けた教員だけ。メールで申し込むと、招待を届ける。</p>
                 <a href={APPLY} className="lp-btn lp-btn--light start__cta">メールで申し込む</a>
                 <p className="start__mail">{CONTACT}</p>
               </article>
@@ -189,7 +220,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* 6. 締め */}
+        {/* 7. 締め */}
         <section className="sec sec--end" aria-labelledby="lp-end-title">
           <div className="wrap wrap--center">
             <p className="end__brand"><span aria-hidden="true" />Topos</p>

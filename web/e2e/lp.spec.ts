@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-// 紹介ページ（LP）：ログインなしで開け、ログインと利用の申し込みの入口があり、LP の中でデモを最後まで体験できる。
+// 紹介ページ（LP）：ログインなしで開け、3機能と AI の役割を示し、ログインと利用の申し込みの入口がある。
 
 test("ログインなしで LP を開き、ログイン画面へ戻されない", async ({ page }) => {
   await page.goto("/lp");
@@ -11,24 +11,15 @@ test("ログインなしで LP を開き、ログイン画面へ戻されない"
   await page.screenshot({ path: "../docs/screenshots/lp-hero-mobile.png" });
 });
 
-test("LP の中で、書く・話す・まとめるの順にデモを体験できる", async ({ page }) => {
+test("3機能を、学生のどの力を支えるかとあわせて示す", async ({ page }) => {
   await page.goto("/lp");
-  await page.getByRole("link", { name: "デモを体験" }).first().click();
-  const demo = page.locator(".demo");
-  await demo.getByRole("button", { name: "例を入れてみる" }).click();
-  await demo.getByRole("button", { name: "書き終えた" }).click();
-  await expect(demo.getByText("書けた。この考えは、あなたにしか見えない。")).toBeVisible();
-  await demo.getByRole("button", { name: "議論を始める" }).click({ timeout: 10_000 });
-  // 未検討の論点は教員の画面に出て、教員が表示を選ぶまで学生には届かない
-  await expect(demo.getByText("まだ話されていない論点")).toBeVisible({ timeout: 10_000 });
-  await expect(demo.getByLabel("学生の画面").getByText("教員から")).toHaveCount(0);
-  await demo.getByRole("button", { name: "全員に問いかける" }).click();
-  await expect(demo.getByLabel("学生の画面").getByText("教員から")).toBeVisible();
-  await demo.getByRole("button", { name: "結論をまとめる" }).click();
-  await demo.getByRole("radio", { name: "アイデア出しにだけ使える" }).click();
-  await expect(demo.getByText("でも、同じことには賛成していなかった。")).toBeVisible();
-  await expect(demo.getByText("3人（あなたを含む）")).toBeVisible();
-  await demo.screenshot({ path: "../docs/screenshots/lp-demo-mobile.png" });
+  for (const name of ["発言率の可視化", "音声認識による未検討の論点の可視化", "事前の意見から結論への主張の変化の確認"]) {
+    await expect(page.getByText(name, { exact: true })).toBeVisible();
+  }
+  await expect(page.getByRole("heading", { name: "AI は答えを出さない。考えるきっかけを示す。" })).toBeVisible();
+  // 動かないデモは置かない
+  await expect(page.getByRole("link", { name: "デモを体験" })).toHaveCount(0);
+  await page.locator("#features").screenshot({ path: "../docs/screenshots/lp-features-mobile.png" });
 });
 
 test("ログインと、これから使う教員・学校の申し込みの入口がある", async ({ page }) => {
