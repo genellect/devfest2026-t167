@@ -626,6 +626,8 @@ input[type=checkbox] { width: 20px; height: 20px; flex: none; margin: 3px 0 0; a
 .live-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; padding: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-panel); }
 .live-side__title { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 4px; }
 .live-side .flow-card { padding: 0; border: 0; }
+.live-side__code { display: flex; flex-direction: column; gap: 2px; padding-bottom: 14px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--ink-2); }
+.live-side__code strong { font-size: 28px; font-weight: 700; line-height: 1.2; letter-spacing: .04em; font-variant-numeric: tabular-nums; color: var(--ink); }
 .group-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .group-list li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
 .group-list li:last-child { border-bottom: 0; }
@@ -697,6 +699,8 @@ progress::-moz-progress-bar { background: var(--brand); }
 .present__brand::before { content: ""; width: 1.1em; height: 1.1em; border-radius: 3px 3px 8px 3px; background: var(--insight); }
 .present__theme { flex: 1; min-width: 0; font-size: clamp(18px, 3vh, 34px); font-weight: 700; line-height: 1.4; color: #fff; }
 .present__tools { display: flex; gap: 8px; flex: none; }
+.present__late { display: flex; align-items: baseline; gap: 12px; flex: none; font-size: clamp(14px, 2vh, 22px); color: var(--chalk-2); }
+.present__late-code { font-size: clamp(24px, 4vh, 44px); font-weight: 700; letter-spacing: .04em; font-variant-numeric: tabular-nums; color: #fff; }
 .present__tool { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--board-line); background: transparent; color: var(--chalk-2); cursor: pointer; }
 .present__tool:hover { background: var(--board-2); color: #fff; }
 .present__tool svg { width: 20px; height: 20px; }

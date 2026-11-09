@@ -6,6 +6,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { HttpError, requireOpenRoom, type Handler } from './http.js';
 import { participantGroup } from './membership.js';
+import { recordingAnalysisTheme } from './room-visibility.js';
 import { validateAudio } from './audio.js';
 import { MAX_RECORDING_SEC, MAX_RECORDING_BYTES, MAX_RECORDING_ATTEMPTS, RECORDING_TIMEOUT_MS, AUDIO_TYPES, ANALYZE_COOLDOWN_MS, statusOf } from './policy.js';
 import type { Dependencies } from './dependencies.js';
@@ -73,7 +74,7 @@ export function registerRecordingRoutes(app: Express, deps: Dependencies, guards
     });
     let result;
     try {
-      result = await trackJob(deps, 'recording', jobId, () => gemini.analyzeDiscussion({ audio, mimeType, durationSec, theme: room.get('title') ?? '' }));
+      result = await trackJob(deps, 'recording', jobId, () => gemini.analyzeDiscussion({ audio, mimeType, durationSec, theme: recordingAnalysisTheme(room) }));
     } catch {
       await finishIfMine((tx) => tx.set(roomRef(roomId), { groupState: { [group]: { recording: { status: 'failed', failedAt: Timestamp.fromMillis(now()) } } } }, { merge: true }));
       throw new HttpError(503, 'gemini_unavailable', 'AI の分析は一時停止中です。少し待ってから、もう一度送ってください');

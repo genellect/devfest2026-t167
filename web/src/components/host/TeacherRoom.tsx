@@ -104,7 +104,7 @@ function Lobby({ roomId, room, seats, opinions }: { roomId: string; room: Room; 
           <button className="btn btn--blue" disabled={busy} onClick={() => void start(true)}>未準備の参加者を外して開始</button></div>}
         {message && <p className="notice notice--error" role="alert">{message}</p>}
         <button className="btn btn--blue btn--block start-btn" disabled={busy} onClick={() => void start()}>{busy ? "開始しています…" : "議論を開始"}</button>
-        <p className="t-note">開始すると、新しい参加は受け付けません。全員がそろってから始めてください。</p>
+        <p className="t-note">開始したあとも、同じ参加コードで途中から参加できます。</p>
       </section>
     </div>
   );
