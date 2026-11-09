@@ -13,7 +13,7 @@ it('手順書のGCP_SA_KEYを直接SDKへ渡せる', () => {
   googleCredential({ GCP_SA_KEY: key }); expect(certificate).toHaveBeenCalledWith({ projectId: 'p', clientEmail: 'dummy@example.com', privateKey: 'dummy PRIVATE KEY' });
 });
 it('形式が違うときも、例外には鍵の内容を含めない', () => {
-  for (const value of ['private-content', '{"type":"authorized_user","refresh_token":"private-content"}', '{}']) {
+  for (const value of ['private-content', '{"type":"authorized_user","refresh_token":"private-content"}', '{}']) {  // submit-allow: テスト用のダミー
     expect(() => readGoogleCredentials({ GCP_SA_KEY: value })).toThrow('GCP_SA_KEYの形式を確認してください（内容は表示しません）');
   }
 });

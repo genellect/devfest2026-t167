@@ -6,7 +6,7 @@ import { registerDiscussionRoutes } from '../../src/discussion-routes.js';
 import type { Dependencies } from '../../src/dependencies.js';
 import type { Handler } from '../../src/http.js';
 
-const SECRET = '架空の非公開テーマ';
+const SECRET = '架空の非公開テーマ';  // submit-allow: テスト用のダミー
 
 describe('テーマ非公開時の参加者向けの名前（R1）', () => {
   it('テーマと重なる名前だけを伏せ、公開中・別の名前はそのまま返す', () => {
