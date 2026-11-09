@@ -7,7 +7,7 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
   try {
     const user = await emulatorGoogleUser("teacher", `flow-host-${Date.now()}`), headers = { authorization: `Bearer ${user.idToken}` };
     expect((await host.post("/api/sessions", { headers, data: { deviceLabel: "Host端末", deviceType: "pc" } })).status()).toBe(201);
-    async function create() { const r = await host.post("/api/rooms", { headers, data: { title: "新しいMVPフロー", theme: "秘密のテーマ", minutes: 1, groups: 1, recording: false, flowVersion: 1 } }); expect(r.status()).toBe(201); return r.json(); }
+    async function create(recording = true) { const r = await host.post("/api/rooms", { headers, data: { title: "新しいMVPフロー", theme: "秘密のテーマ", minutes: 1, groups: 1, recording, flowVersion: 1 } }); expect(r.status()).toBe(201); return r.json(); }
     const r = await create();
     await fakeQrCamera(page, `${test.info().project.use.baseURL}/join?code=${r.joinCode}`);
     await loginStudent(page);
@@ -29,7 +29,7 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     await expect(page.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
     expect((await host.post(`/api/rooms/${r.roomId}/settings`, { headers, data: { participantView: { theme: false, timer: false, members: false } } })).status()).toBe(200);
     await expect(page.getByText("テーマ：秘密のテーマ")).toHaveCount(0);
-    // 時間は隠さない：以前の画面が timer: false を送っても、残り時間はつねに出る（録音しない部屋では見出しの下に1行）
+    // 時間は隠さない：以前の画面が timer: false を送っても、残り時間はつねに出る
     await expect(page.getByRole("timer", { name: /残り時間/ })).toBeVisible();
     expect((await host.post(`/api/rooms/${r.roomId}/finish`, { headers, data: {} })).status()).toBe(200);
     await expect(page.getByRole("heading", { name: "結論を自分の言葉で書く" })).toBeVisible();
@@ -37,6 +37,14 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     const next = await create(); await page.goto(`/join?code=${next.joinCode}`);
     await expect(page).toHaveURL(/\/rooms\//);
     await page.getByLabel("参加者1の表示名").fill("次回の表示名");
+    await page.getByRole("button", { name: "表示名を保存して進む" }).click();
+    await expect(page.getByRole("heading", { name: "議論の前に書く" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "声の登録" })).toHaveCount(0);
+    // 録音しない部屋では、声を使わないので、声の登録の画面を出さない
+    await page.getByRole("link", { name: "ホーム", exact: true }).click();
+    const plain = await create(false); await page.goto(`/join?code=${plain.joinCode}`);
+    await expect(page).toHaveURL(/\/rooms\//);
+    await page.getByLabel("参加者1の表示名").fill("録音しない部屋");
     await page.getByRole("button", { name: "表示名を保存して進む" }).click();
     await expect(page.getByRole("heading", { name: "議論の前に書く" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "声の登録" })).toHaveCount(0);

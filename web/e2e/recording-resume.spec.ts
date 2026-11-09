@@ -39,6 +39,7 @@ test('録音中に画面を開き直しても、続きを録り、議論の終�
     await guest.reload();
     await expect(guest.getByRole('heading', { name: 'グループで話し合いましょう' })).toBeVisible();
     await expect(guest.getByText(/この端末に、ここまでの録音が残っています/)).toBeVisible();
+    await guest.screenshot({ path: '../docs/screenshots/recording-resume-mobile.png', fullPage: true });
     await consent().check();
     await guest.getByRole('button', { name: '録音を再開する', exact: true }).click();
     await expect(guest.getByRole('button', { name: '録音中', exact: true })).toBeVisible();
