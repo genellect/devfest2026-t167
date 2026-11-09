@@ -23,14 +23,15 @@ describe('指標', () => {
 });
 
 describe('納得度の分布と平均', () => {
-  it('3人以上なら1〜5の人数と平均を出す', () => {
+  it('4人以上なら1〜5の人数と平均を出す', () => {
     expect(agreementSummary([4, 3, 5, 4])).toEqual({ respondents: 4, counts: [0, 0, 1, 2, 1], average: 4 });
   });
-  it('2人以下では、自分の値から相手が分かるので分布も平均も出さない', () => {
+  it('3人以下では、自分の値からほかの人の値が分かるので分布も平均も出さない', () => {
+    expect(agreementSummary([4, 3, 5])).toEqual({ respondents: 3, counts: null, average: null });
     expect(agreementSummary([4, 3])).toEqual({ respondents: 2, counts: null, average: null });
     expect(agreementSummary([])).toEqual({ respondents: 0, counts: null, average: null });
   });
   it('範囲外・整数でない値は数えない', () => {
-    expect(agreementSummary([0, 6, 2.5, '4', null, 1, 2, 3])).toEqual({ respondents: 3, counts: [1, 1, 1, 0, 0], average: 2 });
+    expect(agreementSummary([0, 6, 2.5, '4', null, 1, 2, 3, 2])).toEqual({ respondents: 4, counts: [1, 2, 1, 0, 0], average: 2 });
   });
 });

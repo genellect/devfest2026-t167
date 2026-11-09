@@ -29,7 +29,8 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     await expect(page.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
     expect((await host.post(`/api/rooms/${r.roomId}/settings`, { headers, data: { participantView: { theme: false, timer: false, members: false } } })).status()).toBe(200);
     await expect(page.getByText("テーマ：秘密のテーマ")).toHaveCount(0);
-    await expect(page.getByRole("timer")).toHaveCount(0);
+    // 時間は隠さない：以前の画面が timer: false を送っても、残り時間はつねに出る（録音しない部屋では見出しの下に1行）
+    await expect(page.getByRole("timer", { name: /残り時間/ })).toBeVisible();
     expect((await host.post(`/api/rooms/${r.roomId}/finish`, { headers, data: {} })).status()).toBe(200);
     await expect(page.getByRole("heading", { name: "結論を自分の言葉で書く" })).toBeVisible();
     await page.getByRole("link", { name: "ホーム", exact: true }).click();

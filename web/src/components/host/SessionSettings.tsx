@@ -27,8 +27,9 @@ export function SessionSettings({ roomId, room, embedded = false }: { roomId: st
   const who = (m: (typeof members)[number], i: number) => m.attendees?.map((a) => a.displayName).join("、") || m.displayName || `参加者${i + 1}`;
   const voice = (m: (typeof members)[number]) => (m.ready ? "声：登録済み" : "声：未登録");
   const many = (room.groups ?? 1) > 1;
-  const viewKeys = (["theme", "timer", "members", "speaking"] as const).filter((key) => key !== "timer" || !!room.minutes);
-  const viewLabel = { theme: "テーマ", timer: "経過時間・残り時間", members: "所属グループの参加者", speaking: "結果画面の発言率の推移" } as const;
+  // 経過時間・残り時間は、参加者の画面につねに出す（隠す設定は置かない）
+  const viewKeys = ["theme", "members", "speaking"] as const;
+  const viewLabel = { theme: "テーマ", members: "所属グループの参加者", speaking: "結果画面の発言率の推移" } as const;
   const content = <div className="stack settings">
     <section className="settings__group" aria-labelledby="set-theme">
       <h3 id="set-theme" className="t-sm">テーマ</h3>
@@ -46,6 +47,7 @@ export function SessionSettings({ roomId, room, embedded = false }: { roomId: st
     <section className="settings__group" aria-labelledby="set-view">
       <h3 id="set-view" className="t-sm">参加者の画面に出すもの</h3>
       {viewKeys.map((key) => <label className="check" key={key}><input type="checkbox" disabled={busy} checked={view[key] ?? (key !== "speaking")} onChange={(e) => void changeView(key, e.target.checked)} /><span>参加者に{viewLabel[key]}を表示</span></label>)}
+      <p className="t-note">発言率の推移は、議論の終了後に結果を公開したときだけ出します。本人の線に加えて、ほかのメンバーを名前なしのグレーの線で出します（3人以上のグループだけ）。経過時間・残り時間は、つねに表示します。</p>
     </section>
     {!embedded && room.phase === "collecting" && <>
       <button className="btn btn--blue" disabled={busy} onClick={() => void start()}>セッションを開始</button>

@@ -78,7 +78,7 @@ export function registerLiveRoutes(app: Express, deps: Dependencies, guards: Ret
             for (const path of Object.keys(payload.docs)) {
               // 学生には、議論の終了後に結果を公開したときだけ届ける（議論中の画面には発言率を出さない）
               if (path.includes('/speaking/') && (room.get('participantView.speaking') !== true || !room.get('endedAt') || room.get('resultsPublished') !== true)) payload.docs[path] = null;
-              // 終了後の結果画面では、本人の発言時間と割合だけを渡す（ほかの人の名前と時間は渡さない）
+              // 終了後の結果画面では、本人の発言時間と割合を渡す。ほかの人の名前・ID・直近の発言者は渡さず、時間は2人以上いるときだけ名前なしで渡す（speaking-view.ts）
               else if (path.includes('/speaking/') && room.get('endedAt') && payload.docs[path]) {
                 const self = await db.doc(`${roomPath}/members/${uid}`).get();
                 const ownIds = ((self.get('attendees') as { id: string }[] | undefined) ?? []).map((a) => a.id);
@@ -90,7 +90,6 @@ export function registerLiveRoutes(app: Express, deps: Dependencies, guards: Ret
                 data.groupState = group ? { [group]: data.groupState?.[group] ?? {} } : {};
                 delete data.analysis;
                 if (data.participantView?.theme === false) { data.title = participantTitle({ title: data.title, theme: data.theme, themeHidden: true }); data.theme = ''; }
-                if (data.participantView?.timer === false) { delete data.endsAt; delete data.minutes; }
                 payload.docs[path] = data;
               }
             }

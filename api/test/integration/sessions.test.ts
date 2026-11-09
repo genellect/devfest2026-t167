@@ -275,8 +275,19 @@ describe('ライブ配信と既存データの認可', () => {
       expect(published).not.toContain('OTHER-SPEAKING'); expect(published).not.toContain('PRIVATE-VOICE-VECTOR');
       expect(published).not.toContain('PEER-IN-SAME-GROUP'); expect(published).not.toContain('peer-attendee');
       expect(published).toContain('"scope":"self"'); expect(published).toContain('"totalMs":10000');
-      // ほかのメンバーの時間は、名前とIDを外した配列でだけ届く
-      expect(published).toContain('"othersMs":[5000]');
+      // 2人のグループでは、相手の時間（線がそのまま相手の推移になる）を送らない
+      expect(published).not.toContain('othersMs');
+      // 3人以上なら、ほかのメンバーの時間を、名前とIDを外し、発言時間の多い順の配列で送る
+      await room.collection('speaking').doc('1').set({
+        group: 1, source: 'mock', processedMs: 120_000, unknownMs: 1000,
+        talkMs: { 'own-attendee': 4000, 'peer-attendee': 5000, 'third-attendee': 7000 },
+        members: [{ uid: 'own-attendee', label: 'FINAL-SPEAKING' }, { uid: 'peer-attendee', label: 'PEER-IN-SAME-GROUP' }, { uid: 'third-attendee', label: 'THIRD-IN-SAME-GROUP' }],
+        latest: null,
+        timeline: [{ talkMs: { 'own-attendee': 4000, 'peer-attendee': 5000, 'third-attendee': 7000 }, unknownMs: 1000 }],
+      });
+      const three = await stream.until((s) => s.includes('"othersMs"'));
+      expect(three).toContain('"othersMs":[7000,5000]');
+      expect(three).not.toContain('THIRD-IN-SAME-GROUP'); expect(three).not.toContain('third-attendee');
     } finally { await stream.close(); }
   });
   it('メンバー外と失効済みセッションの配信・所属取得を拒否する', async () => {

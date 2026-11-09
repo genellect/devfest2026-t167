@@ -602,9 +602,6 @@ input[type=checkbox] { width: 20px; height: 20px; flex: none; margin: 3px 0 0; a
 .ended-hero__count small { font-size: 16px; font-weight: 600; color: var(--ink-2); letter-spacing: 0; }
 .ended-hero__bar { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
 .ended-hero__bar span { display: block; height: 100%; background: var(--brand); border-radius: inherit; transition: width .4s ease; }
-.ended-hero__groups { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
-.ended-hero__groups li { display: inline-flex; align-items: center; gap: 8px; padding: 4px 4px 4px 12px; min-height: 36px; border-radius: 999px; background: var(--surface-2); font-size: 14px; }
-.ended-hero__groups li[data-done] { background: var(--ok-bg); color: var(--ok-ink); padding-right: 12px; }
 .ended-hero__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
 .ended-hero--quiet { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; padding: 14px 20px; }
 .ended-hero--quiet .ended-hero__title { font-size: 16px; }
@@ -903,7 +900,6 @@ progress::-moz-progress-bar { background: var(--brand); }
 .member-list__row { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 12px; background: #f0f4f9; }
 .member-list__avatar { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: #fff; font-weight: 700; font-size: 14px; }
 .member-list__name { flex: 1; font-size: 16px; color: var(--ink); }
-.member-list__rate { font-size: 13px; color: var(--brand); }
 .back-btn { align-self: flex-start; border-radius: 22px; }
 
 /* ---------- 先生のダッシュボード（進行）（Figma「最新」182:445） ---------- */
@@ -915,6 +911,11 @@ progress::-moz-progress-bar { background: var(--brand); }
 .tally__alert .tally__num { font-size: 28px; color: #001d35; }
 .tally__alert .tally__num small { display: block; margin: 0; font-size: 12px; font-weight: 400; }
 .tally__alert[data-alert] .tally__num { color: var(--insight-ink); }
+/* 未検討の論点の数字は、論点の欄へのリンク（グループが多いときも、中核の機能にすぐ届くように） */
+a.tally__alert { display: block; margin: -6px -10px; padding: 6px 10px; border-radius: 12px; color: inherit; text-decoration: none; }
+a.tally__alert:hover { background: rgb(255 255 255 / .45); }
+a.tally__alert:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+.next__title { scroll-margin-top: 84px; }
 .group-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin: 0; padding: 0; list-style: none; }
 .group-card2__status { white-space: nowrap; }
 .group-card2 { --tone: var(--ink-3); display: flex; gap: 20px; align-items: center; padding: 22px 22px 22px 24px; border-radius: 16px; background: var(--surface); box-shadow: inset 6px 0 0 var(--tone); min-width: 0; }
@@ -933,6 +934,9 @@ progress::-moz-progress-bar { background: var(--brand); }
 .group-card2__track { height: 10px; border-radius: 5px; background: #eef1f6; overflow: hidden; }
 .group-card2__track span { display: block; height: 100%; border-radius: 5px; }
 .group-card2__pct { text-align: right; font-variant-numeric: tabular-nums; }
+.group-card2__rate[data-unknown] { color: var(--ink-3); }
+/* 終了後の画面では、白い面の中に並べるので、カードに線を付ける */
+.ended-hero .group-card2 { box-shadow: inset 6px 0 0 var(--tone), inset 0 0 0 1px var(--line); }
 @media (max-width: 767px) {
   .tally--blue { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: 18px; }
   .tally__clock { border-right: 0; padding-right: 0; }
@@ -942,8 +946,9 @@ progress::-moz-progress-bar { background: var(--brand); }
   .group-card2__rates { flex-basis: auto; }
 }
 
-/* 他の人が録音中（Figma「最新」345:44 / スマホ 358:110） */
-.other-recording { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 16px 18px; border-radius: 12px; background: #feefc3; color: var(--ink); }
+/* 他の人が録音中（Figma「最新」345:44 / スマホ 358:110）。黄色は冒頭の方針で決めた場面（AI の論点など）だけに使うので、ここは灰色の面にする。
+   赤い点は、担当の端末がいま録音しているとき（data-live）だけ出す */
+.other-recording { display: flex; flex-direction: column; align-items: flex-start; align-self: stretch; gap: 10px; padding: 16px 18px; border-radius: 12px; background: var(--surface-2); color: var(--ink); }
 .other-recording__title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; }
 .other-recording__dot { width: 10px; height: 10px; border-radius: 50%; background: #d93025; animation: rec-blink 1.6s ease-in-out infinite; }
 .other-recording .btn[disabled] { border-radius: 22px; background: rgb(0 0 0 / .08); color: var(--ink-3); border-color: transparent; }
@@ -951,11 +956,10 @@ progress::-moz-progress-bar { background: var(--brand); }
 @media (prefers-reduced-motion: reduce) { .other-recording__dot { animation: none; } }
 @media (max-width: 767px) { .other-recording .btn { width: 100%; } }
 
-/* 議論の経過時間の丸（Figma「最新」P3 345:44 / スマホ 358:68） */
+/* 議論の時間の丸（Figma「最新」P3 345:44 / スマホ 358:68）。上限があれば残り時間、なければ経過時間 */
 .elapsed-circle { align-self: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 180px; height: 180px; margin: 8px auto; border-radius: 50%; background: #c2e7ff; color: #001d35; }
 .elapsed-circle__label { font-size: 13px; }
 .elapsed-circle__time { font-size: 32px; font-variant-numeric: tabular-nums; }
-.other-recording .elapsed-circle { background: #fff7e0; }
 @media (max-width: 767px) { .elapsed-circle { width: 140px; height: 140px; } .elapsed-circle__time { font-size: 28px; } }
 
 /* ---------- 画面の骨組み（Figma「最新」：上の帯・左のメニュー・灰色の角丸パネル） ---------- */
