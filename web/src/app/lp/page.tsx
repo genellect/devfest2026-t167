@@ -33,25 +33,25 @@ const GAPS = [
 ];
 
 /**
- * 8グループの場面。40人のクラスなら8つの議論が同時に進み、教員がその場で聞けるのは1つだけ。
- * 引いたあと、各グループに3機能の結果を1つずつ出す（架空の例）。
+ * 8グループの節。40人のクラスなら8つの議論が同時に進み、教員がその場で聞けるのは1つだけ。
+ * 聞けなかった7つで何が起きていたかを、Topos の分析結果（3機能）として具体的に示す。テーマは FEATURES と同じ架空の例。
  */
-const ROOMS: { n: number; tag?: string; kind?: "points" | "rate" | "change" }[] = [
-  { n: 1 },
-  { n: 2, tag: "未検討の論点が1つ", kind: "points" },
-  { n: 3 },
-  { n: 4, tag: "発言が2人に偏った", kind: "rate" },
-  { n: 5 },
-  { n: 6, tag: "考えが変わった人が3人", kind: "change" },
-  { n: 7, tag: "未検討の論点が2つ", kind: "points" },
-  { n: 8 },
+const ROOMS: { n: number; kind?: "points" | "rate" | "change"; label?: string; body: string }[] = [
+  { n: 1, body: "教員がその場で聞いていたグループ" },
+  { n: 2, kind: "points", label: "未検討の論点", body: "有料の AI を使える人と、使えない人で差が出る" },
+  { n: 3, kind: "rate", label: "発言率", body: "理由の深掘りの場面で、4人中2人が一度も話さなかった" },
+  { n: 4, kind: "change", label: "考えの変化", body: "「禁止すべき」から「申告すれば下調べに使える」へ、3人が考えを変えた" },
+  { n: 5, kind: "points", label: "未検討の論点", body: "使ったことを、どこまで申告するか" },
+  { n: 6, kind: "change", label: "結論の理解", body: "全員が「賛成」。ただし、認める範囲は2通りに分かれた" },
+  { n: 7, kind: "rate", label: "発言率", body: "まとめの場面で、発言が1人に集中した" },
+  { n: 8, kind: "points", label: "未検討の論点", body: "AI の答えが誤っていたとき、誰が責任を持つか" },
 ];
 
 /** 次期学習指導要領に向けて示された3つの方向性と、Topos の役割 */
 const GUIDELINE = [
-  { en: "Excellence", ja: "「主体的・対話的で深い学び」の実装", role: "議論の前の意見と後の結論を比べ、考えを深めた過程を残す。" },
-  { en: "Equity", ja: "多様性の包摂", role: "発言しづらい学生が書いた考えも、議論の論点として拾い上げる。" },
-  { en: "Feasibility", ja: "実現可能性の確保", role: "その場で聞けなかったグループの議論も、教員が授業のあとで振り返れる。" },
+  { en: "Excellence", ja: "「主体的・対話的で深い学び」の実装", feature: "事前の意見から結論への主張の変化の確認" },
+  { en: "Equity", ja: "多様性の包摂", feature: "音声認識による未検討の論点の可視化" },
+  { en: "Feasibility", ja: "実現可能性の確保", feature: "発言率の可視化と、全グループの結果の確認" },
 ];
 
 /** よくある質問（主な読み手は、利用を考えている教員） */
@@ -61,11 +61,11 @@ const FAQ = [
   { q: "事前に書いた意見は、ほかの人に見られますか？", a: "事前の意見の本文は、書いた本人にしか表示されません。教員やほかの学生に示すのは、AI が個人を特定しない表現に言い換えた論点だけです。" },
 ];
 
-/** 開発者（チーム Triple Helix） */
+/** 開発者。ヘッダーの吹き出しから、ポートフォリオへ進む */
 const DEVELOPERS = [
-  { name: "Yuto Matsui", role: "Project Manager & Research Engineer", url: "https://yuto-matsui.com/", hue: "blue" },
-  { name: "Koyuri Yamashita", role: "Designer", url: "https://student.redesigner.jp/students/084beef656c4ad6644e4208ab028fd58", hue: "yellow" },
-  { name: "Ryota Murakami", role: "Engineer", hue: "mint" },
+  { name: "Yuto Matsui", role: "Project Manager & Research Engineer", url: "https://yuto-matsui.com/" },
+  { name: "Koyuri Yamashita", role: "Designer", url: "https://student.redesigner.jp/students/084beef656c4ad6644e4208ab028fd58" },
+  { name: "Ryota Murakami", role: "Engineer" },
 ] as const;
 
 /** 3機能。それぞれが、学生のどの力を支えるか */
@@ -130,10 +130,21 @@ export default function LandingPage() {
         <div className="lp-nav__in">
           <Link href="/lp" className="lp-nav__brand"><span className="lp-nav__mark" aria-hidden="true" />Topos</Link>
           <nav className="lp-nav__end" aria-label="LP">
-            <a href="#developers" className="lp-nav__link lp-nav__link--dev">About the Developers</a>
+            <button type="button" className="lp-nav__link lp-nav__dev" popoverTarget="lp-devs">About the Developers</button>
             <a href={APPLY} className="lp-nav__link">利用を申し込む</a>
             <Link href="/" className="lp-btn lp-btn--sm">ログイン</Link>
           </nav>
+        </div>
+        <div id="lp-devs" popover="auto" className="devpop" aria-label="About the Developers">
+          <ul>
+            {DEVELOPERS.map((d) => (
+              <li key={d.name}>
+                {"url" in d
+                  ? <a href={d.url} target="_blank" rel="noopener noreferrer"><b>{d.name}</b><span>{d.role}</span><i aria-hidden="true">↗</i></a>
+                  : <div><b>{d.name}</b><span>{d.role}</span></div>}
+              </li>
+            ))}
+          </ul>
         </div>
       </header>
 
@@ -190,28 +201,22 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* 3b. 8グループ：その場で聞けるのは1つだけ。スクロールで引いていき、授業のあとは8つすべてに目を向けられる */}
-        <section className="sc sc--rooms" data-scene aria-labelledby="lp-rooms-title">
-          <div className="sc__stick">
-            <div className="rooms__copy">
-              <p className="rooms__count" aria-hidden="true"><span className="rooms__one">1</span><span className="rooms__all">8</span><small>/ 8</small></p>
-              <h2 id="lp-rooms-title" className="rooms__title">
-                <span className="rooms__a">40人の教室では、8つの議論が同時に進む。<br />教員がその場で聞けるのは、1つだけ。</span>
-                <span className="rooms__b">授業のあとなら、<br />8つすべての議論に目を向けられる。</span>
-              </h2>
-            </div>
-            <div className="rooms" aria-hidden="true">
-              <div className="rooms__grid">
-                {ROOMS.map((r) => (
-                  <div key={r.n} className={`room${r.n === 1 ? " room--here" : ""}`}>
-                    <p className="room__name">グループ{r.n}</p>
-                    <div className="room__notes"><i /><i /><i /><i /><i /><i /></div>
-                    {r.n === 1 && <p className="room__here">教員がいるグループ</p>}
-                    {r.tag && <p className={`room__tag room__tag--${r.kind}`}>{r.tag}</p>}
-                  </div>
-                ))}
-              </div>
-            </div>
+        {/* 3b. 8グループ：その場で聞けなかった7つの議論で起きていたことを、授業のあとに示す */}
+        <section className="sec sec--dark" id="rooms" aria-labelledby="lp-rooms-title">
+          <div className="wrap">
+            <header className="sec__head" data-reveal>
+              <h2 id="lp-rooms-title" className="h2">教員がその場で聞けるのは、<br />8つの議論のうち1つ。</h2>
+              <p className="sec__lead sec__lead--dark">40人の教室では、8つのグループが同時に話し合う。聞けなかった7つで何が起きていたかを、Topos は授業のあとに示す。</p>
+            </header>
+            <ol className="rooms">
+              {ROOMS.map((r) => (
+                <li key={r.n} className={`room${r.kind ? ` room--${r.kind}` : " room--here"}`} data-reveal>
+                  <p className="room__name">グループ{r.n}</p>
+                  {r.label && <p className="room__label">{r.label}</p>}
+                  <p className="room__body">{r.body}</p>
+                </li>
+              ))}
+            </ol>
           </div>
         </section>
 
@@ -257,14 +262,14 @@ export default function LandingPage() {
           <div className="wrap">
             <header className="sec__head" data-reveal>
               <h2 id="lp-cg-title" className="h2">これからの授業が求めることと、重なる。</h2>
-              <p className="sec__lead">次期学習指導要領に向けて示された3つの方向性と、Topos の役割。</p>
+              <p className="sec__lead">次期学習指導要領に向けて示された3つの方向性と、それを支える Topos の機能。</p>
             </header>
             <ol className="cg">
               {GUIDELINE.map((g) => (
                 <li key={g.en} className="cg__item" data-reveal>
                   <p className="cg__en" lang="en">{g.en}</p>
                   <h3 className="cg__ja">{g.ja}</h3>
-                  <p className="cg__role"><span className="cg__mark">Topos</span>{g.role}</p>
+                  <p className="cg__feature"><span>Topos の機能</span>{g.feature}</p>
                 </li>
               ))}
             </ol>
@@ -316,42 +321,6 @@ export default function LandingPage() {
                 </details>
               ))}
             </div>
-          </div>
-        </section>
-
-        {/* 6c. 開発者 */}
-        <section className="sec sec--gray devs-sec" id="developers" aria-labelledby="lp-dev-title">
-          <svg className="devs__helix" viewBox="0 0 1200 160" preserveAspectRatio="none" aria-hidden="true">
-            <path className="hx1" d="M0 80 C 100 10, 200 10, 300 80 S 500 150, 600 80 S 800 10, 900 80 S 1100 150, 1200 80" />
-            <path className="hx2" d="M0 80 C 100 150, 200 150, 300 80 S 500 10, 600 80 S 800 150, 900 80 S 1100 10, 1200 80" />
-            <path className="hx3" d="M0 40 C 150 120, 250 120, 400 40 S 650 -20, 800 60 S 1050 140, 1200 40" />
-          </svg>
-          <div className="wrap">
-            <header className="devs__head" data-reveal>
-              <p className="devs__eyebrow">Team Triple Helix</p>
-              <h2 id="lp-dev-title" className="devs__title" lang="en">About the Developers</h2>
-              <p className="devs__lead">研究・デザイン・エンジニアリング。3人の強みを撚り合わせて、Topos をつくりました。</p>
-            </header>
-            <ul className="devs">
-              {DEVELOPERS.map((d) => {
-                const initials = d.name.split(" ").map((w) => w[0]).join("");
-                const body = (
-                  <>
-                    <span className={`dev__mono dev__mono--${d.hue}`} aria-hidden="true">{initials}</span>
-                    <span className="dev__name" lang="en">{d.name}</span>
-                    <span className="dev__role" lang="en">{d.role}</span>
-                    {"url" in d && <span className="dev__go">Portfolio<span aria-hidden="true"> ↗</span></span>}
-                  </>
-                );
-                return (
-                  <li key={d.name} className="dev" data-reveal>
-                    {"url" in d
-                      ? <a className="dev__card dev__card--link" href={d.url} target="_blank" rel="noopener noreferrer" aria-label={`${d.name}（${d.role}）のポートフォリオ（新しいタブで開く）`}>{body}</a>
-                      : <div className="dev__card">{body}</div>}
-                  </li>
-                );
-              })}
-            </ul>
           </div>
         </section>
 
