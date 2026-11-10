@@ -204,4 +204,4 @@ Topos には、その三本がすべて編み込まれています。
 
 ## ライセンス
 
-[MIT License](LICENSE)
+[Elastic License 2.0](LICENSE) © 2026 Yuto Matsui
