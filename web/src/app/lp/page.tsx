@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+/* eslint-disable @next/next/no-html-link-for-pages -- LP を出るときは文書ごと切り替え、GA4 をアプリに持ち越さない。 */
 import { NotesScene } from "@/components/lp/LpGL";
 import { LpScenes } from "@/components/lp/LpScenes";
+import { LpAnalytics } from "@/components/lp/LpAnalytics";
+import { LP_URL } from "@/lib/lp-config";
 import "./lp.css";
 
 /*
@@ -18,7 +20,8 @@ const LEAD = "グループディスカッションで埋もれた考えを AI �
 export const metadata: Metadata = {
   title: { absolute: "Topos — 誰の考えも埋もれない議論を、すべての教室に。" },
   description: LEAD,
-  openGraph: { title: "Topos — 誰の考えも埋もれない議論を、すべての教室に。", description: LEAD, locale: "ja_JP", type: "website" },
+  alternates: { canonical: LP_URL },
+  openGraph: { title: "Topos — 誰の考えも埋もれない議論を、すべての教室に。", description: LEAD, url: LP_URL, locale: "ja_JP", type: "website" },
 };
 
 /** 利用の申し込み（これから使う教員・学校）。窓口はメール。件名と記入項目を入れて開く */
@@ -125,14 +128,15 @@ export default function LandingPage() {
       {/* eslint-disable-next-line @next/next/no-page-custom-font -- 見出しの極太（800・900）は LP だけで使う */}
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@800;900&display=swap" precedence="default" />
       <LpScenes />
+      <LpAnalytics />
 
-      <header className="lp-nav">
+      <header className="lp-nav" data-lp-placement="header">
         <div className="lp-nav__in">
-          <Link href="/lp" className="lp-nav__brand"><span className="lp-nav__mark" aria-hidden="true" />Topos</Link>
+          <a href="/lp" className="lp-nav__brand"><span className="lp-nav__mark" aria-hidden="true" />Topos</a>
           <nav className="lp-nav__end" aria-label="LP">
             <button type="button" className="lp-nav__link lp-nav__dev" popoverTarget="lp-devs">About the Developers</button>
-            <a href={APPLY} className="lp-nav__link">利用を申し込む</a>
-            <Link href="/" className="lp-btn lp-btn--sm">ログイン</Link>
+            <a href={APPLY} data-lp-action="apply" className="lp-nav__link">利用を申し込む</a>
+            <a href="/" className="lp-btn lp-btn--sm">ログイン</a>
           </nav>
         </div>
         <div id="lp-devs" popover="auto" className="devpop" aria-label="About the Developers">
@@ -153,13 +157,13 @@ export default function LandingPage() {
         <section className="sc sc--hero" data-scene aria-labelledby="lp-title">
           <div className="sc__stick">
             <NotesScene label="まだ話されていない論点" lines={["AI を使ったことを、", "どこまで申告する？"]} />
-            <div className="hero">
+            <div className="hero" data-lp-placement="hero">
               <p className="hero__brand">Topos</p>
               <h1 id="lp-title" className="hero__title">誰の考えも埋もれない議論を、<br />すべての教室に。</h1>
               <p className="hero__lead">{LEAD}</p>
               <div className="lp-actions">
-                <Link href="/" className="lp-btn lp-btn--light">ログイン</Link>
-                <a href={APPLY} className="lp-btn lp-btn--outline">利用を申し込む</a>
+                <a href="/" className="lp-btn lp-btn--light">ログイン</a>
+                <a href={APPLY} data-lp-action="apply" className="lp-btn lp-btn--outline">利用を申し込む</a>
               </div>
             </div>
             <p className="hero__found">学生が事前に書いていたのに、議論では誰も触れなかった論点。<br />Topos は、それを録音と照らし合わせて見つける。</p>
@@ -284,23 +288,23 @@ export default function LandingPage() {
               <h2 id="lp-start-title" className="h2">始め方</h2>
             </header>
             <div className="starts">
-              <article className="start" data-reveal>
+              <article className="start" data-lp-placement="start" data-reveal>
                 <p className="start__who">学生</p>
                 <h3 className="start__title">授業の議論に参加する</h3>
                 <p className="start__body">教員から届いた参加コードか QR で入る。Google アカウントがあれば参加できる。</p>
-                <Link href="/" className="lp-btn lp-btn--dark start__cta">ログインして参加する</Link>
+                <a href="/" className="lp-btn lp-btn--dark start__cta">ログインして参加する</a>
               </article>
-              <article className="start" data-reveal>
+              <article className="start" data-lp-placement="start" data-reveal>
                 <p className="start__who">招待を受けた教員</p>
                 <h3 className="start__title">議論を作る</h3>
                 <p className="start__body">テーマを入れるだけで議論を作れる。グループ分けと参加コードは自動で用意される。</p>
-                <Link href="/" className="lp-btn lp-btn--dark start__cta">ログイン</Link>
+                <a href="/" className="lp-btn lp-btn--dark start__cta">ログイン</a>
               </article>
-              <article className="start start--apply" data-reveal>
+              <article className="start start--apply" data-lp-placement="start" data-reveal>
                 <p className="start__who">これから使う教員・学校</p>
                 <h3 className="start__title">利用を申し込む</h3>
                 <p className="start__body">議論を作れるのは、招待を受けた教員だけ。メールで申し込むと、招待を届ける。</p>
-                <a href={APPLY} className="lp-btn lp-btn--light start__cta">メールで申し込む</a>
+                <a href={APPLY} data-lp-action="apply" className="lp-btn lp-btn--light start__cta">メールで申し込む</a>
                 <p className="start__mail">{CONTACT}</p>
               </article>
             </div>
@@ -325,22 +329,22 @@ export default function LandingPage() {
         </section>
 
         {/* 7. 締め */}
-        <section className="sec sec--end" aria-labelledby="lp-end-title">
+        <section className="sec sec--end" data-lp-placement="closing" aria-labelledby="lp-end-title">
           <div className="wrap wrap--center">
             <p className="end__brand"><span aria-hidden="true" />Topos</p>
             <h2 id="lp-end-title" className="end__title">誰の考えも埋もれない議論を、すべての教室に。</h2>
             <div className="lp-actions">
-              <Link href="/" className="lp-btn lp-btn--light">ログイン</Link>
-              <a href={APPLY} className="lp-btn lp-btn--outline">利用を申し込む</a>
+              <a href="/" className="lp-btn lp-btn--light">ログイン</a>
+              <a href={APPLY} data-lp-action="apply" className="lp-btn lp-btn--outline">利用を申し込む</a>
             </div>
           </div>
         </section>
       </main>
 
-      <footer className="foot">
+      <footer className="foot" data-lp-placement="footer">
         <p className="foot__brand">Topos</p>
         <p>© 2026 Triple Helix. Developed by Yuto, Ryota &amp; Koyuri.</p>
-        <nav aria-label="フッター" className="foot__links"><Link href="/about">プライバシー</Link><a href={APPLY}>お問い合わせ</a><Link href="/">ログイン</Link></nav>
+        <nav aria-label="フッター" className="foot__links"><a href="/about">プライバシー</a><a href={APPLY} data-lp-action="apply">お問い合わせ</a><a href="/">ログイン</a></nav>
       </footer>
     </div>
   );

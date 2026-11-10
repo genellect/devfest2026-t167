@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   title: { default: "Topos — 誰の考えも埋もれない議論を、すべての教室に。", template: "%s | Topos" },
   description: "議論の前に全員の考えを集め、まだ話されていない論点と合意のずれを AI が見つけるグループディスカッション支援",
   applicationName: "Topos",
+  // Search Console が本番ホストの所有権を確認するための公開用コード。
+  verification: { google: "KzMtX0b7Jaqx9WR8lM1iGJVVMapcqk56eKgTiiMgnRs" },
   // ホーム画面に追加したとき、iPhone でもブラウザの枠なしで開く
   appleWebApp: { capable: true, title: "Topos", statusBarStyle: "default" },
   icons: { apple: "/icons/apple-touch-icon.png" },

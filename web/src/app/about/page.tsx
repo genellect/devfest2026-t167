@@ -62,6 +62,11 @@ export default function About() {
         </section>
 
         <section className="box box--md box--tint pad stack stack--tight">
+          <h2 className="t-sm">紹介ページのアクセス解析</h2>
+          <p className="t-note">紹介ページ（/lp）では Google Analytics 4 を使い、Cookie によって閲覧数と利用申し込みのリンクのクリックを集計します。申し込みメールの送信完了を計測するものではありません。名前・メールアドレス・議論の内容は送信しません。Google によるデータの利用については、<a href="https://policies.google.com/technologies/partner-sites" target="_blank" rel="noopener noreferrer">Google の説明</a>をご覧ください。計測を停止したい場合は、<a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener noreferrer">Google のオプトアウト アドオン</a>を利用できます。</p>
+        </section>
+
+        <section className="box box--md box--tint pad stack stack--tight">
           <h2 className="t-sm">AI の結果について</h2>
           <p className="t-note">AI の分析には誤りが含まれることがあります。画面では「AI による推定」や「デモデータ」と表示し、実際に測った結果と区別しています。成績の判定には使いません。</p>
         </section>
