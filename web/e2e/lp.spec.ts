@@ -42,7 +42,7 @@ test("8グループの場面を最後まで進めると、授業のあとに全�
   await expect(scene.getByText("未検討の論点が1つ")).toBeVisible();
   // 場面は画面に貼り付いたまま（position: sticky が効く）
   expect(Math.abs((await scene.locator(".sc__stick").boundingBox())?.y ?? 999)).toBeLessThan(2);
-  await scene.locator(".sc__stick").screenshot({ path: "../docs/screenshots/lp-rooms-mobile.png" });
+  await page.screenshot({ path: "../docs/screenshots/lp-rooms-mobile.png" });
 });
 
 test("学習指導要領との関係とよくある質問を、出典つきで読める", async ({ page }) => {
