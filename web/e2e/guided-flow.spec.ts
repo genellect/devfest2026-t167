@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { emulatorGoogleUser } from "../../firebase/emulator-auth.mjs";
 import { fakeQrCamera, loginStudent } from "./student";
 
-test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可情報・結果を通り、次回は声を再利用する", async ({ page, playwright }) => {
+test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可情報・結果を通り、次回も声を登録し直す", async ({ page, playwright }) => {
   const host = await playwright.request.newContext({ baseURL: test.info().project.use.baseURL });
   try {
     const user = await emulatorGoogleUser("teacher", `flow-host-${Date.now()}`), headers = { authorization: `Bearer ${user.idToken}` };
@@ -38,8 +38,11 @@ test("GuestはQR・表示名・初回音声登録・待機・Host開始・許可
     await expect(page).toHaveURL(/\/rooms\//);
     await page.getByLabel("参加者1の表示名").fill("次回の表示名");
     await page.getByRole("button", { name: "表示名を保存して進む" }).click();
-    await expect(page.getByRole("heading", { name: "議論の前に書く" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "声の登録" })).toHaveCount(0);
+    // 前回の登録は使い回さず、議論ごとに登録し直す（その日・その場所の声で照合するため）
+    await expect(page.getByRole("heading", { name: "声の登録" })).toBeVisible();
+    await page.getByLabel("声の特徴の登録と、上記の利用方法に同意します").check();
+    await page.getByRole("button", { name: "声を登録する", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "議論の前に書く" })).toBeVisible({ timeout: 20_000 });
     // 録音しない部屋では、声を使わないので、声の登録の画面を出さない
     await page.getByRole("link", { name: "ホーム", exact: true }).click();
     const plain = await create(false); await page.goto(`/join?code=${plain.joinCode}`);

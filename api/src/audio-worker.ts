@@ -19,23 +19,26 @@ function webmDuration(bytes: Buffer): number | undefined {
     if (end - start > 6) throw new Error('oversized_integer');
     let value = 0; for (let i = start; i < end; i++) value = value * 256 + bytes[i]; return value;
   }
-  function walk(start: number, end: number, depth: number) {
+  // Segment の直下に並ぶ要素（長さ不明の Cluster は、次にこれらが現れたところで終わる）
+  const LEVEL1 = [0x1f43b675, 0x1c53bb6b, 0x1254c367, 0x114d9b74, 0x1549a966, 0x1654ae6b, 0x1043a770, 0x1941a469];
+  /** 読み終えた位置を返す。insideUnknown なら、Segment の直下の要素が現れたところで止まる（そこが長さ不明の Cluster の終わり） */
+  function walk(start: number, end: number, depth: number, insideUnknown = false): number {
     if (depth > 8) throw new Error('deep_ebml');
-    for (let at = start; at < end;) {
+    let at = start;
+    while (at < end) {
       if (++elements > 200_000) throw new Error('too_many_elements');
-      const id = vint(at, true), size = vint(at + id.length);
-      const body = at + id.length + size.length, stop = size.unknown ? end : body + size.value;
+      const id = vint(at, true);
+      if (insideUnknown && LEVEL1.includes(id.value)) return at;
+      const size = vint(at + id.length);
+      const body = at + id.length + size.length;
+      if (size.unknown && ![0x18538067, 0x1f43b675].includes(id.value)) throw new Error('unsupported_unknown_size');
+      // MediaRecorder（Chrome）は Segment と Cluster の長さを不明のまま書く。Cluster は次の Cluster の手前で終わる
+      let stop = size.unknown ? end : body + size.value;
       if (stop > end || stop <= at) throw new Error('invalid_size');
-      // 完成したBlob内では未知長Segment/Clusterの終端をバッファ長で有限化できる。
-      // music-metadataの未知長Clusterのignore(-1)を避けるため、解析用コピーだけを書き換える。
-      if (size.unknown) {
-        if (![0x18538067, 0x1f43b675].includes(id.value)) throw new Error('unsupported_unknown_size');
-        let length = BigInt(stop - body);
-        if (length >= (1n << BigInt(size.length * 7)) - 1n) throw new Error('unknown_size_overflow');
-        for (let i = size.length - 1; i >= 0; i--) { bytes[at + id.length + i] = Number(length & 255n); length >>= 8n; }
-        bytes[at + id.length] |= 1 << (8 - size.length);
+      if ([0x18538067, 0x1549a966, 0x1f43b675, 0xa0].includes(id.value)) {
+        const reached = walk(body, stop, depth + 1, size.unknown && id.value === 0x1f43b675);
+        if (size.unknown) stop = reached;
       }
-      if ([0x18538067, 0x1549a966, 0x1f43b675, 0xa0].includes(id.value)) walk(body, stop, depth + 1);
       else if (id.value === 0x2ad7b1) scale = integer(body, stop);
       else if (id.value === 0xe7) cluster = integer(body, stop);
       else if (id.value === 0xa3 || id.value === 0xa1) {
@@ -43,8 +46,17 @@ function webmDuration(bytes: Buffer): number | undefined {
         if (pos + 3 > stop) throw new Error('invalid_block');
         last = Math.max(last, cluster + bytes.readInt16BE(pos));
       }
+      // 完成したBlob内では未知長Segment/Clusterの終端を有限化できる。
+      // music-metadataの未知長Clusterのignore(-1)を避けるため、解析用コピーだけを書き換える。
+      if (size.unknown) {
+        let length = BigInt(stop - body);
+        if (length >= (1n << BigInt(size.length * 7)) - 1n) throw new Error('unknown_size_overflow');
+        for (let i = size.length - 1; i >= 0; i--) { bytes[at + id.length + i] = Number(length & 255n); length >>= 8n; }
+        bytes[at + id.length] |= 1 << (8 - size.length);
+      }
       at = stop;
     }
+    return at;
   }
   walk(0, bytes.length, 0);
   return last >= 0 ? last * scale / 1_000_000_000 + 1 : undefined;

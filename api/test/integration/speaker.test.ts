@@ -137,6 +137,20 @@ it('Host指定の担当者以外は同じグループでも録音を開始でき
   await h.post(`/rooms/${roomId}/groups/update`, { group: 1, name: '担当指定', recorderUid: p.uid }).expect(200);
   await begin(h, roomId); await start(other, roomId).expect(403); await start(p, roomId).expect(201);
 });
+it('照合は直近3秒の声で行い、発言時間は最後の1秒だけを数える。1〜3秒以外の長さは受け付けない', async () => {
+  const { h, p, roomId, ids } = await setup(); await begin(h, roomId);
+  const run = (await start(p, roomId).expect(201)).body.runId;
+  await chunk(p, roomId, run, 0, Buffer.alloc(48000, 1)).expect(400); // 1.5秒
+  await chunk(p, roomId, run, 0, Buffer.alloc(4 * 32000, 1)).expect(413); // 4秒（受け付ける大きさを超える）
+  await chunk(p, roomId, run, 0).expect(200); // 最初は1秒
+  now += 1000; await chunk(p, roomId, run, 1, Buffer.alloc(2 * 32000, 1)).expect(200);
+  now += 1000; await chunk(p, roomId, run, 2, Buffer.alloc(3 * 32000, 1)).expect(200);
+  const state = (await stateRef(roomId).get()).data()!;
+  // 3回で3秒。窓が長くても、二重に数えない
+  expect(state.processedMs).toBe(3000);
+  expect(state.talkMs[ids[0]]).toBe(3000);
+  expect((await db.doc(`sessions/${roomId}/speakerLeases/1`).get()).get('bytes')).toBe(3 * 32000);
+});
 it('再利用した個人プロフィールが処理中に削除された場合、結果に計上しない', async () => {
   const { h, q, roomId } = await setup(); await begin(h, roomId);
   const run = (await start(q, roomId).expect(201)).body.runId;
