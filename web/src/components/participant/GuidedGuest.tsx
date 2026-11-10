@@ -6,7 +6,8 @@ import { callApi } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/session";
 import { useDoc, useCountdown, useInsights, millis, isRecordingLive, type Room, type GroupConfig, type GroupResult } from "@/lib/room";
 import { DiscussionClock } from "@/components/DiscussionClock";
-import { ConsensusStep, DiscussionNotes, OpinionStep, ResultStep } from "./steps";
+import { ConsensusStep, DiscussionNotes, OpinionStep, ResultStep, ThemeCard } from "./steps";
+import { READ_ALOUD } from "@/lib/read-aloud";
 import type { useGroupRecording } from "@/lib/recording";
 import { registerRecordingGuard } from "@/lib/recording-recovery";
 interface Own { voiceSource?: "mock" | "model"; displayName?: string; deviceMode?: "personal" | "shared"; ready?: boolean; attendees?: { id: string; displayName: string; voiceRegistered: boolean }[] }
@@ -18,6 +19,9 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
   const status = group ? room.groupState?.[String(group)]?.status : undefined;
   const [names, setNames] = useState([""]), [mode, setMode] = useState<"personal" | "shared">("personal");
   const [error, setError] = useState(""), [busy, setBusy] = useState(false), [registering, setRegistering] = useState<string>(), [consent, setConsent] = useState(false);
+  // 読み上げる文は画面を開くたびに選び直す。サーバーの描画と食い違わないよう、最初は1つ目にしておく
+  const [readAloud, setReadAloud] = useState(0);
+  useEffect(() => setReadAloud(Math.floor(Math.random() * READ_ALOUD.length)), []);
   const [registrationSeconds, setRegistrationSeconds] = useState(0);
   const [registrationMode, setRegistrationMode] = useState<"mic" | "file">("mic");
   const [recordingConsent, setRecordingConsent] = useState(false);
@@ -147,6 +151,8 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
   const leave = () => !recording.unsaved || window.confirm("録音がまだ送られていません。ホームに戻ると、録音は送られず分析されません。戻りますか？");
   const uploadState = recording.upload.state;
   const who = [own?.displayName, group && (room.groups ?? 1) > 1 ? `グループ${group}` : ""].filter(Boolean).join("・");
+  // テーマは、意見・議論・結論の画面の上に大きく出す。教員がテーマを隠した部屋では出さない
+  const theme = room.participantView?.theme !== false ? room.theme?.trim() : "";
   return <AppShell eyebrow={who || undefined} title={room.participantView?.theme === false ? room.title : room.theme || room.title}
     steps={<Stepper steps={STEPS} current={step} />} back="/home" onLeave={leave}>
     <div className="flow">
@@ -157,7 +163,7 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
         {["uploading", "waiting", "done"].includes(uploadState) && <p className="notice" role="status">{uploadState === "done" ? "録音の送信・分析が完了しました。" : uploadState === "waiting" ? "グループの分析結果を待っています。録音は端末に保持しています。" : "録音を送信して分析しています。画面を閉じずにお待ちください。"}</p>}
         {uploadState === "failed" && <div className="notice notice--error stack"><p role="alert">{recording.upload.message}</p><button className="btn" onClick={() => void recording.retry()}>録音を再送する</button></div>}
         {!group ? <p className="notice">グループに入っていなかったため、結果はありません。</p>
-          : !result && status !== "done" ? <ConsensusStep bare roomId={roomId} uid={uid} title={room.theme || room.title} submitted={gs?.submitted} total={gs?.total} />
+          : !result && status !== "done" ? <>{theme && <ThemeCard theme={theme} />}<ConsensusStep bare roomId={roomId} uid={uid} title={room.theme || room.title} submitted={gs?.submitted} total={gs?.total} /></>
           : !room.resultsPublished ? <p className="notice">結果は教員が公開すると表示されます。</p>
           : <ResultStep roomId={roomId} uid={uid} group={group} title={room.theme || room.title} result={result ?? null}
             showSpeaking={room.participantView?.speaking === true} />}
@@ -181,7 +187,7 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
       : !voiced ? <section className="flow-card" aria-labelledby="voice-title">
         <h2 id="voice-title" className="flow-card__title">声の登録</h2>
         <p className="flow-card__lead">{shared ? "1人ずつ、次の文を9秒で読み上げてください。" : "次の文を9秒で読み上げてください。"}</p>
-        <p className="read-aloud">私たちは、お互いの意見を聞き、理由を考えながら、よりよいアイデアを見つけます。</p>
+        <p className="read-aloud">{READ_ALOUD[readAloud]}</p>
         <label className="check"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /><span>声の特徴の登録と、上記の利用方法に同意します</span></label>
         <details><summary className="t-small">声の使い方</summary><p className="t-small">{shared ? "話し合いの発言時間の推定に使い、セッションの終了時に削除します。" : "この議論の発言時間の推定に使います。声の特徴だけを保存し、音声そのものは保存しません。議論ごとに登録し直します（その日・その場所の声で照合するため）。"}</p></details>
         {own!.attendees!.map((a) => <div className="stack stack--tight" key={a.id}>
@@ -197,15 +203,13 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
 
       : waiting ? (!group
         ? <p className="notice" role="status">グループの割り当てを待っています。</p>
-        : <OpinionStep bare roomId={roomId} uid={uid} total={gs?.total} opinions={gs?.opinions} canChange={false} onChangeGroup={() => {}} />)
+        : <>{theme && <ThemeCard theme={theme} />}<OpinionStep bare roomId={roomId} uid={uid} total={gs?.total} opinions={gs?.opinions} canChange={false} onChangeGroup={() => {}} /></>)
 
       : <>
-        <section className="talk-hero" aria-labelledby="talk-title">
-          <h2 id="talk-title" className="talk-hero__title">グループで話し合いましょう</h2>
-          {room.participantView?.theme !== false && room.theme && <p className="talk-hero__theme">テーマ：{room.theme}</p>}
-          {/* 時間は録音のカードの丸に出す。録音しない部屋では、ここに1行で出す（残り時間か経過時間を、つねに表示） */}
-          {room.recording === false && <DiscussionClock room={room} variant="line" />}
-        </section>
+        {/* 主役はテーマ。「グループで話し合いましょう」は、テーマの上の小さい見出しにする */}
+        {theme ? <ThemeCard theme={theme} heading="グループで話し合いましょう" /> : <h2 className="talk-hero__title">グループで話し合いましょう</h2>}
+        {/* 時間は録音のカードの丸に出す。録音しない部屋では、ここに1行で出す（残り時間か経過時間を、つねに表示） */}
+        {room.recording === false && <DiscussionClock room={room} variant="line" />}
         {/* 教員が承認した問いかけ（まだ話されていない論点）は、届いたらメモより上に出す */}
         {insights.length > 0 && question}
         <DiscussionNotes bare roomId={roomId} />

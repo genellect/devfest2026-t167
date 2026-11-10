@@ -13,6 +13,16 @@ import { useDoc, useMessages, type GroupResult } from "@/lib/room";
 // 旧フロー（ParticipantRoom）と新しい流れ（GuidedGuest）の両方で使う参加者の手順
 
 /** 旧フローでは画面の中央に置き、新しい流れでは親の列にそのまま並べる */
+/** 学生の画面で、話し合うテーマを大きく出す（意見・議論・結論の画面の上） */
+export function ThemeCard({ theme, heading }: { theme: string; heading?: string }) {
+  return (
+    <section className="theme-card" aria-label={heading ? undefined : `テーマ：${theme}`} aria-labelledby={heading ? "theme-card-heading" : undefined}>
+      {heading ? <h2 id="theme-card-heading" className="theme-card__label">{heading}</h2> : <p className="theme-card__label">テーマ</p>}
+      <p className="theme-card__text">{heading && <span className="sr-only">テーマ：</span>}{theme}</p>
+    </section>
+  );
+}
+
 function Wrap({ bare, children }: { bare: boolean; children: React.ReactNode }) {
   return bare ? <>{children}</> : <div className="body body--center">{children}</div>;
 }

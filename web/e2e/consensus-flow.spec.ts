@@ -1,5 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { loginStudent } from "./student";
+import { READ_ALOUD } from "../src/lib/read-aloud";
+
+const THEME = "架空の授業でAIを使うときのルール";
 
 // 1本化した流れ（事前意見 → 議論と未検討論点の提案・承認 → 終了 → 結論の一文 → 結果）を、教員の作成画面から通す。
 // 手順書10-3のデモの流れと、Docs の MVPフロー（Host開始・強制終了・結果）の両方を含む。
@@ -9,10 +12,16 @@ async function joinAndWriteOpinion(guest: Page, code: string, name: string, opin
   await expect(guest).toHaveURL(/\/rooms\//);
   await guest.getByLabel("参加者1の表示名").fill(name);
   await guest.getByRole("button", { name: "表示名を保存して進む" }).click();
+  // 読み上げる文は、用意した3つのうちのどれか1つ
+  expect(READ_ALOUD as readonly string[]).toContain(await guest.locator(".read-aloud").textContent());
+  if (name === "架空の学生A") await guest.screenshot({ path: "../docs/screenshots/unified-guest-voice-mobile.png" });
   // 録音する部屋では、声の登録は必須（話者の推定に、登録していない人の声は使えないため）
   await guest.getByLabel("声の特徴の登録と、上記の利用方法に同意します").check();
   await guest.getByRole("button", { name: "声を登録する", exact: true }).click();
   await expect(guest.getByRole("heading", { name: "声の登録" })).toHaveCount(0, { timeout: 20_000 });
+  // 意見を書く画面の上に、テーマを大きく出す
+  await expect(guest.getByRole("region", { name: `テーマ：${THEME}` })).toBeVisible();
+  if (name === "架空の学生A") await guest.screenshot({ path: "../docs/screenshots/unified-guest-opinion-mobile.png" });
   await guest.getByLabel("あなたの意見（本人だけが見られます）").fill(opinion);
   await guest.getByRole("button", { name: "提出する", exact: true }).click();
   await expect(guest.getByText("提出しました")).toBeVisible();
@@ -24,7 +33,7 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
   await page.goto("/");
   await page.getByRole("button", { name: "テスト用の先生でログイン（エミュレータ）", includeHidden: true }).evaluate(element => (element as HTMLButtonElement).click());
   await page.waitForURL(/\/home$/); await page.goto("/host/new");
-  await page.getByLabel("テーマ", { exact: true }).fill("架空の授業でAIを使うときのルール");
+  await page.getByLabel("テーマ", { exact: true }).fill(THEME);
   await page.getByLabel("セッション名", { exact: true }).fill("架空の2年3組");
   await page.screenshot({ path: "../docs/screenshots/unified-host-new-mobile.png", fullPage: true });
   await page.getByRole("button", { name: "作成する", exact: true }).click();
@@ -45,6 +54,8 @@ test("事前意見・未検討論点の承認・終了・結論の一文のず�
     // 教員が開始すると、全員が議論の画面に変わる（時間は設定しない）
     await page.getByRole("button", { name: "議論を開始", exact: true }).click();
     for (const g of [a, b]) await expect(g.getByRole("heading", { name: "グループで話し合いましょう" })).toBeVisible();
+    // 議論中の主役はテーマ（見出しの下に大きく出す）
+    await expect(a.getByRole("region", { name: "グループで話し合いましょう" })).toContainText(THEME);
     // ダッシュボードのグループのカード：1本化した流れでは、議論中は「話し合い中」（結論・結果の段階は終了後の画面に出る）
     const liveCard = page.getByRole("region", { name: "グループ", exact: true }).getByRole("listitem").filter({ hasText: "グループ1" });
     await expect(liveCard).toContainText("話し合い中");
