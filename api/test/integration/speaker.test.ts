@@ -77,8 +77,11 @@ it('Host開始・録音担当・同意・同時接続・所属セッション・
   await start(p, roomId).expect(409); await begin(h, roomId);
   await start(h, roomId).expect(403);
   await p.post(`/rooms/${roomId}/speaker/start`, { consent: false }).expect(400);
+  const first = (await start(p, roomId).expect(201)).body.runId;
+  // 同じ人が画面を開き直して再開したときは、前の接続を引き継ぐ。前の接続の送信は拒否する
   const run = (await start(p, roomId).expect(201)).body.runId;
-  await start(p, roomId).expect(409);
+  expect(run).not.toBe(first);
+  await chunk(p, roomId, first).expect(409);
   await chunk(q, roomId, run).expect(409);
   await chunk(p, roomId, run, 3).expect(409);
   await chunk(p, roomId, run, 0, Buffer.alloc(10)).expect(400);
@@ -136,6 +139,18 @@ it('Host指定の担当者以外は同じグループでも録音を開始でき
   await register(other, roomId, ['同じ班の別端末']);
   await h.post(`/rooms/${roomId}/groups/update`, { group: 1, name: '担当指定', recorderUid: p.uid }).expect(200);
   await begin(h, roomId); await start(other, roomId).expect(403); await start(p, roomId).expect(201);
+});
+it('担当を決めていないグループで、別の人の接続が生きている間は、引き継がずに拒否する', async () => {
+  const { h, p, roomId } = await setup(), other = await client();
+  const code = (await db.doc(`sessions/${roomId}`).get()).get('joinCode');
+  await other.post('/rooms/join', { code }).expect(200);
+  await h.post(`/rooms/${roomId}/groups/assign`, { uid: other.uid, group: 1 }).expect(200);
+  await register(other, roomId, ['同じ班の別端末']);
+  await begin(h, roomId);
+  const run = (await start(p, roomId).expect(201)).body.runId;
+  expect((await start(other, roomId).expect(409)).body.error.code).toBe('recorder_exists');
+  await chunk(p, roomId, run).expect(200); // 先の人の接続は続く
+  now += 31_000; await start(other, roomId).expect(201); // 前の接続が切れたら（30秒）、始められる
 });
 it('照合は直近3秒の声で行い、発言時間は最後の1秒だけを数える。1〜3秒以外の長さは受け付けない', async () => {
   const { h, p, roomId, ids } = await setup(); await begin(h, roomId);

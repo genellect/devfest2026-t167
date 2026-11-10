@@ -73,7 +73,10 @@ export function registerSpeakerRoutes(app: Express, deps: Dependencies, guards: 
       const { ref, group } = await access(tx, req), voices = await profiles(tx, req, group);
       const leaseRef = ref.collection('speakerLeases').doc(String(group)), lease = await tx.get(leaseRef);
       const stateRef = ref.collection('speaking').doc(String(group)), state = await tx.get(stateRef);
-      if (lease.exists && lease.get('expiresAt') > deps.now()) throw error('recorder_exists', 'このグループは別の接続で話者識別中です');
+      // 同じ人が、画面を開き直して録音を再開したときは、前の接続（最大30秒残る）を引き継ぐ。
+      // 引き継がないと、再開しても30秒は 409 になり、画面は送り直さないので、その議論の発言率が集計されなかった（2026-11-10）。
+      // 前の接続の送信は、以後 recorder_expired で拒否する。別の人の接続が生きている間は、これまでどおり拒否する
+      if (lease.exists && lease.get('expiresAt') > deps.now() && lease.get('uid') !== req.ctx.uid) throw error('recorder_exists', 'このグループは別の接続で話者識別中です');
       const hash = fingerprint(voices);
       const id = randomUUID();
       tx.set(leaseRef, { id, uid: req.ctx.uid, sessionId: req.ctx.session!.sessionId, expiresAt: deps.now() + 30_000, sequence: 0, startedAt: deps.now(), bytes: 0, profilesHash: hash });

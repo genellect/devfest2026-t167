@@ -24,16 +24,24 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
   const stream = useRef<MediaStream | undefined>(undefined), sample = useRef<MediaRecorder | undefined>(undefined);
   const { state: recorderState, capture: recordingCapture } = recording.rec;
   const [speakerStatus, setSpeakerStatus] = useState("");
+  const [speakerRetry, setSpeakerRetry] = useState(0);
   useEffect(() => {
     if (recorderState !== "recording" || !canRecord || room.endedAt) return;
     const capture = recordingCapture();
     if (!capture.stream || !capture.context) return;
-    const speaker = new SpeakerCapture(roomId, setSpeakerStatus);
+    // 話者の照合が止まったら（混雑・前の接続が残っている・通信の途切れなど）、録音中は10秒後に始め直す。
+    // 止まったままにすると、その議論の残りの発言率が集計されなかった（2026-11-10）
+    let retry: ReturnType<typeof setTimeout> | undefined, closed = false;
+    const again = (message: string) => {
+      setSpeakerStatus(`${message}（10秒後に照合を再開します。録音は続いています）`);
+      if (!closed && !retry) retry = setTimeout(() => setSpeakerRetry((n) => n + 1), 10_000);
+    };
+    const speaker = new SpeakerCapture(roomId, again);
     setSpeakerStatus("登録した声と照合しています（推定）。");
-    void speaker.start(capture.stream, capture.context).catch((e: Error) => { setSpeakerStatus(e.message); void speaker.stop(); });
+    void speaker.start(capture.stream, capture.context).catch((e: Error) => { void speaker.stop(); again(e.message); });
     const off = registerRecordingGuard(() => speaker.stop());
-    return () => { off(); void speaker.stop(); };
-  }, [recorderState, recordingCapture, canRecord, room.endedAt, roomId]);
+    return () => { closed = true; clearTimeout(retry); off(); void speaker.stop(); };
+  }, [recorderState, recordingCapture, canRecord, room.endedAt, roomId, speakerRetry]);
   const clock = useCountdown(millis(room.startedAt), room.minutes ?? 15);
   useEffect(() => {
     const stop = async () => { if (sample.current?.state === "recording") sample.current.stop(); stream.current?.getTracks().forEach((t) => t.stop()); };

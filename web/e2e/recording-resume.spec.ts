@@ -41,7 +41,10 @@ test('録音中に画面を開き直しても、続きを録り、議論の終�
     await expect(guest.getByText(/この端末に、ここまでの録音が残っています/)).toBeVisible();
     await guest.screenshot({ path: '../docs/screenshots/recording-resume-mobile.png', fullPage: true });
     await consent().check();
+    // 再開すると、前の接続（最大30秒残る）を引き継いで、話者の照合をすぐに始める（409 にしない）
+    const restarted = guest.waitForResponse((r) => r.url().includes('/speaker/start'));
     await guest.getByRole('button', { name: '録音を再開する', exact: true }).click();
+    expect((await restarted).status()).toBe(201);
     await expect(guest.getByRole('button', { name: '録音中', exact: true })).toBeVisible();
     await guest.waitForTimeout(5_000);
 
