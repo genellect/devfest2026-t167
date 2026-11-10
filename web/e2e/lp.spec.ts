@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 // 紹介ページ（LP）：ログインなしで開け、AI 時代に育てたい力と3機能を示し、ログインと利用の申し込みの入口がある。
+// 8グループの場面・学習指導要領・よくある質問・開発者の紹介も読める。
 
 test("ログインなしで LP を開き、ログイン画面へ戻されない", async ({ page }) => {
   await page.goto("/lp");
@@ -30,4 +31,37 @@ test("ログインと、これから使う教員・学校の申し込みの入�
   await expect(apply).toHaveAttribute("href", /^mailto:contact@yuto-matsui\.com\?subject=/);
   await page.locator(".hero").getByRole("link", { name: "ログイン" }).click();
   await expect(page.getByRole("button", { name: "Googleでログイン", exact: true })).toBeVisible();
+});
+
+test("8グループの場面を最後まで進めると、授業のあとに全グループの結果が見える", async ({ page }) => {
+  await page.goto("/lp");
+  const scene = page.locator(".sc--rooms");
+  await scene.scrollIntoViewIfNeeded();
+  await page.evaluate(() => { const e = document.querySelector(".sc--rooms") as HTMLElement; window.scrollTo(0, e.offsetTop + e.offsetHeight - window.innerHeight); });
+  await expect(scene.getByText("8つすべての議論に目を向けられる。", { exact: false })).toBeVisible();
+  await expect(scene.getByText("未検討の論点が1つ")).toBeVisible();
+  // 場面は画面に貼り付いたまま（position: sticky が効く）
+  expect(Math.abs((await scene.locator(".sc__stick").boundingBox())?.y ?? 999)).toBeLessThan(2);
+  await scene.locator(".sc__stick").screenshot({ path: "../docs/screenshots/lp-rooms-mobile.png" });
+});
+
+test("学習指導要領との関係とよくある質問を、出典つきで読める", async ({ page }) => {
+  await page.goto("/lp");
+  const cg = page.locator("#guideline");
+  await expect(cg.getByRole("heading", { name: "「主体的・対話的で深い学び」の実装" })).toBeAttached();
+  await expect(cg.getByText(/次期学習指導要領等に向けた審議まとめ/)).toBeAttached();
+  const faq = page.locator("#faq");
+  await faq.getByText("事前に書いた意見は、ほかの人に見られますか？").click();
+  await expect(faq.getByText(/書いた本人にしか表示されません/)).toBeVisible();
+});
+
+test("ヘッダーの About the Developers から、開発者とポートフォリオへ進める", async ({ page }) => {
+  await page.goto("/lp");
+  await page.locator(".lp-nav").getByRole("link", { name: "About the Developers" }).click();
+  const devs = page.locator("#developers");
+  await expect(devs.getByRole("heading", { name: "About the Developers" })).toBeInViewport();
+  await expect(devs.getByRole("link", { name: /Yuto Matsui/ })).toHaveAttribute("href", "https://yuto-matsui.com/");
+  await expect(devs.getByRole("link", { name: /Koyuri Yamashita/ })).toHaveAttribute("href", /student\.redesigner\.jp\/students\//);
+  await expect(devs.getByText("Ryota Murakami")).toBeVisible();
+  await devs.screenshot({ path: "../docs/screenshots/lp-developers-mobile.png" });
 });

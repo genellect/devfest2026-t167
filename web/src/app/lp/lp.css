@@ -168,8 +168,93 @@ html:has(.lp) { background: #000; scroll-behavior: smooth; }
 .foot__links { display: flex; gap: 20px; margin-left: auto; }
 .foot__links a { color: #a1a1a6 !important; }
 
+/* 8グループ：1つから引いていき、8つすべてに結果が出る（--p は LpScenes が入れる） */
+.sc--rooms { height: 280vh; background: #000; }
+.sc--rooms .sc__stick {
+  --z: clamp(0, (var(--p) - .1) / .4, 1);            /* 引く量：0＝1グループ、1＝8グループ */
+  --a: clamp(0, 1 - (var(--p) - .5) / .1, 1);         /* 前半の文 */
+  --b: clamp(0, (var(--p) - .56) / .1, 1);            /* 後半の文と、結果のタグ */
+  --e: calc(var(--z) * var(--z) * (3 - 2 * var(--z)));
+  display: grid; grid-template-rows: auto minmax(0, 1fr); background: #000; color: var(--white);
+  padding: calc(52px + clamp(24px, 5svh, 56px)) var(--pad) clamp(24px, 5svh, 48px);
+}
+.rooms__copy { position: relative; z-index: 2; display: flex; align-items: flex-end; gap: clamp(16px, 3vw, 40px); max-width: 1280px; width: 100%; margin: 0 auto; }
+.rooms__count { position: relative; display: flex; align-items: baseline; gap: 6px; flex: 0 0 auto; margin: 0; font-size: clamp(64px, 9vw, 136px); font-weight: 900; line-height: .9; letter-spacing: -.05em; font-variant-numeric: tabular-nums; }
+.rooms__count small { font-size: .32em; font-weight: 800; letter-spacing: 0; color: var(--dim); }
+.rooms__one, .rooms__all { display: inline-block; }
+.rooms__one { color: var(--white); opacity: var(--a); }
+.rooms__all { position: absolute; left: 0; background: linear-gradient(120deg, var(--insight), #ff9fbf 55%, #8ab4f8); -webkit-background-clip: text; background-clip: text; color: transparent; opacity: var(--b); transform: translateY(calc((1 - var(--b)) * 18px)); }
+.rooms__title { position: relative; display: grid; flex: 1 1 auto; min-width: 0; margin: 0; font-size: clamp(20px, 2.6vw, 38px); font-weight: 800; line-height: 1.4; letter-spacing: -.02em; font-feature-settings: "palt" 1; }
+.rooms__a, .rooms__b { grid-area: 1 / 1; align-self: end; }
+.rooms__a { opacity: var(--a); }
+.rooms__b { opacity: var(--b); transform: translateY(calc((1 - var(--b)) * 18px)); }
+.rooms { position: relative; display: grid; place-items: center; min-height: 0; margin-top: clamp(16px, 4svh, 40px); }
+.rooms__grid {
+  --cols: 4; --ox: 12.5%; --oy: 25%; --s: 2.4;
+  display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: clamp(10px, 1.4vw, 18px);
+  width: min(100%, 1100px, calc((100svh - 300px) * 2.1)); transform-origin: var(--ox) var(--oy);
+  transform: translate(calc((50% - var(--ox)) * (1 - var(--e))), calc((50% - var(--oy)) * (1 - var(--e)))) scale(calc(var(--s) - (var(--s) - 1) * var(--e)));
+}
+.room { position: relative; display: flex; flex-direction: column; gap: 10px; padding: clamp(10px, 1.2vw, 16px); border-radius: 18px; background: #1d1d1f; border: 1px solid #2c2c2e; opacity: calc(.18 + .82 * var(--e)); }
+.room--here { opacity: 1; border-color: rgb(255 255 255 / .5); box-shadow: 0 0 0 1px rgb(255 255 255 / .12), 0 30px 80px -30px rgb(138 180 248 / .55); }
+.room__name { margin: 0; font-size: clamp(11px, 1vw, 14px); font-weight: 700; color: #d2d2d7; }
+.room__notes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.room__notes i { aspect-ratio: 4 / 3; border-radius: 3px 3px 8px 3px; background: #3a3a3c; }
+.room__notes i:nth-child(3n+1) { background: #c6d8f7; } .room__notes i:nth-child(3n+2) { background: #f2d6df; } .room__notes i:nth-child(3n) { background: #cfeadf; }
+.room:not(.room--here) .room__notes i { filter: saturate(calc(.35 + .65 * var(--b))) brightness(calc(.55 + .45 * var(--b))); }
+.room__here { margin: 0; font-size: clamp(9px, .85vw, 12px); font-weight: 700; color: #8ab4f8; opacity: var(--a); }
+.room__tag { position: absolute; left: 50%; bottom: -12px; translate: -50% 0; margin: 0; padding: 5px 11px; border-radius: 999px; white-space: nowrap; font-size: clamp(10px, .95vw, 13px); font-weight: 800; opacity: var(--b); transform: scale(calc(.8 + .2 * var(--b))); }
+.room__tag--points { background: var(--insight); color: var(--insight-ink); box-shadow: 0 0 32px rgb(255 216 77 / .55); }
+.room__tag--rate { background: #8ab4f8; color: #041e49; box-shadow: 0 0 32px rgb(138 180 248 / .5); }
+.room__tag--change { background: #ff9fbf; color: #3d0019; box-shadow: 0 0 32px rgb(255 159 191 / .5); }
+.room:has(.room__tag) { border-color: rgb(255 255 255 / calc(.1 + .35 * var(--b))); }
+
+/* 学習指導要領：主役にせず、3つの方向性と Topos の役割を落ち着いた3列で示す */
+.cg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(20px, 3vw, 40px); margin: clamp(40px, 6vw, 64px) 0 0; padding: 0; list-style: none; }
+.cg__item { display: flex; flex-direction: column; padding-top: 22px; border-top: 2px solid var(--ink); }
+.cg__item:nth-child(2) { transition-delay: .1s; } .cg__item:nth-child(3) { transition-delay: .2s; }
+.cg__en { font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--brand); }
+.cg__ja { margin-top: 10px; font-size: clamp(20px, 1.9vw, 26px); font-weight: 800; line-height: 1.4; letter-spacing: -.01em; font-feature-settings: "palt" 1; }
+.cg__role { margin-top: 14px; font-size: 16px; line-height: 1.8; color: var(--ink-2); }
+.cg__mark { display: inline-block; margin-right: 8px; padding: 1px 8px; border-radius: 4px 4px 8px 4px; background: var(--insight); color: var(--insight-ink); font-size: 12px; font-weight: 800; vertical-align: 2px; }
+.cg__src { max-width: 60em; margin-top: clamp(32px, 4vw, 48px); font-size: 12px; line-height: 1.7; color: var(--ink-2); }
+
+/* よくある質問 */
+.qa-wrap { max-width: 960px; }
+.qa { margin-top: clamp(32px, 5vw, 56px); border-top: 1px solid #d2d2d7; }
+.qa__item { border-bottom: 1px solid #d2d2d7; }
+.qa__q { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px 4px; font-size: clamp(17px, 1.5vw, 20px); font-weight: 700; line-height: 1.5; cursor: pointer; list-style: none; }
+.qa__q::-webkit-details-marker { display: none; }
+.qa__q::after { content: ""; flex: 0 0 auto; width: 12px; height: 12px; border-right: 2px solid var(--ink-2); border-bottom: 2px solid var(--ink-2); transform: translateY(-3px) rotate(45deg); transition: transform .25s; }
+.qa__item[open] .qa__q::after { transform: translateY(3px) rotate(-135deg); }
+.qa__a { max-width: 44em; margin: 0; padding: 0 4px 28px; font-size: 16px; line-height: 1.85; color: var(--ink-2); }
+
+/* 開発者：明るい面に、3本の糸（Triple Helix）と3枚のカード */
+.devs-sec { position: relative; overflow: hidden; }
+.devs__helix { position: absolute; left: 0; top: clamp(24px, 4vw, 56px); width: 100%; height: clamp(90px, 12vw, 160px); opacity: .7; }
+.devs__helix path { fill: none; stroke-width: 1.5; }
+.devs__helix .hx1 { stroke: #4c8df6; } .devs__helix .hx2 { stroke: #e3b100; } .devs__helix .hx3 { stroke: #3fb58b; }
+.devs__head { position: relative; max-width: 900px; padding-top: clamp(64px, 9vw, 120px); }
+.devs__eyebrow { font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); }
+.devs__title { margin-top: 12px; font-size: clamp(40px, 6vw, 80px); font-weight: 900; line-height: 1; letter-spacing: -.045em; }
+.devs__lead { max-width: 34em; margin-top: 20px; font-size: clamp(16px, 1.4vw, 19px); line-height: 1.75; color: var(--ink-2); }
+.devs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin: clamp(40px, 6vw, 72px) 0 0; padding: 0; list-style: none; }
+.dev:nth-child(2) { transition-delay: .1s; } .dev:nth-child(3) { transition-delay: .2s; }
+.dev__card { position: relative; display: flex; flex-direction: column; height: 100%; min-height: 280px; padding: clamp(28px, 3vw, 40px); border-radius: 28px; background: #fff; text-decoration: none; color: var(--ink) !important; box-shadow: 0 1px 0 rgb(0 0 0 / .04); transition: transform .35s cubic-bezier(.2, .7, .2, 1), box-shadow .35s; }
+.dev__card--link:hover { transform: translateY(-6px); box-shadow: 0 36px 72px -36px rgb(0 0 0 / .28); }
+.dev__mono { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; font-size: 21px; font-weight: 800; letter-spacing: -.02em; }
+.dev__mono--blue { background: radial-gradient(circle at 30% 25%, #d3e3fd, #6aa1f8); color: #041e49; }
+.dev__mono--yellow { background: radial-gradient(circle at 30% 25%, #fff3b8, var(--insight)); color: var(--insight-ink); }
+.dev__mono--mint { background: radial-gradient(circle at 30% 25%, #e3f6ee, #74cfac); color: #00382a; }
+.dev__name { padding-top: 40px; font-size: clamp(24px, 2.2vw, 30px); font-weight: 800; letter-spacing: -.02em; line-height: 1.2; }
+.dev__role { margin: 8px 0 24px; font-size: 15px; font-weight: 600; line-height: 1.5; color: var(--ink-2); }
+.dev__go { margin-top: auto; align-self: flex-start; padding: 8px 16px; border-radius: 999px; background: #f5f5f7; font-size: 14px; font-weight: 700; transition: background-color .25s, color .25s; }
+.dev__card--link:hover .dev__go { background: var(--ink); color: #fff; }
+
 /* ---------- タブレット・スマホ ---------- */
 @media (max-width: 1023px) {
+  .devs, .cg { grid-template-columns: minmax(0, 1fr); }
+  .dev__card { min-height: 0; }
   .starts { grid-template-columns: minmax(0, 1fr); }
   .start { min-height: 0; }
   .feature { grid-template-columns: minmax(0, 1fr); }
@@ -187,8 +272,16 @@ html:has(.lp) { background: #000; scroll-behavior: smooth; }
   .start { min-height: 0; }
   .start__cta { align-self: stretch; }
   .foot__links { margin-left: 0; width: 100%; }
+  .lp-nav__end { gap: 14px; }
+  .lp-nav__link--dev { display: inline; font-size: 12px; }
+  .rooms__copy { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .rooms__grid { --cols: 2; --ox: 25%; --oy: 12.5%; --s: 2; width: min(100%, calc((100svh - 330px) * .62)); }
+  .room { border-radius: 14px; }
+  .devs { grid-template-columns: minmax(0, 1fr); }
+  .dev__card { min-height: 0; }
+  .dev__name { padding-top: 28px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .sc--hero { height: auto; }
+  .sc--hero, .sc--rooms { height: auto; }
   .sc__stick { position: relative; height: 100svh; min-height: 640px; }
 }
