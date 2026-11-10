@@ -29,4 +29,12 @@ it('Chrome の MediaRecorder の WebM（長さ不明の区切りが多い）の�
   const seconds = await validateAudio(audio, 'audio/webm', 12);
   expect(seconds).toBeGreaterThan(11);
   expect(seconds).toBeLessThan(14);
+  // 画面を開き直す前の書きかけの録音（MediaRecorder の区切りは要素の途中のこともある）も、書き終えたところまでを読む
+  for (const cut of [500, 1500, 4000]) {
+    const partial = await validateAudio(audio.subarray(0, audio.length - cut), 'audio/webm');
+    expect(partial).toBeGreaterThan(5); expect(partial).toBeLessThan(seconds);
+  }
+  // ファイルの途中で壊れているものは読まない
+  const broken = Buffer.from(audio); broken.fill(0, 200, 260);
+  await expect(validateAudio(broken, 'audio/webm')).rejects.toMatchObject({ code: 'invalid_audio' });
 });
