@@ -128,8 +128,10 @@ export function useGroupRecording(roomId: string, discussing: boolean, serverSta
   }, [endedAt, roomId, discard]);
 
   const active = state === "recording" || state === "paused";
-  // 画面を開き直したあと（録音は止まっている）でも、この端末に区間が残っていれば送る
-  useEffect(() => { if (!discussing && upload.state === "none" && (active || state === "stopped" || saved.count > 0)) void finish(); }, [discussing, active, state, upload.state, saved.count, finish]);
+  // 画面を開き直したあと（録音は止まっている）でも、この端末に区間が残っていれば、議論が終わったときに送る。
+  // 開き直した直後は部屋やグループの情報がまだ届かず discussing が false になるので、残った区間は議論の終了（endedAt）を待って送る
+  const ended = !!endedAt;
+  useEffect(() => { if (!discussing && upload.state === "none" && (active || state === "stopped" || (ended && saved.count > 0))) void finish(); }, [discussing, active, state, upload.state, saved.count, ended, finish]);
   useEffect(() => { if (state === "recording" && elapsedMs + saved.ms >= MAX_RECORDING_MS) void finish(); }, [state, elapsedMs, saved.ms, finish]);
   // 録音中・未送信の録音があるときにページを離れると、録音が消える
   const unsaved = active || saved.count > 0 || upload.state === "uploading" || upload.state === "failed" || upload.state === "waiting";

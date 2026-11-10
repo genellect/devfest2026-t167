@@ -43,6 +43,9 @@ describe("画面とAPIの接続", () => {
     const body = fetcher.mock.calls[0][1]?.body as Blob;
     expect(await body.text()).toBe("firstsecond!");
     expect(body.type).toBe("audio/webm");
+    // 端末に残した区間は、1つでも parts を付ける（API が測った長さを使う）
+    await uploadRecording("room", [parts[0]], 15);
+    expect(fetcher.mock.calls[1][0]).toBe("/api/rooms/room/groups/recording?consent=1&durationSec=15&parts=5");
   });
   it("429の待機秒数・追跡IDを保持する", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: { code: "audio_busy", message: "待機してください" } }, { status: 429, headers: { "retry-after": "3", "x-request-id": "test-id" } })));

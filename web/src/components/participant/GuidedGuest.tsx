@@ -24,16 +24,24 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
   const stream = useRef<MediaStream | undefined>(undefined), sample = useRef<MediaRecorder | undefined>(undefined);
   const { state: recorderState, capture: recordingCapture } = recording.rec;
   const [speakerStatus, setSpeakerStatus] = useState("");
+  const [speakerRetry, setSpeakerRetry] = useState(0);
   useEffect(() => {
     if (recorderState !== "recording" || !canRecord || room.endedAt) return;
     const capture = recordingCapture();
     if (!capture.stream || !capture.context) return;
-    const speaker = new SpeakerCapture(roomId, setSpeakerStatus);
+    // 話者の照合が止まったら（混雑・前の接続が残っている・通信の途切れなど）、録音中は10秒後に始め直す。
+    // 止まったままにすると、その議論の残りの発言率が集計されなかった（2026-11-10）
+    let retry: ReturnType<typeof setTimeout> | undefined, closed = false;
+    const again = (message: string) => {
+      setSpeakerStatus(`${message}（10秒後に照合を再開します。録音は続いています）`);
+      if (!closed && !retry) retry = setTimeout(() => setSpeakerRetry((n) => n + 1), 10_000);
+    };
+    const speaker = new SpeakerCapture(roomId, again);
     setSpeakerStatus("登録した声と照合しています（推定）。");
-    void speaker.start(capture.stream, capture.context).catch((e: Error) => { setSpeakerStatus(e.message); void speaker.stop(); });
+    void speaker.start(capture.stream, capture.context).catch((e: Error) => { void speaker.stop(); again(e.message); });
     const off = registerRecordingGuard(() => speaker.stop());
-    return () => { off(); void speaker.stop(); };
-  }, [recorderState, recordingCapture, canRecord, room.endedAt, roomId]);
+    return () => { closed = true; clearTimeout(retry); off(); void speaker.stop(); };
+  }, [recorderState, recordingCapture, canRecord, room.endedAt, roomId, speakerRetry]);
   const clock = useCountdown(millis(room.startedAt), room.minutes ?? 15);
   useEffect(() => {
     const stop = async () => { if (sample.current?.state === "recording") sample.current.stop(); stream.current?.getTracks().forEach((t) => t.stop()); };
@@ -175,7 +183,7 @@ export function GuidedGuest({ roomId, room, uid, group, recording, canRecord, re
         <p className="flow-card__lead">{shared ? "1人ずつ、次の文を9秒で読み上げてください。" : "次の文を9秒で読み上げてください。"}</p>
         <p className="read-aloud">私たちは、お互いの意見を聞き、理由を考えながら、よりよいアイデアを見つけます。</p>
         <label className="check"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /><span>声の特徴の登録と、上記の利用方法に同意します</span></label>
-        <details><summary className="t-small">声の使い方</summary><p className="t-small">{shared ? "話し合いの発言時間の推定に使い、セッションの終了時に削除します。" : "話し合いの発言時間の推定に使います。声の特徴だけをこのアカウントに保存し、次回も使います。音声そのものは保存しません。"}</p></details>
+        <details><summary className="t-small">声の使い方</summary><p className="t-small">{shared ? "話し合いの発言時間の推定に使い、セッションの終了時に削除します。" : "この議論の発言時間の推定に使います。声の特徴だけを保存し、音声そのものは保存しません。議論ごとに登録し直します（その日・その場所の声で照合するため）。"}</p></details>
         {own!.attendees!.map((a) => <div className="stack stack--tight" key={a.id}>
           {own!.attendees!.length > 1 && <p className="t-label">{a.displayName}</p>}
           <button className="mic" data-done={a.voiceRegistered || undefined} disabled={!consent || !!registering || a.voiceRegistered} onClick={() => void enroll(a.id)}>

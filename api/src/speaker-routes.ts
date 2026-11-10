@@ -73,7 +73,10 @@ export function registerSpeakerRoutes(app: Express, deps: Dependencies, guards: 
       const { ref, group } = await access(tx, req), voices = await profiles(tx, req, group);
       const leaseRef = ref.collection('speakerLeases').doc(String(group)), lease = await tx.get(leaseRef);
       const stateRef = ref.collection('speaking').doc(String(group)), state = await tx.get(stateRef);
-      if (lease.exists && lease.get('expiresAt') > deps.now()) throw error('recorder_exists', 'このグループは別の接続で話者識別中です');
+      // 同じ人が、画面を開き直して録音を再開したときは、前の接続（最大30秒残る）を引き継ぐ。
+      // 引き継がないと、再開しても30秒は 409 になり、画面は送り直さないので、その議論の発言率が集計されなかった（2026-11-10）。
+      // 前の接続の送信は、以後 recorder_expired で拒否する。別の人の接続が生きている間は、これまでどおり拒否する
+      if (lease.exists && lease.get('expiresAt') > deps.now() && lease.get('uid') !== req.ctx.uid) throw error('recorder_exists', 'このグループは別の接続で話者識別中です');
       const hash = fingerprint(voices);
       const id = randomUUID();
       tx.set(leaseRef, { id, uid: req.ctx.uid, sessionId: req.ctx.session!.sessionId, expiresAt: deps.now() + 30_000, sequence: 0, startedAt: deps.now(), bytes: 0, profilesHash: hash });
@@ -83,10 +86,14 @@ export function registerSpeakerRoutes(app: Express, deps: Dependencies, guards: 
     });
     res.status(201).json(result);
   }));
-  app.post('/rooms/:roomId/speaker/:runId/chunk', authenticate, member, express.raw({ type: 'audio/pcm', limit: 32_000 }), wrap(async (req, res) => {
+  // 本文は直近の1〜3秒（16kHz mono PCM16）。最後の1秒が新しい区間で、その前の最大2秒は照合のための文脈。
+  // 1秒だけの声では、離れた端末で録った声の特徴が登録した声と合わず、すべて判別不能になったため（2026-11-10。3秒なら照合できる）。
+  // 声の特徴は3秒全体から取り、発言時間は最後の1秒だけを数える（同じ時間を二重に数えない）
+  app.post('/rooms/:roomId/speaker/:runId/chunk', authenticate, member, express.raw({ type: 'audio/pcm', limit: 3 * 32_000 }), wrap(async (req, res) => {
     const sequence = parse(z.coerce.number().int().min(0).max(1800), req.query.sequence);
     const pcm = req.body;
-    if (!Buffer.isBuffer(pcm) || pcm.length !== 32_000) { if (Buffer.isBuffer(pcm)) pcm.fill(0); throw error('invalid_pcm', '16kHz mono PCM16の1秒区間を送信してください', 400); }
+    if (!Buffer.isBuffer(pcm) || !pcm.length || pcm.length > 3 * 32_000 || pcm.length % 32_000) { if (Buffer.isBuffer(pcm)) pcm.fill(0); throw error('invalid_pcm', '16kHz mono PCM16の1〜3秒区間を送信してください', 400); }
+    const windowMs = pcm.length / 32;
     if (!deps.voice) { pcm.fill(0); throw error('voice_unavailable', '話者モデルが利用できません', 503); }
     if (inFlight >= 12) { pcm.fill(0); throw error('speaker_busy', '話者識別の処理が混み合っています', 503); }
     inFlight++;
@@ -108,7 +115,7 @@ export function registerSpeakerRoutes(app: Express, deps: Dependencies, guards: 
       const features = await deps.voice.extract(pcm);
       const match = features.speechMs >= 400 ? matchSpeaker(features.embedding, claim.voices) : { uid: null, confidence: null };
       features.embedding?.fill(0);
-      const speechMs = Math.max(0, Math.min(1000, features.speechMs));
+      const speechMs = Math.max(0, Math.min(1000, newSpeechMs(features, windowMs)));
       if (!Number.isFinite(speechMs)) throw error('speaker_invalid', '音声を解析できませんでした', 503);
       await createSessions(db, deps.now).validate(req.ctx.token!, readSessionCookie(req));
       await db.runTransaction(async (tx) => {
@@ -123,7 +130,7 @@ export function registerSpeakerRoutes(app: Express, deps: Dependencies, guards: 
         state.processedMs += 1000; state.updatedAt = deps.now();
         state.latest = speechMs ? { ...match, label: claim.voices.find((p) => p.uid === match.uid)?.label ?? '判別不能' } : null;
         tx.set(stateRef, state);
-        tx.update(leaseRef, { sequence: sequence + 1, bytes: lease.get('bytes') + pcm.length, lastDigest: digest, processingUntil: 0, expiresAt: deps.now() + 30_000 });
+        tx.update(leaseRef, { sequence: sequence + 1, bytes: lease.get('bytes') + 32_000, lastDigest: digest, processingUntil: 0, expiresAt: deps.now() + 30_000 });
       });
       res.json({ sequence: sequence + 1 });
     } catch (e) {
@@ -140,4 +147,14 @@ export function registerSpeakerRoutes(app: Express, deps: Dependencies, guards: 
     });
     res.json({ ok: true });
   }));
+}
+
+/**
+ * 窓（直近の1〜3秒）のうち、最後の1秒に含まれる発話の長さ。区間（segments）があれば重なりを数え、
+ * なければ（モックなど）窓全体の発話を1秒あたりに割り戻す
+ */
+export function newSpeechMs(features: { speechMs: number; segments?: { startMs: number; endMs: number }[] }, windowMs: number) {
+  const from = windowMs - 1000;
+  if (features.segments) return features.segments.reduce((sum, s) => sum + Math.max(0, Math.min(s.endMs, windowMs) - Math.max(s.startMs, from)), 0);
+  return windowMs > 1000 ? features.speechMs * 1000 / windowMs : features.speechMs;
 }

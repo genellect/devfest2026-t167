@@ -34,15 +34,17 @@ async function enroll(p: Awaited<ReturnType<typeof client>>, roomId: string, mod
   const rows = (await member(roomId, p.uid).get()).get('attendees') as { id: string }[];
   for (const a of rows) await request(app).post(`/rooms/${roomId}/voice/${a.id}?consent=1`).set(p.headers).set('content-type', 'audio/pcm').send(Buffer.alloc(9 * 32000, 1)).expect(200);
 }
-it('個人端末はGoogle UIDに紐付いた声の特徴を初回だけ登録し、別セッションでも再利用する', async () => {
+it('個人端末も、声の特徴を議論ごとに登録し直す（前回の登録を使い回さない）', async () => {
   const { h, p, roomId } = await setup(); await enroll(p, roomId);
   expect((await member(roomId, p.uid).get()).get('ready')).toBe(true);
   const profile = await db.doc(`users/${p.uid}/voiceProfiles/default`).get();
   expect(profile.get('embedding')).toHaveLength(16); expect(profile.get('audio')).toBeUndefined();
   const r = (await h.post('/rooms', { title: '次回', groups: 1, flowVersion: 1 }).expect(201)).body;
   await p.post('/rooms/join', { code: r.joinCode }).expect(200);
-  expect((await p.post(`/rooms/${r.roomId}/onboarding`, { mode: 'personal', names: ['次の表示名'] }).expect(200)).body.reused).toBe(true);
-  expect((await member(r.roomId, p.uid).get()).get('ready')).toBe(true);
+  // 前回の登録があっても、この議論では登録の画面を出す（その日・その場所の声で照合するため）
+  expect((await p.post(`/rooms/${r.roomId}/onboarding`, { mode: 'personal', names: ['次の表示名'] }).expect(200)).body.reused).toBe(false);
+  expect((await member(r.roomId, p.uid).get()).get('ready')).toBe(false);
+  expect((await member(r.roomId, p.uid).get()).get('attendees')[0].voiceRegistered).toBe(false);
   await p.post('/voice-profile/delete').expect(200); expect((await profile.ref.get()).exists).toBe(false);
 });
 it('共用端末は全員を毎回登録し、終了時にその回の声の特徴だけ削除する', async () => {

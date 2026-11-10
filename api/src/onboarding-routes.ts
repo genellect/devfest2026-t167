@@ -14,9 +14,8 @@ export function registerOnboardingRoutes(app: Express, deps: Dependencies, guard
   app.post('/rooms/:roomId/onboarding', authenticate, member, wrap(async (req, res) => {
     const body = parse(z.object({ mode: z.enum(['personal', 'shared']), names: z.array(z.string().trim().min(1).max(40)).min(1).max(12) }).strict().refine((b) => b.mode === 'shared' || b.names.length === 1), req.body);
     const ref = path(req.params.roomId, req.ctx.uid);
-    const version = deps.voice?.version ?? 'unavailable';
-    const ownVoice = await profilePath(req.params.roomId, req.ctx.uid, '', false).get();
-    const reusable = body.mode === 'personal' && ownVoice.exists && ownVoice.get('version') === version;
+    // 声は議論ごとに登録し直す（前回の登録を使い回さない）。本番の試験で、前回の登録を使い回した人には登録の画面が出ず、
+    // 別の日・別の場所・別の端末で登録した声では、この議論の声と照合できなかったため（2026-11-10）
     const reused = await deps.db.runTransaction(async (tx) => {
       const [room, own] = await tx.getAll(ref.parent.parent!, ref);
       if (own.get('role') !== 'participant') throw new HttpError(403, 'participant_only', 'Guestとして参加してください');
@@ -24,7 +23,7 @@ export function registerOnboardingRoutes(app: Express, deps: Dependencies, guard
       const lateJoin = room.get('phase') === 'discussing' && !room.get('endedAt') && !(own.get('attendees') as unknown[] | undefined)?.length;
       if (room.get('phase') !== 'collecting' && !lateJoin) throw new HttpError(409, 'already_started', '開始前に登録を完了してください');
       // 途中から参加した人の声は、議論中の話者の推定に加えない（推定の名簿が途中で変わると、それまでの集計が消えるため）
-      const voiced = reusable && !lateJoin;
+      const voiced = false;
       const attendees = body.names.map((displayName) => ({ id: randomUUID(), displayName, voiceRegistered: voiced }));
       tx.update(ref, { voiceSource: deps.voice?.source ?? null, displayName: body.names[0], deviceMode: body.mode, attendees, ready: voiced, updatedAt: FieldValue.serverTimestamp() });
       return voiced;

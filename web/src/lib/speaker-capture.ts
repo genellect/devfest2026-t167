@@ -9,6 +9,8 @@ export class SpeakerCapture {
   private stopped = false;
   private runId?: string;
   private frames: Int16Array[] = [];
+  /** 直前の最大2秒。照合は直近3秒の声で行う（1秒だけでは、離れた端末で録った声が登録した声と合わない）。発言時間は最後の1秒だけを数える */
+  private history: Int16Array[] = [];
   private sequence = 0;
   private queued = 0;
   private controller?: AbortController;
@@ -31,6 +33,10 @@ export class SpeakerCapture {
       const pcm = new Int16Array(16000);
       this.frames.forEach((frame, i) => { pcm.set(frame, i * 3200); frame.fill(0); }); this.frames = [];
       if (this.queued >= 3) { pcm.fill(0); this.onError('話者識別の処理が遅れたため停止しました。元の録音は継続しています。'); void this.stop(); return; }
+      const recent = new Int16Array(16000 * (this.history.length + 1));
+      this.history.forEach((h, i) => recent.set(h, i * 16000)); recent.set(pcm, this.history.length * 16000);
+      this.history.push(pcm.slice()); if (this.history.length > 2) this.history.shift()!.fill(0);
+      pcm.fill(0);
       this.queued++;
       this.queue = this.queue.then(async () => {
         try {
@@ -38,11 +44,11 @@ export class SpeakerCapture {
           this.controller = new AbortController();
           const timer = setTimeout(() => this.controller?.abort(), 15_000);
           try {
-            const response = await authenticatedFetch(`/rooms/${this.roomId}/speaker/${this.runId}/chunk?sequence=${this.sequence}`, { method: 'POST', headers: { 'content-type': 'audio/pcm' }, body: pcm.buffer, signal: this.controller.signal });
+            const response = await authenticatedFetch(`/rooms/${this.roomId}/speaker/${this.runId}/chunk?sequence=${this.sequence}`, { method: 'POST', headers: { 'content-type': 'audio/pcm' }, body: recent.buffer, signal: this.controller.signal });
             if (!response.ok) { const data = await response.json(); throw new Error(data.error?.message ?? '話者識別を停止しました'); }
             this.sequence++;
           } finally { clearTimeout(timer); this.controller = undefined; }
-        } finally { pcm.fill(0); this.queued--; }
+        } finally { recent.fill(0); this.queued--; }
       }).catch((e: Error) => { if (!this.stopped) { this.onError(e.message); void this.stop(); } });
     };
   }
@@ -54,6 +60,7 @@ export class SpeakerCapture {
     if (this.stopped) return;
     this.stopped = true; this.controller?.abort(); this.worklet?.disconnect(); this.source?.disconnect(); this.mute?.disconnect();
     this.frames.forEach((f) => f.fill(0)); this.frames = [];
+    this.history.forEach((h) => h.fill(0)); this.history = [];
     await this.queue; void this.release();
   }
 }
